@@ -120,6 +120,59 @@ test('Workspace graph materializes TLM to YSM compatibility boundaries', async()
   assert(ysmFile?.key.startsWith('ysm:'));
 });
 
+test('KNEEKURA runtime trace overlays observed animation and Molang on static contracts', async()=>{
+  const g=await scanRepository(path.join(ROOT,'fixtures/forge-mini'), {
+    trace:path.join(ROOT,'fixtures/runtime/kneekura-trace.jsonl')
+  });
+
+  const runtime=g.nodes.find(n=>n.kind==='runtime'&&n.key==='kneekura:trace');
+  assert(runtime);
+  assert.equal(runtime.scenario,'ysm-compat');
+  assert.equal(runtime.deltaMode,'row');
+  assert.equal(runtime.keyframeTicks,100);
+  assert.equal(runtime.endReason,'duration');
+  assert.equal(runtime.endTicks,40);
+  assert.equal(runtime.channelCounts.anim,4);
+
+  const entity=g.nodes.find(n=>n.kind==='runtime_entity'&&n.runtimeId===314);
+  assert(entity);
+  assert.equal(entity.role,'reimu');
+  assert.equal(entity.type,'touhou_little_maid:reimu');
+  assert.equal(entity.goneReason,'removed');
+  assert.equal(entity.lastObservedMainHand,'empty');
+  assert.equal(entity.lastObservedOffHand,'sword');
+
+  const idle=g.nodes.find(n=>n.kind==='animation_name'&&n.key==='idle2');
+  const bow=g.nodes.find(n=>n.kind==='animation_name'&&n.key==='use_offhand:bow');
+  const wuqi=g.nodes.find(n=>n.kind==='molang_variable'&&n.key==='variable.wuqi');
+  const face=g.nodes.find(n=>n.kind==='molang_variable'&&n.key==='variable.roaming.zui');
+  assert(idle?.runtimeObserved&&bow?.runtimeObserved&&wuqi?.runtimeObserved&&face?.runtimeObserved);
+
+  const animEdge=g.edges.find(e=>e.type==='OBSERVED_RUNTIME_ANIMATION'&&e.from===entity.id&&e.to===idle.id);
+  const pendEdge=g.edges.find(e=>e.type==='OBSERVED_RUNTIME_PENDING_ANIMATION'&&e.from===entity.id&&e.to===bow.id);
+  const molangEdge=g.edges.find(e=>e.type==='OBSERVED_RUNTIME_MOLANG_SEND'&&e.from===entity.id&&e.to===wuqi.id);
+  const faceEdge=g.edges.find(e=>e.type==='OBSERVED_RUNTIME_FACE_STATE'&&e.from===entity.id&&e.to===face.id);
+  assert(animEdge&&pendEdge&&molangEdge&&faceEdge);
+  assert.equal(animEdge.observationCount,2);
+  assert.equal(animEdge.firstTick,1);
+  assert.equal(animEdge.lastTick,3);
+  assert.equal(animEdge.runtimeObservation,true);
+  assert.equal(pendEdge.observationCount,1);
+  assert.equal(molangEdge.observationCount,2);
+  assert.equal(molangEdge.firstTick,1);
+  assert.equal(molangEdge.lastTick,2);
+  assert.equal(faceEdge.observationCount,1);
+
+  assert(g.edges.some(e=>e.type==='PROVIDES_ANIMATION_NAME'&&e.to===idle.id));
+  assert(g.edges.some(e=>e.type==='WRITES_MOLANG'&&e.to===wuqi.id));
+  assert(g.edges.some(e=>e.type==='OBSERVED_RUNTIME_MOD'&&e.to===g.nodes.find(n=>n.kind==='mod'&&n.key==='yes_steve_model')?.id));
+  assert(g.edges.some(e=>e.type==='RUNTIME_INSTANCE_OF'&&e.from===entity.id));
+
+  // Explicit '-' sentinels and delta omissions must not become fake observations.
+  assert.equal(g.edges.filter(e=>e.runtimeObservation&&e.to===idle.id&&e.type==='OBSERVED_RUNTIME_ANIMATION').length,1);
+  assert(!g.nodes.some(n=>n.kind==='animation_name'&&n.key==='-'));
+});
+
 test('Graph IDs are stable for same repository contents', async()=>{
   const a=await scanRepository(path.join(ROOT,'fixtures/forge-mini'));
   const b=await scanRepository(path.join(ROOT,'fixtures/forge-mini'));
