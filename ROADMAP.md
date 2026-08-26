@@ -17,17 +17,17 @@
 - [ ] incremental cache
 
 ## v0.3 — Minecraft deep semantics
-- [ ] Mixin `@Inject/@Redirect/@Modify*` target extraction
+- [x] Mixin `@Inject/@Redirect/@Modify*` target extraction (multiline annotation / nested `@At` / ordinal / shift aware)
 - [ ] Forge registry object names and IDs
 - [ ] networking messages/channels
 - [ ] capability attachment/use
-- [ ] resource/model/animation dependency graph
+- [ ] resource/model/animation dependency graph (animation definition/name graph implemented; model dependency graph pending)
 - [ ] access transformer / coremod edges
 
 ## v0.4 — YSM/TLM inspection
-- [ ] YSM model + animation resource graph
-- [ ] Molang variable producer/consumer graph
-- [ ] TLM ↔ YSM compatibility boundary view
+- [ ] YSM model + animation resource graph (animation/controller side implemented; model/bone dependency side pending)
+- [x] Molang variable producer/consumer graph
+- [x] TLM ↔ YSM compatibility boundary graph + workspace Viewer filter
 - [ ] runtime trace overlay from KNEEKURA-LAB
 - [ ] fidelity/capability matrix
 
