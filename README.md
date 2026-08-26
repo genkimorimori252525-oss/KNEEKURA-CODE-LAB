@@ -28,6 +28,8 @@ Minecraft / Forge Mod のコードを「普通の Java」ではなく、**Mod �
   - KNEEKURA-LAB `.net.jsonl` のruntime send / receiveを静的packet graphへ重ねる
   - `N0 static registration → N1 actual send → N2 actual receive` のdelivery matrix
   - network `payload` のMolang式を `OBSERVED_PACKET_PAYLOAD_MOLANG` として共有 `molang_variable` へ接続
+  - `net_semantic` のhandler / YSM command dispatch / failureをruntime evidence化
+  - Molang変数ごとに `M0 intent → M1 send → M2 receive → M3 handler → M4 command dispatch` を表示
   - payload fingerprintで同じpacket classの異なる式を別runtime observationとして保持
 - YSM / TouhouLittleMaid 系の意味を追加
   - `sendSpellCardMolang("...")` の Molang producer
@@ -149,7 +151,7 @@ repository B ─ scanner ─┘                      │
 
 Java 解析は安全側の lexical scanner（字句ベースの軽量解析）です。完全な構文木ではありません。複雑なネスト・生成コード・難読化コードの正確な call graph は CodeGraph/tree-sitter adapter の担当にします。
 
-KNEEKURA-LAB の main JSONL trace (`anim` / Molang / entity lifecycle) と、対応する client pose companion (`.pose.json` / `.pose.bin`) は静的 graph に重ねられます。runtime evidence がある scan では fidelity matrix も生成され、`C0 static → C1 runtime mod → C2 entity → C3 YSM command → C4 rendered vertices → C5 per-bone runtime` のどこまで観測できたかを表示します。**unobserved は failure を意味しません。** pose は「対応runのクライアント描画が頂点を生成した」証拠です。bone帰属は pose から逆算せず、KNEEKURA-LAB が geoRender 直後に採った palette の `names[slot]` とTRSを直接使います。これにより C5 per-bone runtime transform まで直接 evidence 化できます。Forge 1.20.1 の静的network channel / packet / direction / send / handlerに加え、KNEEKURA-LABのruntime network companionから実送信・実受信も別々の証拠として重ねられます。packetがMolang式を運んだ事実まではpayload evidenceで直接接続できます。ただし、その後のYSM client commandが実際に成功したかまではまだ別runtime evidenceが必要です。capability の意味抽出は未実装です。
+KNEEKURA-LAB の main JSONL trace (`anim` / Molang / entity lifecycle) と、対応する client pose companion (`.pose.json` / `.pose.bin`) は静的 graph に重ねられます。runtime evidence がある scan では fidelity matrix も生成され、`C0 static → C1 runtime mod → C2 entity → C3 YSM command → C4 rendered vertices → C5 per-bone runtime` のどこまで観測できたかを表示します。**unobserved は failure を意味しません。** pose は「対応runのクライアント描画が頂点を生成した」証拠です。bone帰属は pose から逆算せず、KNEEKURA-LAB が geoRender 直後に採った palette の `names[slot]` とTRSを直接使います。これにより C5 per-bone runtime transform まで直接 evidence 化できます。Forge 1.20.1 の静的network channel / packet / direction / send / handlerに加え、KNEEKURA-LABのruntime network companionから実送信・実受信も別々の証拠として重ねられます。packetがMolang式を運んだ事実に加えて、`net_semantic` があればReimu handler到達と `ysmclient molang execute` のcommand dispatch成功/失敗まで別々に証拠化できます。M4は `sendCommand()` が例外なく戻った境界であり、YSM内部のMolang evaluatorによる最終適用までは未証明です。capability の意味抽出は未実装です。
 
 ## AI / coding agent 向け出力との境界
 
