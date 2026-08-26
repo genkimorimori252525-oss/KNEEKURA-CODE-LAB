@@ -17,7 +17,7 @@ const flags = name => {
 if (cmd === 'scan') {
   const root = args.find(x=>!x.startsWith('--')) ?? '.';
   const out = flag('--out','dist/graph.json');
-  const graph = await scanRepository(root,{ codegraph:flag('--codegraph'), understand:flag('--understand'), trace:flag('--trace') });
+  const graph = await scanRepository(root,{ codegraph:flag('--codegraph'), understand:flag('--understand'), trace:flag('--trace'), pose:flag('--pose'), allowV1Pose:args.includes('--allow-v1-pose') });
   await writeGraph(out, graph);
   console.log(`KNEEKURA graph: ${graph.nodes.length} nodes / ${graph.edges.length} edges -> ${out}`);
 } else if (cmd === 'workspace') {
@@ -54,7 +54,7 @@ if (cmd === 'scan') {
   });
   server.listen(port,'127.0.0.1',()=>console.log(`KNEEKURA-CODE-LAB viewer: http://127.0.0.1:${port}`));
 } else {
-  console.log('usage:\n  node src/cli.mjs scan <repo> --out dist/graph.json [--codegraph file.json] [--understand project-or-graph] [--trace trace.jsonl]\n  node src/cli.mjs workspace --repo tlm=C:\\path\\to\\tlm --repo ysm=C:\\path\\to\\ysm --out dist/workspace.json\n  node src/cli.mjs serve --graph dist/graph.json [--port 8789]');
+  console.log('usage:\n  node src/cli.mjs scan <repo> --out dist/graph.json [--codegraph file.json] [--understand project-or-graph] [--trace trace.jsonl] [--pose stamp.pose.json] [--allow-v1-pose]\n  node src/cli.mjs workspace --repo tlm=C:\\path\\to\\tlm --repo ysm=C:\\path\\to\\ysm --out dist/workspace.json\n  node src/cli.mjs serve --graph dist/graph.json [--port 8789]');
 }
 
 async function writeGraph(out, graph) {
