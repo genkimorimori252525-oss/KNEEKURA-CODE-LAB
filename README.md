@@ -25,24 +25,43 @@ Minecraft / Forge Mod のコードを「普通の Java」ではなく、**Mod �
   - `ysm.json` の model / animation / texture / sound resource 参照
   - `minecraft:geometry[].bones[]` の model/bone 階層、pivot、cube、locator
   - animation の `bones` と model bone を共有 `bone_name` contract で接続
+- KNEEKURA-LAB / SimLab runtime trace を静的 graph に重ねる
+  - `meta` / `spawn` / `gone` / `end`
+  - `anim.anim` / `anim.pend` を共有 `animation_name` へ接続
+  - `anim.molang` / `anim.face` を共有 `molang_variable` へ接続
+  - runtime observation に `observationCount` / `firstTick` / `lastTick` / sample evidence を保持
+  - `delta="row"` の省略値を「失敗」や「クリア」と捏造しない
 - 複数 Mod repository を workspace graph に結合
   - repository-local node は名前空間を分離
   - Molang variable / animation name / bone name は共有 contract node として統合
   - `TLM → Molang/animation → YSM` の cross-repository boundary edge を生成
 - 未知の解析器の結果を Common IR にマージ
 - Understand Anything の `knowledge-graph.json` をそのまま取り込み
-- ブラウザで検索・node kind・edge type・TLM↔YSM boundary をフィルタ
-- `Static Graph` と将来の `Runtime Graph` を同じ IR に重ねられる設計
+- ブラウザで検索・node kind・edge type・TLM↔YSM boundary・runtime observed をフィルタ
+- Static Graph と Runtime Graph を同じ IR 上で区別したまま重ねる
 
 ## Quick start
 
 ```powershell
 npm test
 node src/cli.mjs scan C:\path\to\mod-repo --out dist/graph.json
+
 # Understand Anything の解析結果も重ねる
-node src/cli.mjs scan C:\path\to\mod-repo --understand C:\path\to\mod-repo --out dist/graph.json
-node src/cli.mjs serve --graph dist/graph.json
+node src/cli.mjs scan C:\path\to\mod-repo `
+  --understand C:\path\to\mod-repo `
+  --out dist/graph.json
+
+# KNEEKURA-LAB / SimLab JSONL trace を静的解析に重ねる
+node src/cli.mjs scan C:\path\to\mod-repo `
+  --trace C:\path\to\simlab-trace.jsonl `
+  --out dist/runtime-overlay.json
+
+node src/cli.mjs serve --graph dist/runtime-overlay.json
 ```
+
+runtime trace の `anim` チャンネルに現れた animation / Molang は、静的解析が作った同じ `animation_name` / `molang_variable` node に合流します。Viewer の `runtime observed` を有効にすると、実測された経路だけを絞り込めます。
+
+KNEEKURA-LAB の新しい trace は `meta.delta="row"` を持つことがあります。この場合 `anim` 行でフィールドが省略されていても、前の runtime state を保持する契約です。CODE-LAB は省略を新しい観測として数えず、明示的に記録された値だけを evidence にします。
 
 ### TLM + YSM を一枚の graph にする
 
@@ -69,8 +88,10 @@ repository A ─ scanner ─┐
 repository B ─ scanner ─┘                      │
                                                ├─ repository-local nodes
                                                │  file / class / model_bone
-                                               └─ shared protocol nodes
-                                                  Molang / animation / bone names
+                                               ├─ shared protocol nodes
+                                               │  Molang / animation / bone names
+                                               └─ runtime evidence
+                                                  entity / observed anim / observed Molang
 ```
 
 ### 重要な原則
@@ -79,22 +100,23 @@ repository B ─ scanner ─┘                      │
 2. **未知を捏造しない**: 解決できない import / target は unresolved node として残す。
 3. **Minecraft 固有意味は adapter / semantic 層に置く**: 汎用グラフ IR を個別 Mod 実装に密結合させない。
 4. **cross-repository 接続は protocol 名で結ぶ**: Java call を捏造せず、Molang variable / animation / bone name の共有 contract として表現する。
-5. **外部 OSS は vendoring しない**: CodeGraph / Understand Anything は出力互換 adapter を介して利用する。
+5. **runtime は static と別事実として残す**: 「定義されている」と「実際に観測された」を同じ edge に潰さない。
+6. **外部 OSS は vendoring しない**: CodeGraph / Understand Anything は出力互換 adapter を介して利用する。
 
 ## ディレクトリ
 
 - `src/core/` — 共通 IR、単一repo走査、workspace merge
 - `src/analyzers/` — Java / Forge / Minecraft / YSM の意味抽出
-- `src/adapters/` — CodeGraph / Understand Anything / Runtime trace 入口（UAは実装済み）
+- `src/adapters/` — CodeGraph / Understand Anything / KNEEKURA-LAB Runtime trace
 - `viewer/` — 依存ゼロの Web Viewer
-- `fixtures/` — Minecraft を起動せず検証する小さな合成 Mod / workspace
+- `fixtures/` — Minecraft を起動せず検証する小さな合成 Mod / workspace / runtime trace
 - `docs/` — 設計・互換契約
 
 ## 現在の限界
 
 Java 解析は安全側の lexical scanner（字句ベースの軽量解析）です。完全な構文木ではありません。複雑なネスト・生成コード・難読化コードの正確な call graph は CodeGraph/tree-sitter adapter の担当にします。
 
-YSM model/resource/bone graph は静的事実を追跡しますが、実行時にどのモデル・animation controller・bone path が選ばれたかはまだ runtime trace と統合していません。network packet、capability、runtime trace は次段階です。
+KNEEKURA-LAB の main JSONL trace (`anim` / Molang / entity lifecycle) は静的 graph に重ねられます。一方、client が別ファイルへ書く pose companion (`.pose.json` / `.pose.bin`) はまだ未統合です。実際の描画頂点まで証拠化するには pose companion adapter が次の段階です。network packet、capability の意味抽出も未実装です。
 
 ## AI / coding agent 向け出力との境界
 
