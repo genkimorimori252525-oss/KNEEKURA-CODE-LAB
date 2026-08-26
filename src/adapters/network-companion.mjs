@@ -290,9 +290,11 @@ export async function importNetworkCompanion(builder, networkFile, opts = {}) {
 
   Object.assign(capture, {
     semanticGroupCount: semanticGroups.length,
+    sendGroupCount: sendGroups,
     receiveGroupCount: receiveGroups,
     sendEventCount: sendEvents,
-    receiveEventCount: receiveEvents
+    receiveEventCount: receiveEvents,
+    semanticEventCount: inWindowSemantics.length
   });
 
 }
