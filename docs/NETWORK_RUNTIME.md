@@ -140,9 +140,38 @@ rendered vertices
 packet payload に含まれていた Molang については、OBSERVED_PACKET_PAYLOAD_MOLANG により
 「このsend/receive観測がこの変数を運んだ」ことを直接evidence化する。
 
-ただし、これはまだ「YSM commandが実際に実行成功した」証拠ではない。
-receive boundary の直後に registered consumer が呼ばれる設計であっても、command queue / sendCommand の実行結果までは
-別のruntime evidenceが必要なので、そこは推測して埋めない。
+KNEEKURA-LAB の net_semantic 行がある場合は、その後段も別事実として重ねる。
+
+~~~text
+OBSERVED_MOLANG_HANDLER_EXECUTION
+  = ReimuSpellCardMolangHandler.execute へ実際に到達
+
+OBSERVED_YSM_MOLANG_COMMAND_DISPATCH
+  = ysmclient molang execute ... を sendCommand() へ渡し、例外なく戻った
+
+OBSERVED_YSM_MOLANG_COMMAND_FAILURE
+  = 同じ command dispatch 経路が例外で失敗
+~~~
+
+### Molang transport matrix
+
+各 molang_variable ごとに M0〜M4 を作る。
+
+~~~text
+M0 runtime Molang intent
+M1 packet send carries Molang
+M2 packet receive carries Molang
+M3 client handler executed
+M4 YSM command dispatched
+~~~
+
+status は observed / unobserved。途中が欠けていて後段だけ観測されても、欠けた段を補完しない。
+たとえば M0 が無く M1〜M4 があれば observedThroughStage は none のまま、stageSummary だけが後段の観測を示す。
+
+command failure は M4 success と別の evidence。failure が観測されても M4 を observed にしない。
+
+M4 は「sendCommand() が例外なく戻った」までの証拠であり、YSM内部のMolang evaluatorが最終的に値を適用したことまでは証明しない。
+その内側は次の観測段階として残す。
 
 
 ## Payload fingerprint
