@@ -28,6 +28,7 @@ Minecraft / Forge Mod のコードを「普通の Java」ではなく、**Mod �
   - KNEEKURA-LAB `.net.jsonl` のruntime send / receiveを静的packet graphへ重ねる
   - `N0 static registration → N1 actual send → N2 actual receive` のdelivery matrix
   - network `payload` のMolang式を `OBSERVED_PACKET_PAYLOAD_MOLANG` として共有 `molang_variable` へ接続
+  - payload fingerprintで同じpacket classの異なる式を別runtime observationとして保持
 - YSM / TouhouLittleMaid 系の意味を追加
   - `sendSpellCardMolang("...")` の Molang producer
   - YSM animation/controller JSON の Molang consumer
@@ -93,7 +94,7 @@ runtime trace の `anim` チャンネルに現れた animation / Molang は、�
 
 KNEEKURA-LAB の新しい trace は `meta.delta="row"` を持つことがあります。この場合 `anim` 行でフィールドが省略されていても、前の runtime state を保持する契約です。CODE-LAB は省略を新しい観測として数えず、明示的に記録された値だけを evidence にします。
 
-`--pose` を併用すると SimPoseCodec の最終描画頂点、`--palette` を併用すると SimPaletteTrace のボーンごとの合成後ローカル `rotation(rad) / position / scale` を runtime evidence として追加します。pose/palette は同じUUID identity matcherを使います。network companionは `meta.run` と `net_meta.run` をhard gateにし、scenario一致と実測gameTime windowも確認します。server/clientの `.net.jsonl` は `--net` を複数回指定して同時に重ねられ、sendからreceiveを推測して補完しません。packetのpublic scalar `payload` にMolang式がある場合は、`v.`/`variable.` aliasを正規化して同じ共有Molang nodeへ実測edgeを張ります。
+`--pose` を併用すると SimPoseCodec の最終描画頂点、`--palette` を併用すると SimPaletteTrace のボーンごとの合成後ローカル `rotation(rad) / position / scale` を runtime evidence として追加します。pose/palette は同じUUID identity matcherを使います。network companionは `meta.run` と `net_meta.run` をhard gateにし、scenario一致と実測gameTime windowも確認します。server/clientの `.net.jsonl` は `--net` を複数回指定して同時に重ねられ、sendからreceiveを推測して補完しません。packetのpublic scalar `payload` にMolang式がある場合は、意味を示すfield名（`molang` / `expression` / `expr` 系）だけを対象に `v.`/`variable.` aliasを正規化して同じ共有Molang nodeへ実測edgeを張ります。同じpacket classでもpayloadが違えばfingerprintで別観測に分けます。
 
 ### TLM + YSM を一枚の graph にする
 
