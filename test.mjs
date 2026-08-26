@@ -27,6 +27,9 @@ test('Deep Mixin injector semantics survive multiline nested annotations', async
   assert.equal(edge.ordinal,1);
   assert.equal(edge.shift,'AFTER');
   assert.equal(edge.cancellable,true);
+  const handler=g.nodes.find(n=>n.id===edge.from);
+  assert.equal(handler?.kind,'method');
+  assert.equal(handler?.label,'kneekura$afterMove');
   assert(g.nodes.some(n=>n.kind==='symbol'&&n.key==='Entity'));
 });
 
