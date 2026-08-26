@@ -151,11 +151,17 @@ OBSERVED_YSM_MOLANG_COMMAND_DISPATCH
 
 OBSERVED_YSM_MOLANG_COMMAND_FAILURE
   = 同じ command dispatch 経路が例外で失敗
+
+OBSERVED_YSM_CLIENT_COMMAND_HANDLED
+  = Forge ClientCommandHandler.runCommand() が true を返し、client command path が consume
+
+OBSERVED_YSM_CLIENT_COMMAND_FALLBACK
+  = 同メソッドが false を返し、server command へフォールバックする経路
 ~~~
 
 ### Molang transport matrix
 
-各 molang_variable ごとに M0〜M4 を作る。
+各 molang_variable ごとに M0〜M5 を作る。
 
 ~~~text
 M0 runtime Molang intent
@@ -163,14 +169,19 @@ M1 packet send carries Molang
 M2 packet receive carries Molang
 M3 client handler executed
 M4 YSM command dispatched
+M5 Forge client command consumed
 ~~~
 
 status は observed / unobserved。途中が欠けていて後段だけ観測されても、欠けた段を補完しない。
-たとえば M0 が無く M1〜M4 があれば observedThroughStage は none のまま、stageSummary だけが後段の観測を示す。
+たとえば M0 が無く M1〜M5 があれば observedThroughStage は none のまま、stageSummary だけが後段の観測を示す。
 
 command failure は M4 success と別の evidence。failure が観測されても M4 を observed にしない。
 
-M4 は「sendCommand() が例外なく戻った」までの証拠であり、YSM内部のMolang evaluatorが最終的に値を適用したことまでは証明しない。
+M4 は「sendCommand() が例外なく戻った」までの証拠。
+M5 は Forge の client command dispatcher がその command を consume した証拠で、false は server fallback evidence として別管理する。
+
+ただし ClientCommandHandler.runCommand() は、一部のsyntax/runtime errorをclient側で処理した場合も true で戻る。
+したがって M5 でも YSM内部のMolang evaluatorが最終的に値を適用したことまでは証明しない。
 その内側は次の観測段階として残す。
 
 
