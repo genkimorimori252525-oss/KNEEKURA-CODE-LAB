@@ -21,11 +21,11 @@
 - [ ] Forge registry object names and IDs
 - [ ] networking messages/channels
 - [ ] capability attachment/use
-- [ ] resource/model/animation dependency graph (animation definition/name graph implemented; model dependency graph pending)
+- [x] resource/model/animation dependency graph (`ysm.json` resources + animation definitions + geometry models/bones)
 - [ ] access transformer / coremod edges
 
 ## v0.4 — YSM/TLM inspection
-- [ ] YSM model + animation resource graph (animation/controller side implemented; model/bone dependency side pending)
+- [x] YSM model + animation resource graph (model definitions / bone hierarchy / locators / animation bone channels)
 - [x] Molang variable producer/consumer graph
 - [x] TLM ↔ YSM compatibility boundary graph + workspace Viewer filter
 - [ ] runtime trace overlay from KNEEKURA-LAB
