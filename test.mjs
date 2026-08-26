@@ -101,17 +101,14 @@ test('KNEEKURA network companions overlay real send and receive separately onto 
   assert.equal(packet.networkRuntimeObserved,true);
   assert.equal(packet.runtimePacketClass,'demo.net.ReimuPacket');
 
-  const send=g.edges.find(e=>e.type==='OBSERVED_PACKET_SEND'&&e.to===packet.id);
-  const receive=g.edges.find(e=>e.type==='OBSERVED_PACKET_RECEIVE'&&e.to===packet.id);
-  assert(send&&receive);
-  assert.equal(send.observationCount,2);
-  assert.equal(send.firstTick,1);
-  assert.equal(send.lastTick,3);
-  assert.equal(send.direction,'PLAY_TO_CLIENT');
-  assert.equal(send.channel,'demo:reimu_net');
-  assert.equal(receive.observationCount,2);
-  assert.equal(receive.firstTick,2);
-  assert.equal(receive.lastTick,4);
+  const sends=g.edges.filter(e=>e.type==='OBSERVED_PACKET_SEND'&&e.to===packet.id);
+  const receives=g.edges.filter(e=>e.type==='OBSERVED_PACKET_RECEIVE'&&e.to===packet.id);
+  assert.equal(sends.length,2);
+  assert.equal(receives.length,2);
+  assert.deepEqual(sends.map(e=>e.firstTick).sort((a,b)=>a-b),[1,3]);
+  assert.deepEqual(receives.map(e=>e.firstTick).sort((a,b)=>a-b),[2,4]);
+  assert(sends.every(e=>e.observationCount===1&&e.direction==='PLAY_TO_CLIENT'&&e.channel==='demo:reimu_net'));
+  assert(receives.every(e=>e.observationCount===1&&e.direction==='PLAY_TO_CLIENT'));
 
   const captures=g.nodes.filter(n=>n.kind==='runtime_network_capture');
   assert.equal(captures.length,2);
@@ -154,11 +151,14 @@ test('KNEEKURA network companions overlay real send and receive separately onto 
   assert.deepEqual(wuqiReceive.fields,['molangExpression']);
   assert.equal(wuqiReceive.samples[0].value,'(v.wuqi = 1)');
 
-  const serverObservation=g.nodes.find(n=>n.kind==='runtime_network_observation'&&n.stage==='send'&&n.packetSimple==='ReimuPacket');
-  assert(serverObservation);
-  assert.equal(serverObservation.payloadSamples.length,2);
-  assert.equal(serverObservation.payloadSamples[0].payload.molangExpression,'(v.wuqi = 1)');
+  const serverObservations=g.nodes.filter(n=>n.kind==='runtime_network_observation'&&n.stage==='send'&&n.packetSimple==='ReimuPacket');
+  assert.equal(serverObservations.length,2);
+  assert(serverObservations.every(n=>n.payloadSamples.length===1));
+  assert.equal(new Set(serverObservations.map(n=>n.payloadFingerprint)).size,2);
+  assert(serverObservations.some(n=>n.payloadSamples[0].payload.molangExpression==='(v.wuqi = 1)'));
+  assert(serverObservations.some(n=>n.payloadSamples[0].payload.molangExpression==='(v.roaming.zui = 1)'));
   assert(!g.nodes.some(n=>n.kind==='molang_variable'&&n.key==='variable.ignored_outside_window'));
+  assert(!g.nodes.some(n=>n.kind==='molang_variable'&&n.key==='variable.false_positive'));
 });
 
 test('KNEEKURA network send does not invent a receive observation', async()=>{
