@@ -207,7 +207,6 @@ export async function importNetworkCompanion(builder, networkFile, opts = {}) {
     receiveEventCount: receiveEvents
   });
 
-  deriveNetworkDeliveryMatrix(builder);
 }
 
 function parseNetworkText(text, source) {
@@ -324,7 +323,7 @@ function aggregate(events, traceStart) {
   return [...map.values()];
 }
 
-function deriveNetworkDeliveryMatrix(builder) {
+export function deriveNetworkDeliveryMatrix(builder) {
   const staticRegistered = builder.graph.edges.some(e => e.type === 'REGISTERS_PACKET');
   const sendEdges = builder.graph.edges.filter(e => e.type === 'OBSERVED_PACKET_SEND');
   const receiveEdges = builder.graph.edges.filter(e => e.type === 'OBSERVED_PACKET_RECEIVE');
