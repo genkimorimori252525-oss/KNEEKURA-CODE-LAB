@@ -1,0 +1,33 @@
+{
+  "v": 1,
+  "codec": "palmask-deflate-v1",
+  "gt0": 1000,
+  "id": 314,
+  "uuid": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+  "type": "touhou_little_maid:reimu",
+  "bones": 3,
+  "comps": 9,
+  "keyframe": 100,
+  "names": [
+    "Root",
+    "RightArm",
+    "RightHandLocator"
+  ],
+  "frames": 2,
+  "bin": "kneekura.pal.bin",
+  "slots": [
+    0,
+    1,
+    -1
+  ],
+  "lens": [
+    50,
+    41
+  ],
+  "kinds": [
+    "K",
+    "D"
+  ],
+  "bytes": 91,
+  "jars": []
+}
