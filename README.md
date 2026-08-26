@@ -34,6 +34,7 @@ Minecraft / Forge Mod のコードを「普通の Java」ではなく、**Mod �
   - SimPoseCodec の `.pose.json + .pose.bin` を client render evidence として統合
   - pose v2 UUID を run identity の hard gate とし、別runの頂点を吸着させない
   - `frames / slots / lens / stride` と bin byte size を照合し、float32 LE をサンプル検証
+  - YSM/TLM fidelity matrix を自動生成し、どこまで evidence が到達したかを `observed / unobserved` で表示
 - 複数 Mod repository を workspace graph に結合
   - repository-local node は名前空間を分離
   - Molang variable / animation name / bone name は共有 contract node として統合
@@ -122,7 +123,7 @@ repository B ─ scanner ─┘                      │
 
 Java 解析は安全側の lexical scanner（字句ベースの軽量解析）です。完全な構文木ではありません。複雑なネスト・生成コード・難読化コードの正確な call graph は CodeGraph/tree-sitter adapter の担当にします。
 
-KNEEKURA-LAB の main JSONL trace (`anim` / Molang / entity lifecycle) と、対応する client pose companion (`.pose.json` / `.pose.bin`) は静的 graph に重ねられます。pose は「対応runのクライアント描画が頂点を生成した」証拠であり、各頂点を `RightHandLocator` など特定boneへ逆算して帰属させるものではありません。per-bone runtime transform、network packet、capability の意味抽出は未実装です。
+KNEEKURA-LAB の main JSONL trace (`anim` / Molang / entity lifecycle) と、対応する client pose companion (`.pose.json` / `.pose.bin`) は静的 graph に重ねられます。runtime evidence がある scan では fidelity matrix も生成され、`C0 static → C1 runtime mod → C2 entity → C3 YSM command → C4 rendered vertices → C5 per-bone runtime` のどこまで観測できたかを表示します。**unobserved は failure を意味しません。** pose は「対応runのクライアント描画が頂点を生成した」証拠であり、各頂点を `RightHandLocator` など特定boneへ逆算して帰属させるものではありません。per-bone runtime transform、network packet、capability の意味抽出は未実装です。
 
 ## AI / coding agent 向け出力との境界
 

@@ -220,6 +220,42 @@ test('KNEEKURA pose companion UUID mismatch is a hard rejection', async()=>{
   assert.equal(rejection.poseUuid,'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
 });
 
+test('YSM fidelity matrix observes through client render when trace and pose evidence exist', async()=>{
+  const g=await scanRepository(path.join(ROOT,'fixtures/forge-mini'), {
+    trace:path.join(ROOT,'fixtures/runtime/kneekura-trace.jsonl'),
+    pose:path.join(ROOT,'fixtures/runtime/kneekura.pose.json')
+  });
+
+  const matrix=g.nodes.find(n=>n.kind==='fidelity_matrix'&&n.key==='ysm-tlm-runtime');
+  assert(matrix);
+  assert.equal(matrix.totalStages,6);
+  assert.equal(matrix.observedStageCount,5);
+  assert.equal(matrix.observedThroughStage,'C4');
+  assert.equal(matrix.firstUnobservedStage,'C5');
+  assert.match(matrix.nextDiagnosticHint,/per-bone/i);
+  assert.equal(matrix.absenceIsFailure,false);
+
+  const stages=new Map(g.nodes.filter(n=>n.kind==='fidelity_capability').map(n=>[n.stage,n]));
+  for (const id of ['C0','C1','C2','C3','C4']) assert.equal(stages.get(id)?.status,'observed',id);
+  assert.equal(stages.get('C5')?.status,'unobserved');
+  assert(stages.get('C4')?.evidenceKinds.includes('runtime_pose_capture'));
+  assert(g.edges.some(e=>e.type==='SUPPORTED_BY'&&e.from===stages.get('C4').id&&e.fidelityEvidence));
+});
+
+test('YSM fidelity matrix stops at command evidence when pose is absent', async()=>{
+  const g=await scanRepository(path.join(ROOT,'fixtures/forge-mini'), {
+    trace:path.join(ROOT,'fixtures/runtime/kneekura-trace.jsonl')
+  });
+
+  const matrix=g.nodes.find(n=>n.kind==='fidelity_matrix'&&n.key==='ysm-tlm-runtime');
+  assert(matrix);
+  assert.equal(matrix.observedThroughStage,'C3');
+  assert.equal(matrix.firstUnobservedStage,'C4');
+  assert.match(matrix.nextDiagnosticHint,/pose|client|render/i);
+  const c4=g.nodes.find(n=>n.kind==='fidelity_capability'&&n.stage==='C4');
+  assert.equal(c4?.status,'unobserved');
+});
+
 test('Graph IDs are stable for same repository contents', async()=>{
   const a=await scanRepository(path.join(ROOT,'fixtures/forge-mini'));
   const b=await scanRepository(path.join(ROOT,'fixtures/forge-mini'));
