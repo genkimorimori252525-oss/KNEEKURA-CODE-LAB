@@ -2,7 +2,7 @@
 
 Minecraft / Forge Mod のコードを「普通の Java」ではなく、**Mod として意味づけして可視化する**ための私用研究リポジトリです。
 
-初版は依存ゼロの Node.js 20+ で動きます。CodeGraph や Understand Anything を fork して固定化せず、将来それらの出力を adapter で取り込める構造にしています。
+初版は依存ゼロの Node.js 20+ で動きます。**第一級解析対象は Minecraft 1.20.1 + Forge 47.x + Java 17**。CodeGraph や Understand Anything を fork して固定化せず、将来それらの出力を adapter で取り込める構造にしています。
 
 ## できること
 
@@ -17,6 +17,14 @@ Minecraft / Forge Mod のコードを「普通の Java」ではなく、**Mod �
   - `ResourceLocation`
   - Registry 参照
   - optional / required mod dependency
+  - `gradle.properties / build.gradle / mods.toml` から platform profile を検出
+  - Forge 1.20.1 / 47.x を `PRIMARY_EXACT` として明示
+  - `SimpleChannel` / `NetworkRegistry.newSimpleChannel`
+  - `registerMessage(...)` と `messageBuilder(...).consumerMainThread(...)`
+  - packet encoder / decoder / handler / direction
+  - `PacketDistributor` / `sendToServer` の送信site
+  - `NetworkEvent.Context.enqueueWork` のmain-thread handoff
+  - `FMLCommonSetupEvent.enqueueWork(Network::init)` のnetwork bootstrap
 - YSM / TouhouLittleMaid 系の意味を追加
   - `sendSpellCardMolang("...")` の Molang producer
   - YSM animation/controller JSON の Molang consumer
@@ -45,6 +53,17 @@ Minecraft / Forge Mod のコードを「普通の Java」ではなく、**Mod �
 - Understand Anything の `knowledge-graph.json` をそのまま取り込み
 - ブラウザで検索・node kind・edge type・TLM↔YSM boundary・runtime observed をフィルタ
 - Static Graph と Runtime Graph を同じ IR 上で区別したまま重ねる
+
+## Primary platform
+
+```text
+Minecraft 1.20.1
+Forge 47.x
+Java 17
+profile: forge-1.20.1-47.x
+```
+
+実repoのversionが異なる場合は、1.20.1として黙って解析せず Viewer と graph metadata に `PRIMARY_EXACT / PRIMARY_MC_MATCH / FORGE_1_20_BEST_EFFORT / FORGE_BEST_EFFORT` を出します。
 
 ## Quick start
 
@@ -126,7 +145,7 @@ repository B ─ scanner ─┘                      │
 
 Java 解析は安全側の lexical scanner（字句ベースの軽量解析）です。完全な構文木ではありません。複雑なネスト・生成コード・難読化コードの正確な call graph は CodeGraph/tree-sitter adapter の担当にします。
 
-KNEEKURA-LAB の main JSONL trace (`anim` / Molang / entity lifecycle) と、対応する client pose companion (`.pose.json` / `.pose.bin`) は静的 graph に重ねられます。runtime evidence がある scan では fidelity matrix も生成され、`C0 static → C1 runtime mod → C2 entity → C3 YSM command → C4 rendered vertices → C5 per-bone runtime` のどこまで観測できたかを表示します。**unobserved は failure を意味しません。** pose は「対応runのクライアント描画が頂点を生成した」証拠です。bone帰属は pose から逆算せず、KNEEKURA-LAB が geoRender 直後に採った palette の `names[slot]` とTRSを直接使います。これにより C5 per-bone runtime transform まで直接 evidence 化できます。network packet、capability の意味抽出は未実装です。
+KNEEKURA-LAB の main JSONL trace (`anim` / Molang / entity lifecycle) と、対応する client pose companion (`.pose.json` / `.pose.bin`) は静的 graph に重ねられます。runtime evidence がある scan では fidelity matrix も生成され、`C0 static → C1 runtime mod → C2 entity → C3 YSM command → C4 rendered vertices → C5 per-bone runtime` のどこまで観測できたかを表示します。**unobserved は failure を意味しません。** pose は「対応runのクライアント描画が頂点を生成した」証拠です。bone帰属は pose から逆算せず、KNEEKURA-LAB が geoRender 直後に採った palette の `names[slot]` とTRSを直接使います。これにより C5 per-bone runtime transform まで直接 evidence 化できます。Forge 1.20.1 の静的network channel / packet / direction / send / handler意味抽出は実装済みです。ただし「実際にwireを通ったpacket」のruntime network trace、capability の意味抽出は未実装です。
 
 ## AI / coding agent 向け出力との境界
 
