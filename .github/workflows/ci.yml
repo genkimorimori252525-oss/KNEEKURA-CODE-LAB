@@ -16,3 +16,4 @@ jobs:
       - run: node src/cli.mjs scan fixtures/forge-mini --understand fixtures/understand-anything --out dist/graph.json
       - run: node src/cli.mjs workspace --repo tlm=fixtures/workspace/tlm --repo ysm=fixtures/workspace/ysm --out dist/workspace.json
       - run: node src/cli.mjs scan fixtures/forge-mini --trace fixtures/runtime/kneekura-trace.jsonl --out dist/runtime-overlay.json
+      - run: node src/cli.mjs scan fixtures/forge-mini --trace fixtures/runtime/kneekura-trace.jsonl --pose fixtures/runtime/kneekura.pose.json --out dist/runtime-pose-overlay.json

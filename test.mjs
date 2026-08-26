@@ -173,6 +173,53 @@ test('KNEEKURA runtime trace overlays observed animation and Molang on static co
   assert(!g.nodes.some(n=>n.kind==='animation_name'&&n.key==='-'));
 });
 
+test('KNEEKURA pose companion proves matching client render vertices without inventing bone transforms', async()=>{
+  const g=await scanRepository(path.join(ROOT,'fixtures/forge-mini'), {
+    trace:path.join(ROOT,'fixtures/runtime/kneekura-trace.jsonl'),
+    pose:path.join(ROOT,'fixtures/runtime/kneekura.pose.json')
+  });
+
+  const pose=g.nodes.find(n=>n.kind==='runtime_pose_capture');
+  assert(pose, 'matching v2 pose companion should become render evidence');
+  assert.equal(pose.identityTrust,'uuid');
+  assert.equal(pose.poseVersion,2);
+  assert.equal(pose.overlapTicks,4);
+  assert.equal(pose.frameCount,2);
+  assert.equal(pose.vertexCount,3);
+  assert.equal(pose.slotCount,4);
+  assert.equal(pose.recordedTicks,3);
+  assert.equal(pose.unrecordedTicks,1);
+  assert.equal(pose.referencedFrameCount,2);
+  assert.equal(pose.expectedBinaryBytes,132);
+  assert.equal(pose.actualBinaryBytes,132);
+  assert.equal(pose.binaryValidation,'exact-size + sampled-finite-f32le');
+  assert.equal(pose.binarySampledFloatCount,33);
+  assert.equal(pose.renderGroupCount,2);
+  assert.equal(pose.renderTextureCount,1);
+
+  const entity=g.nodes.find(n=>n.kind==='runtime_entity'&&n.runtimeId===314);
+  assert(entity);
+  assert.equal(entity.uuid,'11111111-2222-3333-4444-555555555555');
+  assert(g.edges.some(e=>e.type==='OBSERVED_RENDERED_POSE'&&e.from===entity.id&&e.to===pose.id&&e.runtimeObservation));
+  assert(g.edges.some(e=>e.type==='OBSERVED_POSE_COMPANION'&&e.to===pose.id&&e.runtimeObservation));
+  assert(!g.diagnostics.some(d=>d.message==='pose companion rejected'));
+});
+
+test('KNEEKURA pose companion UUID mismatch is a hard rejection', async()=>{
+  const g=await scanRepository(path.join(ROOT,'fixtures/forge-mini'), {
+    trace:path.join(ROOT,'fixtures/runtime/kneekura-trace.jsonl'),
+    pose:path.join(ROOT,'fixtures/runtime/kneekura-mismatch.pose.json')
+  });
+
+  assert(!g.nodes.some(n=>n.kind==='runtime_pose_capture'));
+  assert(!g.edges.some(e=>e.type==='OBSERVED_RENDERED_POSE'));
+  const rejection=g.diagnostics.find(d=>d.message==='pose companion rejected');
+  assert(rejection, 'mismatched UUID must be visible as a diagnostic');
+  assert.match(rejection.reason,/UUID mismatch/);
+  assert.equal(rejection.traceUuid,'11111111-2222-3333-4444-555555555555');
+  assert.equal(rejection.poseUuid,'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
+});
+
 test('Graph IDs are stable for same repository contents', async()=>{
   const a=await scanRepository(path.join(ROOT,'fixtures/forge-mini'));
   const b=await scanRepository(path.join(ROOT,'fixtures/forge-mini'));

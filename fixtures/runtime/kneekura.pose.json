@@ -1,0 +1,43 @@
+{
+  "v": 2,
+  "gt0": 1000,
+  "id": 314,
+  "type": "touhou_little_maid:reimu",
+  "texture": "yes_steve_model:textures/entity/reimu.png",
+  "stride": 11,
+  "verts": 2,
+  "quant": 0,
+  "idempotent": true,
+  "frames": 2,
+  "bin": "kneekura.pose.bin",
+  "uuid": "11111111-2222-3333-4444-555555555555",
+  "slots": [
+    0,
+    0,
+    1,
+    -1
+  ],
+  "lens": [
+    2,
+    1
+  ],
+  "textures": [
+    "yes_steve_model:textures/entity/reimu.png"
+  ],
+  "glens": [
+    [
+      2
+    ],
+    [
+      1
+    ]
+  ],
+  "gtex": [
+    [
+      0
+    ],
+    [
+      0
+    ]
+  ]
+}

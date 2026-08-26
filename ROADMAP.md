@@ -28,7 +28,7 @@
 - [x] YSM model + animation resource graph (model definitions / bone hierarchy / locators / animation bone channels)
 - [x] Molang variable producer/consumer graph
 - [x] TLM ↔ YSM compatibility boundary graph + workspace Viewer filter
-- [x] runtime trace overlay from KNEEKURA-LAB (meta/spawn/gone/anim/Molang/end; pose companion pending)
+- [x] runtime trace overlay from KNEEKURA-LAB (meta/spawn/gone/anim/Molang/end + UUID-gated pose companion render evidence)
 - [ ] fidelity/capability matrix
 
 ## v0.5 — Understand Anything style UX

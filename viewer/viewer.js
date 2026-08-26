@@ -27,4 +27,4 @@ function filter(){
   }
 }
 q.oninput=filter;kind.onchange=filter;edgeType.onchange=filter;boundaryOnly.onchange=filter;runtimeOnly.onchange=filter;
-function radius(k){return k==='repository'||k==='runtime'?12:k==='mod'?10:k==='class'||k==='runtime_entity'?8:k==='method'?5:6}function color(k){let h=0;for(const c of k)h=(h*31+c.charCodeAt(0))%360;return `hsl(${h} 58% 52%)`}
+function radius(k){return k==='repository'||k==='runtime'?12:k==='mod'?10:k==='runtime_pose_capture'?9:k==='class'||k==='runtime_entity'?8:k==='method'?5:6}function color(k){let h=0;for(const c of k)h=(h*31+c.charCodeAt(0))%360;return `hsl(${h} 58% 52%)`}

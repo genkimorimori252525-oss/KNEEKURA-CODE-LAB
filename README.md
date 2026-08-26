@@ -31,6 +31,9 @@ Minecraft / Forge Mod のコードを「普通の Java」ではなく、**Mod �
   - `anim.molang` / `anim.face` を共有 `molang_variable` へ接続
   - runtime observation に `observationCount` / `firstTick` / `lastTick` / sample evidence を保持
   - `delta="row"` の省略値を「失敗」や「クリア」と捏造しない
+  - SimPoseCodec の `.pose.json + .pose.bin` を client render evidence として統合
+  - pose v2 UUID を run identity の hard gate とし、別runの頂点を吸着させない
+  - `frames / slots / lens / stride` と bin byte size を照合し、float32 LE をサンプル検証
 - 複数 Mod repository を workspace graph に結合
   - repository-local node は名前空間を分離
   - Molang variable / animation name / bone name は共有 contract node として統合
@@ -51,9 +54,10 @@ node src/cli.mjs scan C:\path\to\mod-repo `
   --understand C:\path\to\mod-repo `
   --out dist/graph.json
 
-# KNEEKURA-LAB / SimLab JSONL trace を静的解析に重ねる
+# KNEEKURA-LAB / SimLab JSONL trace と client pose companion を静的解析に重ねる
 node src/cli.mjs scan C:\path\to\mod-repo `
   --trace C:\path\to\simlab-trace.jsonl `
+  --pose C:\path\to\20260827-052000.pose.json `
   --out dist/runtime-overlay.json
 
 node src/cli.mjs serve --graph dist/runtime-overlay.json
@@ -62,6 +66,8 @@ node src/cli.mjs serve --graph dist/runtime-overlay.json
 runtime trace の `anim` チャンネルに現れた animation / Molang は、静的解析が作った同じ `animation_name` / `molang_variable` node に合流します。Viewer の `runtime observed` を有効にすると、実測された経路だけを絞り込めます。
 
 KNEEKURA-LAB の新しい trace は `meta.delta="row"` を持つことがあります。この場合 `anim` 行でフィールドが省略されていても、前の runtime state を保持する契約です。CODE-LAB は省略を新しい観測として数えず、明示的に記録された値だけを evidence にします。
+
+`--pose` を併用すると、対応する SimPoseCodec companion を client-side render evidence として追加します。v2 trace に UUID がある場合は pose 側 UUID の一致が必須で、不一致なら type / entity id へフォールバックしません。旧 v1 pose を手動で使う場合だけ `--allow-v1-pose` を明示します。
 
 ### TLM + YSM を一枚の graph にする
 
@@ -91,7 +97,7 @@ repository B ─ scanner ─┘                      │
                                                ├─ shared protocol nodes
                                                │  Molang / animation / bone names
                                                └─ runtime evidence
-                                                  entity / observed anim / observed Molang
+                                                  entity / observed anim / observed Molang / rendered pose
 ```
 
 ### 重要な原則
@@ -107,16 +113,16 @@ repository B ─ scanner ─┘                      │
 
 - `src/core/` — 共通 IR、単一repo走査、workspace merge
 - `src/analyzers/` — Java / Forge / Minecraft / YSM の意味抽出
-- `src/adapters/` — CodeGraph / Understand Anything / KNEEKURA-LAB Runtime trace
+- `src/adapters/` — CodeGraph / Understand Anything / KNEEKURA-LAB Runtime trace / pose companion
 - `viewer/` — 依存ゼロの Web Viewer
-- `fixtures/` — Minecraft を起動せず検証する小さな合成 Mod / workspace / runtime trace
+- `fixtures/` — Minecraft を起動せず検証する小さな合成 Mod / workspace / runtime trace / pose companion
 - `docs/` — 設計・互換契約
 
 ## 現在の限界
 
 Java 解析は安全側の lexical scanner（字句ベースの軽量解析）です。完全な構文木ではありません。複雑なネスト・生成コード・難読化コードの正確な call graph は CodeGraph/tree-sitter adapter の担当にします。
 
-KNEEKURA-LAB の main JSONL trace (`anim` / Molang / entity lifecycle) は静的 graph に重ねられます。一方、client が別ファイルへ書く pose companion (`.pose.json` / `.pose.bin`) はまだ未統合です。実際の描画頂点まで証拠化するには pose companion adapter が次の段階です。network packet、capability の意味抽出も未実装です。
+KNEEKURA-LAB の main JSONL trace (`anim` / Molang / entity lifecycle) と、対応する client pose companion (`.pose.json` / `.pose.bin`) は静的 graph に重ねられます。pose は「対応runのクライアント描画が頂点を生成した」証拠であり、各頂点を `RightHandLocator` など特定boneへ逆算して帰属させるものではありません。per-bone runtime transform、network packet、capability の意味抽出は未実装です。
 
 ## AI / coding agent 向け出力との境界
 
