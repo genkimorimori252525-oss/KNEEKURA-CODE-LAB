@@ -4,7 +4,7 @@ import { scanRepository } from './scan.mjs';
 
 // These nodes describe cross-repository protocol names, not repository-local implementation symbols.
 // They are intentionally shared so independently scanned mods meet at the same semantic contract.
-const SHARED_KINDS = new Set(['molang_variable', 'animation_name']);
+const SHARED_KINDS = new Set(['molang_variable', 'animation_name', 'bone_name']);
 
 export async function scanWorkspace(repositories, opts = {}) {
   if (!Array.isArray(repositories) || repositories.length < 2) {

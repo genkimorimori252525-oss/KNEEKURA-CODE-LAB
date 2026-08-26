@@ -22,9 +22,12 @@ Minecraft / Forge Mod のコードを「普通の Java」ではなく、**Mod �
   - YSM animation/controller JSON の Molang consumer
   - `v.`/`variable.`、`q.`/`query.` などの alias 正規化
   - Java 側 animation dispatch と YSM animation definition の対応
+  - `ysm.json` の model / animation / texture / sound resource 参照
+  - `minecraft:geometry[].bones[]` の model/bone 階層、pivot、cube、locator
+  - animation の `bones` と model bone を共有 `bone_name` contract で接続
 - 複数 Mod repository を workspace graph に結合
   - repository-local node は名前空間を分離
-  - Molang variable / animation name は共有 contract node として統合
+  - Molang variable / animation name / bone name は共有 contract node として統合
   - `TLM → Molang/animation → YSM` の cross-repository boundary edge を生成
 - 未知の解析器の結果を Common IR にマージ
 - Understand Anything の `knowledge-graph.json` をそのまま取り込み
@@ -56,7 +59,7 @@ node src/cli.mjs serve --graph dist\tlm-ysm-workspace.json
 
 ブラウザで `http://127.0.0.1:8789` を開き、`TLM↔YSM boundary` を有効にすると cross-repository contract だけを表示できます。
 
-workspace merge では `file` / `class` / `method` など repository 固有の node key を `tlm:` / `ysm:` のように名前空間化します。一方、`molang_variable` と `animation_name` は共有 node にするため、たとえば TLM の `v.wuqi` writer と YSM の `variable.wuqi` reader が同じ node 上で合流します。
+workspace merge では `file` / `class` / `method` / `model_bone` など repository 固有の node key を `tlm:` / `ysm:` のように名前空間化します。一方、`molang_variable`、`animation_name`、`bone_name` は共有 node にするため、たとえば TLM の `v.wuqi` writer と YSM の `variable.wuqi` reader が同じ node 上で合流します。YSM 内部では、その animation から `RightHandLocator` のような bone contract を経由して実 model bone 定義まで辿れます。
 
 ## 設計
 
@@ -65,8 +68,9 @@ repository A ─ scanner ─┐
                         ├─ workspace merge ─ Common Graph IR ─ Viewer
 repository B ─ scanner ─┘                      │
                                                ├─ repository-local nodes
+                                               │  file / class / model_bone
                                                └─ shared protocol nodes
-                                                  Molang / animation names
+                                                  Molang / animation / bone names
 ```
 
 ### 重要な原則
@@ -74,7 +78,7 @@ repository B ─ scanner ─┘                      │
 1. **事実と推論を分ける**: edge は `confidence` と `evidence` を持つ。
 2. **未知を捏造しない**: 解決できない import / target は unresolved node として残す。
 3. **Minecraft 固有意味は adapter / semantic 層に置く**: 汎用グラフ IR を個別 Mod 実装に密結合させない。
-4. **cross-repository 接続は protocol 名で結ぶ**: Java call を捏造せず、Molang variable / animation name の共有 contract として表現する。
+4. **cross-repository 接続は protocol 名で結ぶ**: Java call を捏造せず、Molang variable / animation / bone name の共有 contract として表現する。
 5. **外部 OSS は vendoring しない**: CodeGraph / Understand Anything は出力互換 adapter を介して利用する。
 
 ## ディレクトリ
@@ -90,4 +94,4 @@ repository B ─ scanner ─┘                      │
 
 Java 解析は安全側の lexical scanner（字句ベースの軽量解析）です。完全な構文木ではありません。複雑なネスト・生成コード・難読化コードの正確な call graph は CodeGraph/tree-sitter adapter の担当にします。
 
-workspace boundary は現在 Molang variable と YSM animation name を中心にしています。model bone、network packet、capability、runtime trace まで同じ方式で増やせる設計です。
+YSM model/resource/bone graph は静的事実を追跡しますが、実行時にどのモデル・animation controller・bone path が選ばれたかはまだ runtime trace と統合していません。network packet、capability、runtime trace は次段階です。
