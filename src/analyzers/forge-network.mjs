@@ -341,6 +341,11 @@ function resolveStringExpression(expr, constants) {
   const literal = s.match(/^["']([^"']*)["']$/)?.[1];
   if (literal !== undefined) return literal;
   if (constants.has(s)) return constants.get(s);
+
+  // Forge 1.20.1 newSimpleChannel commonly uses a Supplier<String>: () -> VERSION.
+  const lambdaConst = s.match(/^\(\s*\)\s*->\s*([A-Za-z_$][\w$]*)$/)?.[1];
+  if (lambdaConst && constants.has(lambdaConst)) return constants.get(lambdaConst);
+
   const simple = s.split('.').at(-1);
   if (constants.has(simple)) return constants.get(simple);
   return null;
