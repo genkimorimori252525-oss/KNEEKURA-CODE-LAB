@@ -11,14 +11,24 @@ Minecraft / Forge Mod のコードを「普通の Java」ではなく、**Mod �
 - Forge / Minecraft 固有の意味を追加
   - `@Mod`
   - `@Mixin`
+  - `@Inject` / `@Redirect` / `@Modify*` とネストした `@At`
   - `@SubscribeEvent`
   - `DeferredRegister`
   - `ResourceLocation`
   - Registry 参照
   - optional / required mod dependency
+- YSM / TouhouLittleMaid 系の意味を追加
+  - `sendSpellCardMolang("...")` の Molang producer
+  - YSM animation/controller JSON の Molang consumer
+  - `v.`/`variable.`、`q.`/`query.` などの alias 正規化
+  - Java 側 animation dispatch と YSM animation definition の対応
+- 複数 Mod repository を workspace graph に結合
+  - repository-local node は名前空間を分離
+  - Molang variable / animation name は共有 contract node として統合
+  - `TLM → Molang/animation → YSM` の cross-repository boundary edge を生成
 - 未知の解析器の結果を Common IR にマージ
 - Understand Anything の `knowledge-graph.json` をそのまま取り込み
-- ブラウザで検索・フィルタ・関係表示
+- ブラウザで検索・node kind・edge type・TLM↔YSM boundary をフィルタ
 - `Static Graph` と将来の `Runtime Graph` を同じ IR に重ねられる設計
 
 ## Quick start
@@ -31,43 +41,53 @@ node src/cli.mjs scan C:\path\to\mod-repo --understand C:\path\to\mod-repo --out
 node src/cli.mjs serve --graph dist/graph.json
 ```
 
-ブラウザで `http://127.0.0.1:8789` を開きます。
+### TLM + YSM を一枚の graph にする
+
+両 repository をローカルに置いた状態で、名前付き `--repo` を複数指定します。
+
+```powershell
+node src/cli.mjs workspace `
+  --repo tlm=C:\path\to\TouhouLittleMaid-or-reimu-mod `
+  --repo ysm=C:\path\to\ysm-2.6.2-forge-mc1.20.1-releaseKaidoku `
+  --out dist\tlm-ysm-workspace.json
+
+node src/cli.mjs serve --graph dist\tlm-ysm-workspace.json
+```
+
+ブラウザで `http://127.0.0.1:8789` を開き、`TLM↔YSM boundary` を有効にすると cross-repository contract だけを表示できます。
+
+workspace merge では `file` / `class` / `method` など repository 固有の node key を `tlm:` / `ysm:` のように名前空間化します。一方、`molang_variable` と `animation_name` は共有 node にするため、たとえば TLM の `v.wuqi` writer と YSM の `variable.wuqi` reader が同じ node 上で合流します。
 
 ## 設計
 
 ```text
-repository
-   │
-   ├─ built-in scanner ──────────┐
-   ├─ CodeGraph adapter (future) │
-   └─ runtime trace (future)     │
-                                ▼
-                           Common Graph IR
-                                │
-                    ┌───────────┴───────────┐
-                    ▼                       ▼
-             Minecraft semantics          Viewer
-             Forge / Mixin / Registry      search / inspect
+repository A ─ scanner ─┐
+                        ├─ workspace merge ─ Common Graph IR ─ Viewer
+repository B ─ scanner ─┘                      │
+                                               ├─ repository-local nodes
+                                               └─ shared protocol nodes
+                                                  Molang / animation names
 ```
 
 ### 重要な原則
 
 1. **事実と推論を分ける**: edge は `confidence` と `evidence` を持つ。
 2. **未知を捏造しない**: 解決できない import / target は unresolved node として残す。
-3. **Minecraft 固有意味は adapter 層に置く**: 汎用グラフ IR を TLM/YSM/Warfare Wings 固有に汚染しない。
-4. **外部 OSS は vendoring しない**: CodeGraph / Understand Anything は出力互換 adapter を介して利用する。
+3. **Minecraft 固有意味は adapter / semantic 層に置く**: 汎用グラフ IR を個別 Mod 実装に密結合させない。
+4. **cross-repository 接続は protocol 名で結ぶ**: Java call を捏造せず、Molang variable / animation name の共有 contract として表現する。
+5. **外部 OSS は vendoring しない**: CodeGraph / Understand Anything は出力互換 adapter を介して利用する。
 
 ## ディレクトリ
 
-- `src/core/` — 共通 IR、走査、グラフ操作
-- `src/analyzers/` — Java / Forge / Minecraft の意味抽出
+- `src/core/` — 共通 IR、単一repo走査、workspace merge
+- `src/analyzers/` — Java / Forge / Minecraft / YSM の意味抽出
 - `src/adapters/` — CodeGraph / Understand Anything / Runtime trace 入口（UAは実装済み）
 - `viewer/` — 依存ゼロの Web Viewer
-- `fixtures/` — Minecraft を起動せず検証する小さな合成 Mod
+- `fixtures/` — Minecraft を起動せず検証する小さな合成 Mod / workspace
 - `docs/` — 設計・互換契約
 
 ## 現在の限界
 
-初版の Java 解析は安全側の lexical scanner（字句ベースの軽量解析）です。完全な構文木ではありません。複雑なネスト・生成コード・難読化コードの正確な call graph は CodeGraph/tree-sitter adapter の担当にします。
+Java 解析は安全側の lexical scanner（字句ベースの軽量解析）です。完全な構文木ではありません。複雑なネスト・生成コード・難読化コードの正確な call graph は CodeGraph/tree-sitter adapter の担当にします。
 
-この割り切りにより、Minecraft 固有の意味付けと Viewer を先に安定させ、後から解析エンジンだけ交換できます。
+workspace boundary は現在 Molang variable と YSM animation name を中心にしています。model bone、network packet、capability、runtime trace まで同じ方式で増やせる設計です。
