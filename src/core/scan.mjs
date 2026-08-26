@@ -13,7 +13,7 @@ export async function scanRepository(root, opts={}) {
   const b = new GraphBuilder(root);
   b.addAnalyzer('builtin-java','lexical-v1');
   b.addAnalyzer('forge-semantics','v2');
-  b.addAnalyzer('minecraft-ysm-semantics','v1');
+  b.addAnalyzer('minecraft-ysm-semantics','v2');
   const files = await walk(root);
   for (const file of files) {
     try {
