@@ -214,7 +214,7 @@ function extractAt(text) {
 
 function findFollowingMethodNode(builder, java, ann) {
   const tail = java.source.slice(ann.end, Math.min(java.source.length, ann.end + 1200));
-  const match = tail.match(/(?:public\s+|protected\s+|private\s+|static\s+|final\s+|synchronized\s+|abstract\s+|default\s+|native\s+)*[\w.$<>\[\],?]+\s+(\w+)\s*\(/);
+  const match = tail.match(/(?:public\s+|protected\s+|private\s+|static\s+|final\s+|synchronized\s+|abstract\s+|default\s+|native\s+)*[\w.$<>\[\],?]+\s+([\w$]+)\s*\(/);
   if (!match) return null;
   return builder.graph.nodes.find(n => n.kind === 'method' && n.path === java.rel && n.label === match[1]) ?? null;
 }
