@@ -87,6 +87,80 @@ test('Forge 1.20.1 SimpleChannel registrations, directions, handlers and sends f
   assert(g.edges.some(e=>e.type==='IMPLEMENTS_NETWORK_INIT'&&e.to===initRef.id));
 });
 
+test('KNEEKURA network companions overlay real send and receive separately onto Forge packet graph', async()=>{
+  const g=await scanRepository(path.join(ROOT,'fixtures/forge-mini'), {
+    trace:path.join(ROOT,'fixtures/runtime/kneekura-trace.jsonl'),
+    network:[
+      path.join(ROOT,'fixtures/runtime/kneekura-server.net.jsonl'),
+      path.join(ROOT,'fixtures/runtime/kneekura-client.net.jsonl')
+    ]
+  });
+
+  const packet=g.nodes.find(n=>n.kind==='network_message'&&n.key==='ReimuPacket');
+  assert(packet);
+  assert.equal(packet.networkRuntimeObserved,true);
+  assert.equal(packet.runtimePacketClass,'demo.net.ReimuPacket');
+
+  const send=g.edges.find(e=>e.type==='OBSERVED_PACKET_SEND'&&e.to===packet.id);
+  const receive=g.edges.find(e=>e.type==='OBSERVED_PACKET_RECEIVE'&&e.to===packet.id);
+  assert(send&&receive);
+  assert.equal(send.observationCount,2);
+  assert.equal(send.firstTick,1);
+  assert.equal(send.lastTick,3);
+  assert.equal(send.direction,'PLAY_TO_CLIENT');
+  assert.equal(send.channel,'demo:reimu_net');
+  assert.equal(receive.observationCount,2);
+  assert.equal(receive.firstTick,2);
+  assert.equal(receive.lastTick,4);
+
+  const captures=g.nodes.filter(n=>n.kind==='runtime_network_capture');
+  assert.equal(captures.length,2);
+  const serverCapture=captures.find(n=>n.physicalSide==='DEDICATED_SERVER');
+  assert(serverCapture);
+  assert.equal(serverCapture.identityTrust,'run');
+  assert.equal(serverCapture.totalEventCount,3);
+  assert.equal(serverCapture.inWindowEventCount,2);
+  assert.equal(serverCapture.ignoredOutsideWindowCount,1);
+
+  const channel=g.nodes.find(n=>n.kind==='network_channel'&&n.resourceId==='demo:reimu_net');
+  assert(channel);
+  assert.equal(channel.runtimeObserved,true);
+  assert(g.edges.some(e=>e.type==='OBSERVED_ON_NETWORK_CHANNEL'&&e.to===channel.id&&e.runtimeObservation));
+
+  const matrix=g.nodes.find(n=>n.kind==='network_delivery_matrix');
+  assert(matrix);
+  assert.equal(matrix.observedThroughStage,'N2');
+  assert.equal(matrix.firstUnobservedStage,null);
+  assert.deepEqual(matrix.stageSummary.map(s=>s.status),['observed','observed','observed']);
+});
+
+test('KNEEKURA network send does not invent a receive observation', async()=>{
+  const g=await scanRepository(path.join(ROOT,'fixtures/forge-mini'), {
+    trace:path.join(ROOT,'fixtures/runtime/kneekura-trace.jsonl'),
+    network:[path.join(ROOT,'fixtures/runtime/kneekura-server.net.jsonl')]
+  });
+  const matrix=g.nodes.find(n=>n.kind==='network_delivery_matrix');
+  assert(matrix);
+  assert.equal(matrix.observedThroughStage,'N1');
+  assert.equal(matrix.firstUnobservedStage,'N2');
+  assert(g.edges.some(e=>e.type==='OBSERVED_PACKET_SEND'));
+  assert(!g.edges.some(e=>e.type==='OBSERVED_PACKET_RECEIVE'));
+});
+
+test('KNEEKURA network companion run mismatch and unbound identity are rejected by default', async()=>{
+  for (const name of ['kneekura-wrong-run.net.jsonl','kneekura-unbound.net.jsonl']) {
+    const g=await scanRepository(path.join(ROOT,'fixtures/forge-mini'), {
+      trace:path.join(ROOT,'fixtures/runtime/kneekura-trace.jsonl'),
+      network:[path.join(ROOT,'fixtures/runtime',name)]
+    });
+    assert(!g.nodes.some(n=>n.kind==='runtime_network_capture'),name);
+    assert(!g.edges.some(e=>e.type==='OBSERVED_PACKET_RECEIVE'),name);
+    const rejection=g.diagnostics.find(d=>d.message==='network companion rejected');
+    assert(rejection,name);
+    assert.match(rejection.reason,/run mismatch|unbound/i);
+  }
+});
+
 test('Deep Mixin injector semantics survive multiline nested annotations', async()=>{
   const g=await scanRepository(path.join(ROOT,'fixtures/forge-mini'));
   const edge=g.edges.find(e=>e.type==='INJECTS_AT'&&e.injector==='Inject');
