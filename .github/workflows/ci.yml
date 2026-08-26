@@ -14,3 +14,4 @@ jobs:
           node-version: 20
       - run: npm test
       - run: node src/cli.mjs scan fixtures/forge-mini --understand fixtures/understand-anything --out dist/graph.json
+      - run: node src/cli.mjs workspace --repo tlm=fixtures/workspace/tlm --repo ysm=fixtures/workspace/ysm --out dist/workspace.json
