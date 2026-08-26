@@ -135,6 +135,7 @@ export async function importNetworkCompanion(builder, networkFile, opts = {}) {
         lastTick: g.lastTick,
         threads: g.threads,
         sampleSeq: g.sampleSeq,
+        payloadFingerprint: g.payloadFingerprint,
         payloadSamples: g.payloadSamples
       }
     );
