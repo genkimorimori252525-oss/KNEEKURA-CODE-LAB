@@ -132,6 +132,33 @@ test('KNEEKURA network companions overlay real send and receive separately onto 
   assert.equal(matrix.observedThroughStage,'N2');
   assert.equal(matrix.firstUnobservedStage,null);
   assert.deepEqual(matrix.stageSummary.map(s=>s.status),['observed','observed','observed']);
+
+  const wuqi=g.nodes.find(n=>n.kind==='molang_variable'&&n.key==='variable.wuqi');
+  const zui=g.nodes.find(n=>n.kind==='molang_variable'&&n.key==='variable.roaming.zui');
+  assert(wuqi&&zui);
+  assert.equal(wuqi.networkPayloadObserved,true);
+  assert.equal(zui.networkPayloadObserved,true);
+
+  const payloadMolang=g.edges.filter(e=>e.type==='OBSERVED_PACKET_PAYLOAD_MOLANG');
+  assert.equal(payloadMolang.length,4);
+  const wuqiSend=payloadMolang.find(e=>e.to===wuqi.id&&e.stage==='send');
+  const wuqiReceive=payloadMolang.find(e=>e.to===wuqi.id&&e.stage==='receive');
+  const zuiSend=payloadMolang.find(e=>e.to===zui.id&&e.stage==='send');
+  const zuiReceive=payloadMolang.find(e=>e.to===zui.id&&e.stage==='receive');
+  assert(wuqiSend&&wuqiReceive&&zuiSend&&zuiReceive);
+  assert.equal(wuqiSend.observationCount,1);
+  assert.equal(wuqiSend.firstTick,1);
+  assert.equal(wuqiReceive.firstTick,2);
+  assert.equal(zuiSend.firstTick,3);
+  assert.equal(zuiReceive.firstTick,4);
+  assert.deepEqual(wuqiReceive.fields,['molangExpression']);
+  assert.equal(wuqiReceive.samples[0].value,'(v.wuqi = 1)');
+
+  const serverObservation=g.nodes.find(n=>n.kind==='runtime_network_observation'&&n.stage==='send'&&n.packetSimple==='ReimuPacket');
+  assert(serverObservation);
+  assert.equal(serverObservation.payloadSamples.length,2);
+  assert.equal(serverObservation.payloadSamples[0].payload.molangExpression,'(v.wuqi = 1)');
+  assert(!g.nodes.some(n=>n.kind==='molang_variable'&&n.key==='variable.ignored_outside_window'));
 });
 
 test('KNEEKURA network send does not invent a receive observation', async()=>{
@@ -147,8 +174,8 @@ test('KNEEKURA network send does not invent a receive observation', async()=>{
   assert(!g.edges.some(e=>e.type==='OBSERVED_PACKET_RECEIVE'));
 });
 
-test('KNEEKURA network companion run mismatch and unbound identity are rejected by default', async()=>{
-  for (const name of ['kneekura-wrong-run.net.jsonl','kneekura-unbound.net.jsonl']) {
+test('KNEEKURA network companion run mismatch, unbound identity and nested payload are rejected', async()=>{
+  for (const name of ['kneekura-wrong-run.net.jsonl','kneekura-unbound.net.jsonl','kneekura-invalid-payload.net.jsonl']) {
     const g=await scanRepository(path.join(ROOT,'fixtures/forge-mini'), {
       trace:path.join(ROOT,'fixtures/runtime/kneekura-trace.jsonl'),
       network:[path.join(ROOT,'fixtures/runtime',name)]
@@ -157,7 +184,12 @@ test('KNEEKURA network companion run mismatch and unbound identity are rejected 
     assert(!g.edges.some(e=>e.type==='OBSERVED_PACKET_RECEIVE'),name);
     const rejection=g.diagnostics.find(d=>d.message==='network companion rejected');
     assert(rejection,name);
-    assert.match(rejection.reason,/run mismatch|unbound/i);
+    if (name === 'kneekura-invalid-payload.net.jsonl') {
+      assert.equal(rejection.reason,'network companion is invalid');
+      assert.match(rejection.error,/payload\.molangExpression must be scalar/);
+    } else {
+      assert.match(rejection.reason,/run mismatch|unbound/i);
+    }
   }
 });
 
