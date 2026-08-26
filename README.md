@@ -116,4 +116,17 @@ repository B ─ scanner ─┘                      │
 
 Java 解析は安全側の lexical scanner（字句ベースの軽量解析）です。完全な構文木ではありません。複雑なネスト・生成コード・難読化コードの正確な call graph は CodeGraph/tree-sitter adapter の担当にします。
 
-KNEEKURA-LAB の main JSONL trace (`anim` / Molang / entity lifecycle) は静的 graph に重ねられます。一方、client が別ファイルへ書く pose companion (`.pose.json` / `.pose.bin`) はまだ未統合です。実際の bone transform まで証拠化するには pose companion adapter が次の段階です。network packet、capability の意味抽出も未実装です。
+KNEEKURA-LAB の main JSONL trace (`anim` / Molang / entity lifecycle) は静的 graph に重ねられます。一方、client が別ファイルへ書く pose companion (`.pose.json` / `.pose.bin`) はまだ未統合です。実際の描画頂点まで証拠化するには pose companion adapter が次の段階です。network packet、capability の意味抽出も未実装です。
+
+## AI / coding agent 向け出力との境界
+
+KNEEKURA-CODE-LAB 本体のインターフェースは、引き続き**人間がコードを理解・探索・可視化するための表示**を優先します。Understanding / CodeGraph 風の説明や Viewer の見せ方を、AI間通信の都合で変更しません。
+
+Coding agent から KNEEKURA の解析思想を利用する場合は、共有キュー **Jolly Research Mailbox** の `service: kneekura-code-lab` を使用します。
+
+- Human-facing renderer: この repository の Viewer / 説明 / graph
+- Agent-facing renderer: `genkimorimori252525-oss/jolly-research-mailbox` の KNEEKURA service
+
+Agent-facing contract では Root Cause / Evidence / Recommended Changes / Do Not Change / Rejected Hypotheses / Verification Plan を圧縮して返し、依頼元 repository は read-only とします。
+
+**Same analysis philosophy, different renderer.**
