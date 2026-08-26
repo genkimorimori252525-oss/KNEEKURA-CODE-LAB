@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scanRepository } from './src/core/scan.mjs';
+import { scanWorkspace } from './src/core/workspace.mjs';
 const ROOT=path.dirname(fileURLToPath(import.meta.url));
 
 test('Forge semantics are materialized in graph', async()=>{
@@ -48,6 +49,35 @@ test('TLM Java producers join YSM Molang consumers and animation names', async()
   assert(g.edges.some(e=>e.type==='PLAYS_YSM_ANIMATION'&&e.to===idle.id));
   assert(g.edges.some(e=>e.type==='DISPATCHES_YSM_ANIMATION'&&e.to===bow.id));
   assert(g.edges.some(e=>e.type==='PROVIDES_ANIMATION_NAME'&&e.to===idle.id));
+});
+
+test('Workspace graph materializes TLM to YSM compatibility boundaries', async()=>{
+  const g=await scanWorkspace([
+    {name:'tlm',root:path.join(ROOT,'fixtures/workspace/tlm')},
+    {name:'ysm',root:path.join(ROOT,'fixtures/workspace/ysm')}
+  ]);
+  const repos=g.nodes.filter(n=>n.kind==='repository').map(n=>n.key).sort();
+  assert.deepEqual(repos,['tlm','ysm']);
+
+  const wuqi=g.nodes.find(n=>n.kind==='molang_variable'&&n.key==='variable.wuqi');
+  const idle=g.nodes.find(n=>n.kind==='animation_name'&&n.key==='idle2');
+  assert(wuqi?.crossRepository);
+  assert(idle?.crossRepository);
+  assert.deepEqual([...wuqi.repositories].sort(),['tlm','ysm']);
+  assert.deepEqual([...idle.repositories].sort(),['tlm','ysm']);
+
+  const boundary=g.edges.filter(e=>e.boundary);
+  const types=new Set(boundary.map(e=>e.type));
+  assert(types.has('BOUNDARY_PRODUCES_MOLANG'));
+  assert(types.has('BOUNDARY_CONSUMES_MOLANG'));
+  assert(types.has('BOUNDARY_DISPATCHES_ANIMATION'));
+  assert(types.has('BOUNDARY_PROVIDES_ANIMATION'));
+  assert.equal(g.meta.workspace.boundaryEdgeCount,4);
+
+  const tlmFile=g.nodes.find(n=>n.kind==='file'&&n.repository==='tlm');
+  const ysmFile=g.nodes.find(n=>n.kind==='file'&&n.repository==='ysm');
+  assert(tlmFile?.key.startsWith('tlm:'));
+  assert(ysmFile?.key.startsWith('ysm:'));
 });
 
 test('Graph IDs are stable for same repository contents', async()=>{
