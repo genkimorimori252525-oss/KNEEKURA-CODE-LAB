@@ -1,0 +1,13 @@
+{
+  "format_version": "1.8.0",
+  "animations": {
+    "idle2": {
+      "loop": true,
+      "bones": {
+        "RightHandLocator": {
+          "scale": "1-variable.wuqi"
+        }
+      }
+    }
+  }
+}
