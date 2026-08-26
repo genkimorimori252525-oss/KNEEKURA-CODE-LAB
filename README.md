@@ -17,6 +17,7 @@ Minecraft / Forge Mod のコードを「普通の Java」ではなく、**Mod �
   - Registry 参照
   - optional / required mod dependency
 - 未知の解析器の結果を Common IR にマージ
+- Understand Anything の `knowledge-graph.json` をそのまま取り込み
 - ブラウザで検索・フィルタ・関係表示
 - `Static Graph` と将来の `Runtime Graph` を同じ IR に重ねられる設計
 
@@ -25,6 +26,8 @@ Minecraft / Forge Mod のコードを「普通の Java」ではなく、**Mod �
 ```powershell
 npm test
 node src/cli.mjs scan C:\path\to\mod-repo --out dist/graph.json
+# Understand Anything の解析結果も重ねる
+node src/cli.mjs scan C:\path\to\mod-repo --understand C:\path\to\mod-repo --out dist/graph.json
 node src/cli.mjs serve --graph dist/graph.json
 ```
 
@@ -58,7 +61,7 @@ repository
 
 - `src/core/` — 共通 IR、走査、グラフ操作
 - `src/analyzers/` — Java / Forge / Minecraft の意味抽出
-- `src/adapters/` — CodeGraph / Understand Anything / Runtime trace 入口
+- `src/adapters/` — CodeGraph / Understand Anything / Runtime trace 入口（UAは実装済み）
 - `viewer/` — 依存ゼロの Web Viewer
 - `fixtures/` — Minecraft を起動せず検証する小さな合成 Mod
 - `docs/` — 設計・互換契約
