@@ -1,0 +1,2 @@
+{"v":1,"ch":"net_meta","scenario":"ysm-compat","run":"other-run","bound":true,"physicalSide":"CLIENT","pid":"201","startedGameTime":1000,"file":"wrong.net.jsonl"}
+{"v":1,"ch":"net","seq":1,"stage":"receive","physicalSide":"CLIENT","gameTime":1002,"thread":"Render thread","packet":"demo.net.ReimuPacket","packetSimple":"ReimuPacket","direction":"PLAY_TO_CLIENT"}

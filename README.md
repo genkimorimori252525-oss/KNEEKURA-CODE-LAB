@@ -25,6 +25,8 @@ Minecraft / Forge Mod のコードを「普通の Java」ではなく、**Mod �
   - `PacketDistributor` / `sendToServer` の送信site
   - `NetworkEvent.Context.enqueueWork` のmain-thread handoff
   - `FMLCommonSetupEvent.enqueueWork(Network::init)` のnetwork bootstrap
+  - KNEEKURA-LAB `.net.jsonl` のruntime send / receiveを静的packet graphへ重ねる
+  - `N0 static registration → N1 actual send → N2 actual receive` のdelivery matrix
 - YSM / TouhouLittleMaid 系の意味を追加
   - `sendSpellCardMolang("...")` の Molang producer
   - YSM animation/controller JSON の Molang consumer
@@ -90,7 +92,7 @@ runtime trace の `anim` チャンネルに現れた animation / Molang は、�
 
 KNEEKURA-LAB の新しい trace は `meta.delta="row"` を持つことがあります。この場合 `anim` 行でフィールドが省略されていても、前の runtime state を保持する契約です。CODE-LAB は省略を新しい観測として数えず、明示的に記録された値だけを evidence にします。
 
-`--pose` を併用すると SimPoseCodec の最終描画頂点、`--palette` を併用すると SimPaletteTrace のボーンごとの合成後ローカル `rotation(rad) / position / scale` を runtime evidence として追加します。どちらも同じ run identity matcher を使い、trace に UUID がある場合は companion UUID の一致が必須です。不一致なら type / entity id へフォールバックしません。UUID無し旧形式を手動で使う場合だけ `--allow-v1-pose` / `--allow-v1-palette` を明示します。
+`--pose` を併用すると SimPoseCodec の最終描画頂点、`--palette` を併用すると SimPaletteTrace のボーンごとの合成後ローカル `rotation(rad) / position / scale` を runtime evidence として追加します。pose/palette は同じUUID identity matcherを使います。network companionは `meta.run` と `net_meta.run` をhard gateにし、scenario一致と実測gameTime windowも確認します。server/clientの `.net.jsonl` は `--net` を複数回指定して同時に重ねられ、sendからreceiveを推測して補完しません。
 
 ### TLM + YSM を一枚の graph にする
 
@@ -120,7 +122,7 @@ repository B ─ scanner ─┘                      │
                                                ├─ shared protocol nodes
                                                │  Molang / animation / bone names
                                                └─ runtime evidence
-                                                  entity / observed anim / observed Molang / rendered pose / bone TRS
+                                                  entity / observed anim / observed Molang / rendered pose / bone TRS / network send+receive
 ```
 
 ### 重要な原則
@@ -136,7 +138,7 @@ repository B ─ scanner ─┘                      │
 
 - `src/core/` — 共通 IR、単一repo走査、workspace merge
 - `src/analyzers/` — Java / Forge / Minecraft / YSM の意味抽出
-- `src/adapters/` — CodeGraph / Understand Anything / KNEEKURA-LAB Runtime trace / pose / bone palette companion
+- `src/adapters/` — CodeGraph / Understand Anything / KNEEKURA-LAB Runtime trace / pose / bone palette / network companion
 - `viewer/` — 依存ゼロの Web Viewer
 - `fixtures/` — Minecraft を起動せず検証する小さな合成 Mod / workspace / runtime trace / pose / palette companion
 - `docs/` — 設計・互換契約
@@ -145,7 +147,7 @@ repository B ─ scanner ─┘                      │
 
 Java 解析は安全側の lexical scanner（字句ベースの軽量解析）です。完全な構文木ではありません。複雑なネスト・生成コード・難読化コードの正確な call graph は CodeGraph/tree-sitter adapter の担当にします。
 
-KNEEKURA-LAB の main JSONL trace (`anim` / Molang / entity lifecycle) と、対応する client pose companion (`.pose.json` / `.pose.bin`) は静的 graph に重ねられます。runtime evidence がある scan では fidelity matrix も生成され、`C0 static → C1 runtime mod → C2 entity → C3 YSM command → C4 rendered vertices → C5 per-bone runtime` のどこまで観測できたかを表示します。**unobserved は failure を意味しません。** pose は「対応runのクライアント描画が頂点を生成した」証拠です。bone帰属は pose から逆算せず、KNEEKURA-LAB が geoRender 直後に採った palette の `names[slot]` とTRSを直接使います。これにより C5 per-bone runtime transform まで直接 evidence 化できます。Forge 1.20.1 の静的network channel / packet / direction / send / handler意味抽出は実装済みです。ただし「実際にwireを通ったpacket」のruntime network trace、capability の意味抽出は未実装です。
+KNEEKURA-LAB の main JSONL trace (`anim` / Molang / entity lifecycle) と、対応する client pose companion (`.pose.json` / `.pose.bin`) は静的 graph に重ねられます。runtime evidence がある scan では fidelity matrix も生成され、`C0 static → C1 runtime mod → C2 entity → C3 YSM command → C4 rendered vertices → C5 per-bone runtime` のどこまで観測できたかを表示します。**unobserved は failure を意味しません。** pose は「対応runのクライアント描画が頂点を生成した」証拠です。bone帰属は pose から逆算せず、KNEEKURA-LAB が geoRender 直後に採った palette の `names[slot]` とTRSを直接使います。これにより C5 per-bone runtime transform まで直接 evidence 化できます。Forge 1.20.1 の静的network channel / packet / direction / send / handlerに加え、KNEEKURA-LABのruntime network companionから実送信・実受信も別々の証拠として重ねられます。現時点ではpacket eventと後続Molang eventを専用correlation id無しで因果接続はしません。capability の意味抽出は未実装です。
 
 ## AI / coding agent 向け出力との境界
 

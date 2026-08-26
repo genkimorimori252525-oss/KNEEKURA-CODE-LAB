@@ -17,4 +17,5 @@ jobs:
       - run: node src/cli.mjs workspace --repo tlm=fixtures/workspace/tlm --repo ysm=fixtures/workspace/ysm --out dist/workspace.json
       - run: node src/cli.mjs scan fixtures/forge-mini --trace fixtures/runtime/kneekura-trace.jsonl --out dist/runtime-overlay.json
       - run: node src/cli.mjs scan fixtures/forge-mini --trace fixtures/runtime/kneekura-trace.jsonl --pose fixtures/runtime/kneekura.pose.json --out dist/runtime-pose-overlay.json
+      - run: node src/cli.mjs scan fixtures/forge-mini --trace fixtures/runtime/kneekura-trace.jsonl --net fixtures/runtime/kneekura-server.net.jsonl --net fixtures/runtime/kneekura-client.net.jsonl --out dist/runtime-network-overlay.json
       - run: node src/cli.mjs scan fixtures/workspace/ysm --trace fixtures/runtime/kneekura-trace.jsonl --pose fixtures/runtime/kneekura.pose.json --palette fixtures/runtime/kneekura.pal.json --out dist/runtime-bone-overlay.json

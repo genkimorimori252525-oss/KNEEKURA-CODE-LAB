@@ -10,6 +10,7 @@ import { importCodeGraph } from '../adapters/codegraph.mjs';
 import { importRuntimeTrace } from '../adapters/runtime-trace.mjs';
 import { importPoseCompanion } from '../adapters/pose-companion.mjs';
 import { importPaletteCompanion } from '../adapters/palette-companion.mjs';
+import { importNetworkCompanion, deriveNetworkDeliveryMatrix } from '../adapters/network-companion.mjs';
 import { importUnderstandAnything } from '../adapters/understand-anything.mjs';
 import { deriveYsmFidelityMatrix } from '../analyzers/fidelity.mjs';
 
@@ -43,6 +44,8 @@ export async function scanRepository(root, opts={}) {
   if (opts.trace) await importRuntimeTrace(b, opts.trace);
   if (opts.pose) await importPoseCompanion(b, opts.pose, { trace: opts.trace, allowV1: opts.allowV1Pose });
   if (opts.palette) await importPaletteCompanion(b, opts.palette, { trace: opts.trace, allowV1: opts.allowV1Palette });
+  for (const net of opts.network ?? []) await importNetworkCompanion(b, net, { trace: opts.trace, allowUnbound: opts.allowUnboundNet });
+  if (b.graph.nodes.some(n => n.kind === 'runtime_network_capture')) deriveNetworkDeliveryMatrix(b);
   if (opts.trace || opts.pose || opts.palette) deriveYsmFidelityMatrix(b);
   return b.finish();
 }

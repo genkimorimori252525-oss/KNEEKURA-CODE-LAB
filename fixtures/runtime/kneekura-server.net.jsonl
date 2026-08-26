@@ -1,0 +1,4 @@
+{"v":1,"ch":"net_meta","scenario":"ysm-compat","run":"run-42","bound":true,"physicalSide":"DEDICATED_SERVER","pid":"100","startedGameTime":1000,"file":"server.net.jsonl"}
+{"v":1,"ch":"net","seq":1,"stage":"send","physicalSide":"DEDICATED_SERVER","gameTime":1001,"thread":"Server thread","channel":"demo:reimu_net","packet":"demo.net.ReimuPacket","packetSimple":"ReimuPacket","direction":"PLAY_TO_CLIENT"}
+{"v":1,"ch":"net","seq":2,"stage":"send","physicalSide":"DEDICATED_SERVER","gameTime":1003,"thread":"Server thread","channel":"demo:reimu_net","packet":"demo.net.ReimuPacket","packetSimple":"ReimuPacket","direction":"PLAY_TO_CLIENT"}
+{"v":1,"ch":"net","seq":3,"stage":"send","physicalSide":"DEDICATED_SERVER","gameTime":2000,"thread":"Server thread","channel":"demo:reimu_net","packet":"demo.net.ReimuPacket","packetSimple":"ReimuPacket","direction":"PLAY_TO_CLIENT"}

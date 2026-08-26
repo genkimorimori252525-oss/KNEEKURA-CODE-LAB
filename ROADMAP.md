@@ -21,6 +21,7 @@
 - [x] Mixin `@Inject/@Redirect/@Modify*` target extraction (multiline annotation / nested `@At` / ordinal / shift aware)
 - [ ] Forge registry object names and IDs
 - [x] Forge 1.20.1 networking messages/channels (SimpleChannel, registerMessage/messageBuilder, direction, send sites, enqueueWork/bootstrap)
+- [x] runtime network evidence overlay (run-gated send/receive companions + N0-N2 delivery matrix)
 - [ ] capability attachment/use
 - [x] resource/model/animation dependency graph (`ysm.json` resources + animation definitions + geometry models/bones)
 - [ ] access transformer / coremod edges

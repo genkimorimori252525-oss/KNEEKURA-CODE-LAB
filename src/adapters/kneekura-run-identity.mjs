@@ -33,7 +33,8 @@ export async function readTraceIdentity(file) {
       meta = {
         gameTime: finiteOrNull(e.gameTime),
         duration: finiteOrNull(e.duration),
-        scenario: e.scenario ?? null
+        scenario: e.scenario ?? null,
+        run: typeof e.run === 'string' && e.run ? e.run : null
       };
     }
     if (!reimu && e.ch === 'spawn' && e.role === 'reimu') {
