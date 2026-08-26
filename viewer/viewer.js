@@ -1,8 +1,9 @@
 const G=await fetch('/graph.json').then(r=>r.json());
 const svg=document.querySelector('#graph'),q=document.querySelector('#q'),kind=document.querySelector('#kind'),edgeType=document.querySelector('#edgeType'),boundaryOnly=document.querySelector('#boundaryOnly'),runtimeOnly=document.querySelector('#runtimeOnly'),detail=document.querySelector('#detail'),summary=document.querySelector('#summary');
-const workspace=G.meta.workspace;const runtimeEdgeCount=G.edges.filter(e=>e.runtimeObservation).length;const fidelity=G.nodes.find(n=>n.kind==='fidelity_matrix');
+const workspace=G.meta.workspace;const platform=G.meta.platform;const runtimeEdgeCount=G.edges.filter(e=>e.runtimeObservation).length;const fidelity=G.nodes.find(n=>n.kind==='fidelity_matrix');
+const platformHtml=platform?`<div class="fidelity"><b>Platform</b><br>${platform.detected.loader||'?'} ${platform.detected.minecraftVersion||'?'} / ${platform.detected.forgeFamily||'?'} — <b>${platform.compatibility}</b></div>`:'';
 const fidelityHtml=fidelity?`<div class="fidelity"><b>YSM fidelity</b><br>observed through <b>${fidelity.observedThroughStage||'none'}</b>${fidelity.firstUnobservedStage?` / next <b>${fidelity.firstUnobservedStage}</b>`:''}<br>${(fidelity.stageSummary||[]).map(s=>`<span class="badge fidelity-${s.status}">${s.id} ${s.status}</span>`).join('')}</div>`:'';
-summary.innerHTML=`<b>${G.nodes.length}</b> nodes / <b>${G.edges.length}</b> edges${workspace?`<br><b>${workspace.boundaryEdgeCount||0}</b> boundary edges / ${workspace.repositories.join(' + ')}`:''}${runtimeEdgeCount?`<br><b>${runtimeEdgeCount}</b> runtime observation edges`:''}<br>${Object.entries(G.meta.counts||{}).map(([k,v])=>`<span class="badge">${k}: ${v}</span>`).join('')}${fidelityHtml}`;
+summary.innerHTML=`<b>${G.nodes.length}</b> nodes / <b>${G.edges.length}</b> edges${workspace?`<br><b>${workspace.boundaryEdgeCount||0}</b> boundary edges / ${workspace.repositories.join(' + ')}`:''}${runtimeEdgeCount?`<br><b>${runtimeEdgeCount}</b> runtime observation edges`:''}<br>${Object.entries(G.meta.counts||{}).map(([k,v])=>`<span class="badge">${k}: ${v}</span>`).join('')}${platformHtml}${fidelityHtml}`;
 for(const k of [...new Set(G.nodes.map(n=>n.kind))].sort())kind.add(new Option(k,k));
 for(const t of [...new Set(G.edges.map(e=>e.type))].sort())edgeType.add(new Option(t,t));
 const W=1400,H=900,nodes=G.nodes.map((n,i)=>({...n,x:W/2+Math.cos(i)*150+(Math.random()-.5)*400,y:H/2+Math.sin(i)*150+(Math.random()-.5)*400,vx:0,vy:0}));
@@ -28,4 +29,4 @@ function filter(){
   }
 }
 q.oninput=filter;kind.onchange=filter;edgeType.onchange=filter;boundaryOnly.onchange=filter;runtimeOnly.onchange=filter;
-function radius(k){return k==='repository'||k==='runtime'||k==='fidelity_matrix'?12:k==='mod'?10:k==='runtime_pose_capture'||k==='runtime_palette_capture'?9:k==='fidelity_capability'||k==='class'||k==='runtime_entity'||k==='runtime_bone_series'?8:k==='method'?5:6}function color(k){let h=0;for(const c of k)h=(h*31+c.charCodeAt(0))%360;return `hsl(${h} 58% 52%)`}
+function radius(k){return k==='repository'||k==='runtime'||k==='fidelity_matrix'||k==='platform_profile'||k==='platform_target'?12:k==='mod'?10:k==='runtime_pose_capture'||k==='runtime_palette_capture'?9:k==='fidelity_capability'||k==='class'||k==='runtime_entity'||k==='runtime_bone_series'?8:k==='method'?5:6}function color(k){let h=0;for(const c of k)h=(h*31+c.charCodeAt(0))%360;return `hsl(${h} 58% 52%)`}
