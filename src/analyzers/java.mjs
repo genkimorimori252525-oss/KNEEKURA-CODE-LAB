@@ -24,7 +24,7 @@ export async function analyzeJava(builder, file, root) {
   }
 
   const classes = [];
-  const classRe = /((?:@[\w.$]+(?:\([^\n]*\))?\s*)*)(?:public\s+|protected\s+|private\s+|abstract\s+|final\s+|static\s+)*(class|interface|enum|record)\s+(\w+)(?:\s+extends\s+([\w.$<>]+))?(?:\s+implements\s+([^\{]+))?/g;
+  const classRe = /((?:@[\w.$]+(?:\([^\n]*\))?\s*)*)(?:public\s+|protected\s+|private\s+|abstract\s+|final\s+|static\s+)*(class|interface|enum|record)\s+([\w$]+)(?:\s+extends\s+([\w.$<>]+))?(?:\s+implements\s+([^\{]+))?/g;
   for (const m of src.matchAll(classRe)) {
     const qn = pkg ? `${pkg}.${m[3]}` : m[3];
     const c = builder.node('class', qn, { label: m[3], classType: m[2], path: rel, annotations: [...m[1].matchAll(/@([\w.$]+)/g)].map(x=>x[1]) });
@@ -36,7 +36,7 @@ export async function analyzeJava(builder, file, root) {
   }
 
   const owner = classes[0] ?? f;
-  const methodRe = /((?:@[\w.$]+(?:\([^\n]*\))?\s*)*)(?:public\s+|protected\s+|private\s+|static\s+|final\s+|synchronized\s+|abstract\s+|default\s+)*(?:[\w.$<>\[\],?]+\s+)+(\w+)\s*\(([^;{}]*)\)\s*(?:throws\s+[^\{]+)?\{/g;
+  const methodRe = /((?:@[\w.$]+(?:\([^\n]*\))?\s*)*)(?:public\s+|protected\s+|private\s+|static\s+|final\s+|synchronized\s+|abstract\s+|default\s+)*(?:[\w.$<>\[\],?]+\s+)+([\w$]+)\s*\(([^;{}]*)\)\s*(?:throws\s+[^\{]+)?\{/g;
   for (const m of src.matchAll(methodRe)) {
     if (['if','for','while','switch','catch'].includes(m[2])) continue;
     const mk = `${owner.key}#${m[2]}(${m[3].split(',').filter(x=>x.trim()).length})`;
