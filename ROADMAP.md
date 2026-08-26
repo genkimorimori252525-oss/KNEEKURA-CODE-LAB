@@ -32,6 +32,7 @@
 - [ ] fidelity/capability matrix
 
 ## v0.5 — Understand Anything style UX
+- [x] Understand Anything graph importer (nodes/edges/layers/tour)
 - [ ] architecture layers
 - [ ] guided tours
 - [ ] change impact view
