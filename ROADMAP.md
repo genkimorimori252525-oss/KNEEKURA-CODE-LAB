@@ -29,7 +29,7 @@
 - [x] Molang variable producer/consumer graph
 - [x] TLM ↔ YSM compatibility boundary graph + workspace Viewer filter
 - [x] runtime trace overlay from KNEEKURA-LAB (meta/spawn/gone/anim/Molang/end + UUID-gated pose companion render evidence)
-- [ ] fidelity/capability matrix
+- [x] fidelity/capability matrix (C0-C5 evidence stages; observed != pass, unobserved != fail)
 
 ## v0.5 — Understand Anything style UX
 - [x] Understand Anything graph importer (nodes/edges/layers/tour)
