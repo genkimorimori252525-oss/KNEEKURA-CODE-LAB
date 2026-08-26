@@ -48,7 +48,19 @@ stage + packet + direction + channel + physicalSide
 ~~~
 
 各 runtime_network_observation は observationCount、first/lastGameTime、
-first/lastTick、thread samples、sequence samples を持つ。
+first/lastTick、thread samples、sequence samples と、最大5件の shallow payload sample を持つ。
+
+payload は KNEEKURA-LAB が public scalar field だけを採ったものなので、CODE-LAB は nested object を受け付けない。
+String payload field に Molang token が含まれる場合は既存の alias 正規化を通して共有 molang_variable へ接続する。
+
+~~~text
+runtime_network_observation
+   --OBSERVED_PACKET_PAYLOAD_MOLANG-->
+molang_variable(variable.wuqi)
+~~~
+
+edge は stage=send/receive、field名、first/lastTick、observationCount、式sampleを保持する。
+同じpacket groupで座標や式が変化しても、eventごとにnodeを増やさず意味だけ集約する。
 
 ## Static join
 
@@ -125,5 +137,9 @@ rendered vertices
 
 まで同じCommon Graph IRで確認できる。
 
-現時点ではnetwork eventと後続Molang eventの「同一packetが直接そのMolangを起こした」という因果edgeは、
-専用correlation idが無いため捏造しない。
+packet payload に含まれていた Molang については、OBSERVED_PACKET_PAYLOAD_MOLANG により
+「このsend/receive観測がこの変数を運んだ」ことを直接evidence化する。
+
+ただし、これはまだ「YSM commandが実際に実行成功した」証拠ではない。
+receive boundary の直後に registered consumer が呼ばれる設計であっても、command queue / sendCommand の実行結果までは
+別のruntime evidenceが必要なので、そこは推測して埋めない。

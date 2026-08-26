@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { readTraceIdentity } from './kneekura-run-identity.mjs';
+import { extractMolangVariables } from '../analyzers/minecraft.mjs';
 
 /**
  * Import KNEEKURA-LAB v1 .net.jsonl as runtime network evidence.
@@ -132,7 +133,8 @@ export async function importNetworkCompanion(builder, networkFile, opts = {}) {
         firstTick: g.firstTick,
         lastTick: g.lastTick,
         threads: g.threads,
-        sampleSeq: g.sampleSeq
+        sampleSeq: g.sampleSeq,
+        payloadSamples: g.payloadSamples
       }
     );
 
@@ -198,6 +200,27 @@ export async function importNetworkCompanion(builder, networkFile, opts = {}) {
         });
       }
     }
+
+    for (const m of g.molangEvidence) {
+      const variable = builder.node('molang_variable', m.variable, {
+        label: m.variable,
+        runtimeObserved: true,
+        networkPayloadObserved: true
+      });
+      builder.edge(observation, variable, 'OBSERVED_PACKET_PAYLOAD_MOLANG', {
+        source: networkFile,
+        confidence: 1,
+        runtimeObservation: true,
+        networkRuntimeEvidence: true,
+        payloadObservation: true,
+        stage: g.stage,
+        observationCount: m.observationCount,
+        firstTick: m.firstTick,
+        lastTick: m.lastTick,
+        fields: m.fields,
+        samples: m.samples
+      });
+    }
   }
 
   Object.assign(capture, {
@@ -243,6 +266,15 @@ function parseNetworkText(text, source) {
     if (!Number.isInteger(row.gameTime)) throw new Error(`line ${lineNo}: gameTime must be integer`);
     if (row.direction !== undefined && typeof row.direction !== 'string') throw new Error(`line ${lineNo}: direction must be string`);
     if (row.channel !== undefined && typeof row.channel !== 'string') throw new Error(`line ${lineNo}: channel must be string`);
+    if (row.payload !== undefined) {
+      if (!row.payload || typeof row.payload !== 'object' || Array.isArray(row.payload)) {
+        throw new Error(`line ${lineNo}: payload must be an object`);
+      }
+      for (const [key, value] of Object.entries(row.payload)) {
+        const scalar = typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+        if (!scalar) throw new Error(`line ${lineNo}: payload.${key} must be scalar`);
+      }
+    }
     events.push(row);
   }
 
@@ -306,7 +338,9 @@ function aggregate(events, traceStart) {
         firstTick: e.gameTime - traceStart,
         lastTick: e.gameTime - traceStart,
         threads: [],
-        sampleSeq: []
+        sampleSeq: [],
+        payloadSamples: [],
+        molangEvidence: new Map()
       };
       map.set(key, g);
     }
@@ -319,8 +353,49 @@ function aggregate(events, traceStart) {
       g.threads.push(e.thread);
     }
     if (g.sampleSeq.length < 8) g.sampleSeq.push(e.seq);
+
+    if (e.payload && typeof e.payload === 'object' && !Array.isArray(e.payload)) {
+      if (g.payloadSamples.length < 5) {
+        g.payloadSamples.push({ seq: e.seq, tick: e.gameTime - traceStart, payload: e.payload });
+      }
+      for (const [field, value] of Object.entries(e.payload)) {
+        if (typeof value !== 'string') continue;
+        for (const variable of extractMolangVariables(value)) {
+          let m = g.molangEvidence.get(variable);
+          if (!m) {
+            m = {
+              variable,
+              observationCount: 0,
+              firstTick: e.gameTime - traceStart,
+              lastTick: e.gameTime - traceStart,
+              fields: new Set(),
+              samples: []
+            };
+            g.molangEvidence.set(variable, m);
+          }
+          m.observationCount++;
+          m.firstTick = Math.min(m.firstTick, e.gameTime - traceStart);
+          m.lastTick = Math.max(m.lastTick, e.gameTime - traceStart);
+          m.fields.add(field);
+          if (m.samples.length < 5) {
+            m.samples.push({
+              seq: e.seq,
+              tick: e.gameTime - traceStart,
+              field,
+              value: value.slice(0, 500)
+            });
+          }
+        }
+      }
+    }
   }
-  return [...map.values()];
+  return [...map.values()].map(g => ({
+    ...g,
+    molangEvidence: [...g.molangEvidence.values()].map(m => ({
+      ...m,
+      fields: [...m.fields]
+    }))
+  }));
 }
 
 export function deriveNetworkDeliveryMatrix(builder) {
