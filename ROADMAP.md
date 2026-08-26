@@ -28,8 +28,8 @@
 - [x] YSM model + animation resource graph (model definitions / bone hierarchy / locators / animation bone channels)
 - [x] Molang variable producer/consumer graph
 - [x] TLM ↔ YSM compatibility boundary graph + workspace Viewer filter
-- [x] runtime trace overlay from KNEEKURA-LAB (meta/spawn/gone/anim/Molang/end + UUID-gated pose companion render evidence)
-- [x] fidelity/capability matrix (C0-C5 evidence stages; observed != pass, unobserved != fail)
+- [x] runtime trace overlay from KNEEKURA-LAB (meta/spawn/gone/anim/Molang/end + UUID-gated pose + per-bone palette TRS evidence)
+- [x] fidelity/capability matrix (C0-C5 evidence stages; C5 backed by SimPaletteTrace TRS; observed != pass, unobserved != fail)
 
 ## v0.5 — Understand Anything style UX
 - [x] Understand Anything graph importer (nodes/edges/layers/tour)
