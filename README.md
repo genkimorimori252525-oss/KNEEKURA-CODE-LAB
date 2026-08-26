@@ -34,6 +34,8 @@ Minecraft / Forge Mod のコードを「普通の Java」ではなく、**Mod �
   - SimPoseCodec の `.pose.json + .pose.bin` を client render evidence として統合
   - pose v2 UUID を run identity の hard gate とし、別runの頂点を吸着させない
   - `frames / slots / lens / stride` と bin byte size を照合し、float32 LE をサンプル検証
+  - SimPaletteTrace の `.pal.json + .pal.bin` を復号し、post-geoRender の bone local TRS を実測 evidence 化
+  - `names[slot]` を共有 `bone_name` へ結び、`RightHandLocator` 等の静的boneとruntime transformを同一graphで接続
   - YSM/TLM fidelity matrix を自動生成し、どこまで evidence が到達したかを `observed / unobserved` で表示
 - 複数 Mod repository を workspace graph に結合
   - repository-local node は名前空間を分離
@@ -59,6 +61,7 @@ node src/cli.mjs scan C:\path\to\mod-repo `
 node src/cli.mjs scan C:\path\to\mod-repo `
   --trace C:\path\to\simlab-trace.jsonl `
   --pose C:\path\to\20260827-052000.pose.json `
+  --palette C:\path\to\20260827-052000.pal.json `
   --out dist/runtime-overlay.json
 
 node src/cli.mjs serve --graph dist/runtime-overlay.json
@@ -68,7 +71,7 @@ runtime trace の `anim` チャンネルに現れた animation / Molang は、�
 
 KNEEKURA-LAB の新しい trace は `meta.delta="row"` を持つことがあります。この場合 `anim` 行でフィールドが省略されていても、前の runtime state を保持する契約です。CODE-LAB は省略を新しい観測として数えず、明示的に記録された値だけを evidence にします。
 
-`--pose` を併用すると、対応する SimPoseCodec companion を client-side render evidence として追加します。v2 trace に UUID がある場合は pose 側 UUID の一致が必須で、不一致なら type / entity id へフォールバックしません。旧 v1 pose を手動で使う場合だけ `--allow-v1-pose` を明示します。
+`--pose` を併用すると SimPoseCodec の最終描画頂点、`--palette` を併用すると SimPaletteTrace のボーンごとの合成後ローカル `rotation(rad) / position / scale` を runtime evidence として追加します。どちらも同じ run identity matcher を使い、trace に UUID がある場合は companion UUID の一致が必須です。不一致なら type / entity id へフォールバックしません。UUID無し旧形式を手動で使う場合だけ `--allow-v1-pose` / `--allow-v1-palette` を明示します。
 
 ### TLM + YSM を一枚の graph にする
 
@@ -98,7 +101,7 @@ repository B ─ scanner ─┘                      │
                                                ├─ shared protocol nodes
                                                │  Molang / animation / bone names
                                                └─ runtime evidence
-                                                  entity / observed anim / observed Molang / rendered pose
+                                                  entity / observed anim / observed Molang / rendered pose / bone TRS
 ```
 
 ### 重要な原則
@@ -114,16 +117,16 @@ repository B ─ scanner ─┘                      │
 
 - `src/core/` — 共通 IR、単一repo走査、workspace merge
 - `src/analyzers/` — Java / Forge / Minecraft / YSM の意味抽出
-- `src/adapters/` — CodeGraph / Understand Anything / KNEEKURA-LAB Runtime trace / pose companion
+- `src/adapters/` — CodeGraph / Understand Anything / KNEEKURA-LAB Runtime trace / pose / bone palette companion
 - `viewer/` — 依存ゼロの Web Viewer
-- `fixtures/` — Minecraft を起動せず検証する小さな合成 Mod / workspace / runtime trace / pose companion
+- `fixtures/` — Minecraft を起動せず検証する小さな合成 Mod / workspace / runtime trace / pose / palette companion
 - `docs/` — 設計・互換契約
 
 ## 現在の限界
 
 Java 解析は安全側の lexical scanner（字句ベースの軽量解析）です。完全な構文木ではありません。複雑なネスト・生成コード・難読化コードの正確な call graph は CodeGraph/tree-sitter adapter の担当にします。
 
-KNEEKURA-LAB の main JSONL trace (`anim` / Molang / entity lifecycle) と、対応する client pose companion (`.pose.json` / `.pose.bin`) は静的 graph に重ねられます。runtime evidence がある scan では fidelity matrix も生成され、`C0 static → C1 runtime mod → C2 entity → C3 YSM command → C4 rendered vertices → C5 per-bone runtime` のどこまで観測できたかを表示します。**unobserved は failure を意味しません。** pose は「対応runのクライアント描画が頂点を生成した」証拠であり、各頂点を `RightHandLocator` など特定boneへ逆算して帰属させるものではありません。per-bone runtime transform、network packet、capability の意味抽出は未実装です。
+KNEEKURA-LAB の main JSONL trace (`anim` / Molang / entity lifecycle) と、対応する client pose companion (`.pose.json` / `.pose.bin`) は静的 graph に重ねられます。runtime evidence がある scan では fidelity matrix も生成され、`C0 static → C1 runtime mod → C2 entity → C3 YSM command → C4 rendered vertices → C5 per-bone runtime` のどこまで観測できたかを表示します。**unobserved は failure を意味しません。** pose は「対応runのクライアント描画が頂点を生成した」証拠です。bone帰属は pose から逆算せず、KNEEKURA-LAB が geoRender 直後に採った palette の `names[slot]` とTRSを直接使います。これにより C5 per-bone runtime transform まで直接 evidence 化できます。network packet、capability の意味抽出は未実装です。
 
 ## AI / coding agent 向け出力との境界
 
