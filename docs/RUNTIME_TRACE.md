@@ -52,6 +52,8 @@ runtime graph へ evidence として載せるのは、その行に明示され�
 
 これにより graph size を抑えつつ、観測頻度と根拠を失わない。
 
-## Not covered yet
+## Pose companion
 
-client が別 writer / 別ファイルで生成する pose companion (`.pose.json` + `.pose.bin`) は main JSONL と同一視しない。pose companion は UUID / gameTime / gt0 の run identity を検証してから別 adapter で統合する。
+client が別 writer / 別ファイルで生成する pose companion (`.pose.json` + `.pose.bin`) は main JSONL と同一視しない。CODE-LAB は別 adapter で統合し、UUID / gameTime / gt0 / measured tick overlap を検証してから render evidence として採用する。
+
+詳細は `docs/POSE_COMPANION.md`。
