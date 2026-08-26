@@ -1,0 +1,20 @@
+{
+  "spec": 2,
+  "metadata": {
+    "name": "KNEEKURA YSM Fixture"
+  },
+  "files": {
+    "player": {
+      "model": {
+        "main": "main.json"
+      },
+      "animation": {
+        "tlm": "tlm.animation.json"
+      },
+      "texture": [
+        "textures/default.png"
+      ]
+    },
+    "sound_path": "sounds"
+  }
+}
