@@ -213,7 +213,7 @@ function validateIndex(j) {
   if (!Number.isInteger(j.keyframe) || j.keyframe <= 0) return 'palette keyframe must be a positive integer';
   if (!Array.isArray(j.names) || j.names.length !== j.bones) return 'palette names length must equal bones';
   if (j.names.some(n => typeof n !== 'string' || !n)) return 'palette bone names must be non-empty strings';
-  if (!Number.isInteger(j.frames) || j.frames < 0) return 'palette frames must be a non-negative integer';
+  if (!Number.isInteger(j.frames) || j.frames <= 0) return 'palette frames must be a positive integer';
   if (!Array.isArray(j.slots)) return 'palette slots must be an array';
   if (!Array.isArray(j.lens) || j.lens.length !== j.frames) return 'palette lens length must equal frames';
   if (!Array.isArray(j.kinds) || j.kinds.length !== j.frames) return 'palette kinds length must equal frames';
