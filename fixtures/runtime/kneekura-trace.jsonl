@@ -1,4 +1,4 @@
-{"t":0,"ch":"meta","scenario":"ysm-compat","seed":20260827,"arena":0,"duration":40,"gameTime":1000,"delta":"row","keyframe":100,"mods":["touhou_little_maid","yes_steve_model"]}
+{"t":0,"ch":"meta","scenario":"ysm-compat","run":"run-42","seed":20260827,"arena":0,"duration":40,"gameTime":1000,"delta":"row","keyframe":100,"mods":["touhou_little_maid","yes_steve_model"]}
 {"t":0,"ch":"spawn","id":314,"type":"touhou_little_maid:reimu","role":"reimu","name":"Hakurei Reimu","uuid":"11111111-2222-3333-4444-555555555555","w":0.6,"h":1.8,"maxHp":10.0}
 {"t":1,"ch":"anim","id":314,"anim":"idle2","pend":"use_offhand:bow","molang":"(v.wuqi = 1)","main":"empty","off":"sword","face":"(v.roaming.zui=1)"}
 {"t":2,"ch":"anim","id":314,"molang":"(v.wuqi = 0)"}
