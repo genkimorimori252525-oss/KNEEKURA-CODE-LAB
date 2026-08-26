@@ -17,6 +17,36 @@ test('Forge semantics are materialized in graph', async()=>{
   assert(g.nodes.some(n=>n.kind==='mod'&&n.key==='yes_steve_model'));
 });
 
+test('Deep Mixin injector semantics survive multiline nested annotations', async()=>{
+  const g=await scanRepository(path.join(ROOT,'fixtures/forge-mini'));
+  const edge=g.edges.find(e=>e.type==='INJECTS_AT'&&e.injector==='Inject');
+  assert(edge, 'expected an INJECTS_AT edge');
+  assert.deepEqual(edge.mixinMethods,['tick','move']);
+  assert.equal(edge.atValue,'INVOKE');
+  assert.equal(edge.atTarget,'Lnet/minecraft/world/entity/Entity;setPos(DDD)V');
+  assert.equal(edge.ordinal,1);
+  assert.equal(edge.shift,'AFTER');
+  assert.equal(edge.cancellable,true);
+  assert(g.nodes.some(n=>n.kind==='symbol'&&n.key==='Entity'));
+});
+
+test('TLM Java producers join YSM Molang consumers and animation names', async()=>{
+  const g=await scanRepository(path.join(ROOT,'fixtures/forge-mini'));
+  const wuqi=g.nodes.find(n=>n.kind==='molang_variable'&&n.key==='variable.wuqi');
+  const animTime=g.nodes.find(n=>n.kind==='molang_variable'&&n.key==='query.anim_time');
+  assert(wuqi, 'v.wuqi and variable.wuqi must normalize to the same node');
+  assert(animTime, 'q/query aliases should be materialized');
+  assert(g.edges.some(e=>e.type==='WRITES_MOLANG'&&e.to===wuqi.id));
+  assert(g.edges.some(e=>e.type==='READS_MOLANG'&&e.to===wuqi.id));
+
+  const idle=g.nodes.find(n=>n.kind==='animation_name'&&n.key==='idle2');
+  const bow=g.nodes.find(n=>n.kind==='animation_name'&&n.key==='use_offhand:bow');
+  assert(idle&&bow);
+  assert(g.edges.some(e=>e.type==='PLAYS_YSM_ANIMATION'&&e.to===idle.id));
+  assert(g.edges.some(e=>e.type==='DISPATCHES_YSM_ANIMATION'&&e.to===bow.id));
+  assert(g.edges.some(e=>e.type==='PROVIDES_ANIMATION_NAME'&&e.to===idle.id));
+});
+
 test('Graph IDs are stable for same repository contents', async()=>{
   const a=await scanRepository(path.join(ROOT,'fixtures/forge-mini'));
   const b=await scanRepository(path.join(ROOT,'fixtures/forge-mini'));
