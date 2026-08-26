@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { readTraceIdentity } from './kneekura-run-identity.mjs';
 import { extractMolangVariables } from '../analyzers/minecraft.mjs';
 
@@ -316,12 +317,14 @@ function matchNetworkIdentity(trace, meta, opts = {}) {
 function aggregate(events, traceStart) {
   const map = new Map();
   for (const e of events) {
+    const payloadFingerprint = fingerprintPayload(e.payload);
     const key = [
       e.stage,
       e.packet,
       e.direction ?? '',
       e.channel ?? '',
-      e.physicalSide ?? ''
+      e.physicalSide ?? '',
+      payloadFingerprint
     ].join('\u0000');
 
     let g = map.get(key);
@@ -340,6 +343,7 @@ function aggregate(events, traceStart) {
         threads: [],
         sampleSeq: [],
         payloadSamples: [],
+        payloadFingerprint,
         molangEvidence: new Map()
       };
       map.set(key, g);
@@ -359,7 +363,7 @@ function aggregate(events, traceStart) {
         g.payloadSamples.push({ seq: e.seq, tick: e.gameTime - traceStart, payload: e.payload });
       }
       for (const [field, value] of Object.entries(e.payload)) {
-        if (typeof value !== 'string') continue;
+        if (typeof value !== 'string' || !isMolangPayloadField(field)) continue;
         for (const variable of extractMolangVariables(value)) {
           let m = g.molangEvidence.get(variable);
           if (!m) {
@@ -455,7 +459,20 @@ function simpleClassName(fqcn) {
 }
 
 function groupKey(g) {
-  return [g.stage, g.packet, g.direction ?? '', g.channel ?? '', g.physicalSide ?? ''].join('|');
+  return [g.stage, g.packet, g.direction ?? '', g.channel ?? '', g.physicalSide ?? '', g.payloadFingerprint ?? 'none'].join('|');
+}
+
+function isMolangPayloadField(field) {
+  return /(?:molang|expression|expr)/i.test(String(field ?? ''));
+}
+
+function fingerprintPayload(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload) || Object.keys(payload).length === 0) {
+    return 'none';
+  }
+  const stable = {};
+  for (const key of Object.keys(payload).sort()) stable[key] = payload[key];
+  return createHash('sha1').update(JSON.stringify(stable)).digest('hex').slice(0, 16);
 }
 
 function reject(builder, file, reason, data = {}) {
