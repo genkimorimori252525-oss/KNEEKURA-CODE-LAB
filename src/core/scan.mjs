@@ -7,6 +7,7 @@ import { analyzeMinecraftJavaBridge, analyzeMinecraftJson } from '../analyzers/m
 import { importCodeGraph } from '../adapters/codegraph.mjs';
 import { importRuntimeTrace } from '../adapters/runtime-trace.mjs';
 import { importPoseCompanion } from '../adapters/pose-companion.mjs';
+import { importPaletteCompanion } from '../adapters/palette-companion.mjs';
 import { importUnderstandAnything } from '../adapters/understand-anything.mjs';
 import { deriveYsmFidelityMatrix } from '../analyzers/fidelity.mjs';
 
@@ -36,6 +37,7 @@ export async function scanRepository(root, opts={}) {
   if (opts.understand) await importUnderstandAnything(b, opts.understand);
   if (opts.trace) await importRuntimeTrace(b, opts.trace);
   if (opts.pose) await importPoseCompanion(b, opts.pose, { trace: opts.trace, allowV1: opts.allowV1Pose });
-  if (opts.trace || opts.pose) deriveYsmFidelityMatrix(b);
+  if (opts.palette) await importPaletteCompanion(b, opts.palette, { trace: opts.trace, allowV1: opts.allowV1Palette });
+  if (opts.trace || opts.pose || opts.palette) deriveYsmFidelityMatrix(b);
   return b.finish();
 }
