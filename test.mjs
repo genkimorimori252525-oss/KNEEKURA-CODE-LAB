@@ -220,6 +220,74 @@ test('KNEEKURA pose companion UUID mismatch is a hard rejection', async()=>{
   assert.equal(rejection.poseUuid,'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
 });
 
+test('KNEEKURA palette companion joins real runtime TRS to the same static YSM bone name', async()=>{
+  const g=await scanRepository(path.join(ROOT,'fixtures/workspace/ysm'), {
+    trace:path.join(ROOT,'fixtures/runtime/kneekura-trace.jsonl'),
+    palette:path.join(ROOT,'fixtures/runtime/kneekura.pal.json')
+  });
+
+  const capture=g.nodes.find(n=>n.kind==='runtime_palette_capture');
+  assert(capture);
+  assert.equal(capture.identityTrust,'uuid');
+  assert.equal(capture.codec,'palmask-deflate-v1');
+  assert.equal(capture.boneCount,3);
+  assert.equal(capture.frameCount,2);
+  assert.equal(capture.compressedBytes,91);
+  assert.equal(capture.activeBoneCount,3);
+  assert.equal(capture.keyframeCount,1);
+  assert.equal(capture.deltaCount,1);
+
+  const handName=g.nodes.find(n=>n.kind==='bone_name'&&n.key==='RightHandLocator');
+  const handSeries=g.nodes.find(n=>n.kind==='runtime_bone_series'&&n.bone==='RightHandLocator');
+  const armSeries=g.nodes.find(n=>n.kind==='runtime_bone_series'&&n.bone==='RightArm');
+  assert(handName&&handSeries&&armSeries);
+  assert(handName.runtimeObserved);
+  assert.equal(handSeries.payloadRecordCount,2);
+  assert.equal(handSeries.keyframePayloadCount,1);
+  assert.equal(handSeries.keyframeZeroCount,0);
+  assert(Math.abs(handSeries.firstTransform[2]-0.3)<1e-5);
+  assert.deepEqual(handSeries.firstTransform.slice(3,6),[4,5,6]);
+  assert.deepEqual(handSeries.firstTransform.slice(6,9),[1,1,1]);
+  assert.deepEqual(handSeries.lastTransform.slice(6,9),[0,0,0]);
+  assert(Math.abs(armSeries.lastTransform[1]-0.25)<1e-6);
+
+  assert(g.edges.some(e=>e.type==='PROVIDES_BONE_NAME'&&e.to===handName.id));
+  assert(g.edges.some(e=>e.type==='OBSERVED_RUNTIME_BONE_TRANSFORM'&&e.from===handSeries.id&&e.to===handName.id&&e.runtimeObservation));
+  assert(!g.diagnostics.some(d=>d.message==='palette companion rejected'));
+});
+
+test('KNEEKURA palette companion UUID mismatch is a hard rejection', async()=>{
+  const g=await scanRepository(path.join(ROOT,'fixtures/workspace/ysm'), {
+    trace:path.join(ROOT,'fixtures/runtime/kneekura-trace.jsonl'),
+    palette:path.join(ROOT,'fixtures/runtime/kneekura-mismatch.pal.json')
+  });
+  assert(!g.nodes.some(n=>n.kind==='runtime_palette_capture'));
+  assert(!g.edges.some(e=>e.type==='OBSERVED_RUNTIME_BONE_TRANSFORM'));
+  const rejection=g.diagnostics.find(d=>d.message==='palette companion rejected');
+  assert(rejection);
+  assert.match(rejection.reason,/UUID mismatch/);
+  assert.equal(rejection.traceUuid,'11111111-2222-3333-4444-555555555555');
+  assert.equal(rejection.paletteUuid,'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
+});
+
+test('YSM fidelity matrix reaches C5 when palette bone transforms are present', async()=>{
+  const g=await scanRepository(path.join(ROOT,'fixtures/workspace/ysm'), {
+    trace:path.join(ROOT,'fixtures/runtime/kneekura-trace.jsonl'),
+    pose:path.join(ROOT,'fixtures/runtime/kneekura.pose.json'),
+    palette:path.join(ROOT,'fixtures/runtime/kneekura.pal.json')
+  });
+  const matrix=g.nodes.find(n=>n.kind==='fidelity_matrix'&&n.key==='ysm-tlm-runtime');
+  assert(matrix);
+  assert.equal(matrix.observedStageCount,6);
+  assert.equal(matrix.observedThroughStage,'C5');
+  assert.equal(matrix.highestObservedStage,'C5');
+  assert.equal(matrix.firstUnobservedStage,null);
+  assert.equal(matrix.nextDiagnosticHint,null);
+  const c5=g.nodes.find(n=>n.kind==='fidelity_capability'&&n.stage==='C5');
+  assert.equal(c5?.status,'observed');
+  assert(c5?.evidenceKinds.includes('runtime_bone_series'));
+});
+
 test('YSM fidelity matrix observes through client render when trace and pose evidence exist', async()=>{
   const g=await scanRepository(path.join(ROOT,'fixtures/forge-mini'), {
     trace:path.join(ROOT,'fixtures/runtime/kneekura-trace.jsonl'),
