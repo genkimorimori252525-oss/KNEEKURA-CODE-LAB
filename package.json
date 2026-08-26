@@ -1,0 +1,14 @@
+{
+  "name": "kneekura-code-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Minecraft/Forge aware code graph laboratory for private repository analysis.",
+  "scripts": {
+    "scan": "node src/cli.mjs scan",
+    "serve": "node src/cli.mjs serve",
+    "test": "node --test",
+    "demo": "node src/cli.mjs scan fixtures/forge-mini --out dist/graph.json && node src/cli.mjs serve --graph dist/graph.json"
+  },
+  "engines": { "node": ">=20" }
+}
