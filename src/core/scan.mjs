@@ -5,6 +5,7 @@ import { analyzeJava } from '../analyzers/java.mjs';
 import { analyzeForgeJava, analyzeModsToml } from '../analyzers/forge.mjs';
 import { importCodeGraph } from '../adapters/codegraph.mjs';
 import { importRuntimeTrace } from '../adapters/runtime-trace.mjs';
+import { importUnderstandAnything } from '../adapters/understand-anything.mjs';
 
 export async function scanRepository(root, opts={}) {
   root = path.resolve(root);
@@ -25,6 +26,7 @@ export async function scanRepository(root, opts={}) {
     }
   }
   if (opts.codegraph) await importCodeGraph(b, opts.codegraph);
+  if (opts.understand) await importUnderstandAnything(b, opts.understand);
   if (opts.trace) await importRuntimeTrace(b, opts.trace);
   return b.finish();
 }
