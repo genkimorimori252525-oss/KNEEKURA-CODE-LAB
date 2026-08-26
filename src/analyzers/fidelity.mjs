@@ -40,9 +40,9 @@ export function deriveYsmFidelityMatrix(builder) {
     'If unobserved, inspect pose identity rejection, client capture, YSM render entry, native/backend, or binary integrity.'),
 
     stage('C5', 'Per-bone runtime transform', 'bone-runtime', [
-      'Runtime instrumentation directly observed a bone transform/matrix.'
+      'KNEEKURA palette evidence directly observed post-geoRender per-bone local rotation/position/scale.'
     ], evidenceByEdgeTypes(graph, byId, new Set(['OBSERVED_RUNTIME_BONE_TRANSFORM'])),
-    'Currently unobserved unless dedicated per-bone runtime instrumentation is added; final vertices alone do not prove bone attribution.')
+    'If unobserved, inspect palette capture/identity/decoder evidence. Pose vertices alone do not prove per-bone attribution.')
   ];
 
   const matrix = builder.node('fidelity_matrix', 'ysm-tlm-runtime', {
