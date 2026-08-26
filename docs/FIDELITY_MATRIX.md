@@ -77,12 +77,13 @@ C3 observed / C4 unobserved なら、
 
 ### C5 — Per-bone runtime transform
 
-専用 instrumentation が直接 bone transform / matrix を記録した層。
+KNEEKURA-LAB の `SimPaletteTrace` が YSM の `geoRender` 直後から採った palette を復号し、
+bone ごとの合成後ローカル `rotation(rad) / position / scale` を直接観測した層。
 
-現在の pose companion は最終描画頂点なので、
-`RightHandLocator` の runtime matrix をそこから捏造しない。
+CODE-LAB は `names[slot]` を共有 `bone_name` へ結び、
+`runtime_bone_series --OBSERVED_RUNTIME_BONE_TRANSFORM--> bone_name` を evidence にする。
 
-将来 `OBSERVED_RUNTIME_BONE_TRANSFORM` のような直接 evidence が入れば observed になる。
+pose companion は引き続き最終描画頂点の証拠であり、bone帰属には使わない。
 
 ## Matrix node
 
@@ -110,6 +111,6 @@ C3 observed  C4 observed  C5 unobserved
 
 この表示だけで、
 
-> static はある / runtime command も飛んだ / client vertices も出た / per-boneだけ未観測
+> static はある / runtime command も飛んだ / client vertices も出た / per-bone TRS も直接観測できた
 
 という切り分けができる。

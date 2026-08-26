@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { readTraceIdentity, matchCompanionIdentity, resolveSiblingFile, fileExists } from './kneekura-run-identity.mjs';
 
 /**
  * Import one KNEEKURA-LAB SimPoseCodec companion as client-side render evidence.
@@ -52,7 +53,7 @@ export async function importPoseCompanion(builder, poseFile, opts = {}) {
     return;
   }
 
-  const match = matchIdentity(identity, index, Boolean(opts.allowV1));
+  const match = matchCompanionIdentity(identity, index, { allowV1: Boolean(opts.allowV1), label: 'pose companion' });
   if (!match.accepted) {
     reject(builder, poseFile, match.reason, {
       traceUuid: identity.reimu.uuid,
@@ -61,7 +62,7 @@ export async function importPoseCompanion(builder, poseFile, opts = {}) {
     return;
   }
 
-  const binFile = resolveSiblingBinary(poseFile, index.bin);
+  const binFile = resolveSiblingFile(poseFile, index.bin);
   if (!binFile) {
     reject(builder, poseFile, 'pose bin must be a sibling file, not an absolute/traversal path', { bin: index.bin });
     return;
@@ -119,8 +120,8 @@ export async function importPoseCompanion(builder, poseFile, opts = {}) {
     identityTrust: match.trust,
     traceStartGameTime: match.traceStart,
     traceEndGameTime: match.traceEnd,
-    poseStartGameTime: match.poseStart,
-    poseEndGameTime: match.poseEnd,
+    poseStartGameTime: match.companionStart,
+    poseEndGameTime: match.companionEnd,
     overlapTicks: match.overlap,
     traceTickBase: identity.gameTime - index.gt0,
     groupFrameCount: groups.frameCount,
@@ -211,82 +212,6 @@ function validateIndex(j) {
   return null;
 }
 
-async function readTraceIdentity(file) {
-  let text;
-  try {
-    text = await fs.readFile(file, 'utf8');
-  } catch {
-    return null;
-  }
-  let meta = null;
-  let reimu = null;
-  let lastTick = null;
-  for (const line of text.split(/\r?\n/)) {
-    if (!line.trim().startsWith('{')) continue;
-    let e;
-    try { e = JSON.parse(line); } catch { continue; }
-    if (typeof e.t === 'number' && Number.isFinite(e.t)) {
-      lastTick = lastTick === null ? e.t : Math.max(lastTick, e.t);
-    }
-    if (!meta && e.ch === 'meta') {
-      meta = {
-        gameTime: finiteOrNull(e.gameTime),
-        duration: finiteOrNull(e.duration),
-        scenario: e.scenario ?? null
-      };
-    }
-    if (!reimu && e.ch === 'spawn' && e.role === 'reimu') {
-      reimu = {
-        id: e.id ?? null,
-        uuid: typeof e.uuid === 'string' && e.uuid ? e.uuid : null,
-        type: typeof e.type === 'string' && e.type ? e.type : null
-      };
-    }
-  }
-  if (!meta) return null;
-  return { ...meta, lastTick, reimu };
-}
-
-function matchIdentity(identity, index, allowV1) {
-  const traceUuid = identity.reimu?.uuid ?? null;
-  let trust;
-
-  if (traceUuid && index.uuid) {
-    if (index.uuid !== traceUuid) {
-      return { accepted: false, reason: `pose companion UUID mismatch (${index.uuid} != ${traceUuid})` };
-    }
-    trust = 'uuid';
-  } else if (traceUuid && !index.uuid) {
-    if (!allowV1) {
-      return { accepted: false, reason: 'v1 pose companion has no UUID and is not auto-adopted for a UUID trace' };
-    }
-    trust = 'manual-v1';
-  } else {
-    const wantType = identity.reimu?.type ?? null;
-    const wantId = identity.reimu?.id ?? null;
-    if (wantType && index.type && index.type !== wantType) {
-      return { accepted: false, reason: `legacy pose type mismatch (${index.type} != ${wantType})` };
-    }
-    if (wantId !== null && index.id !== undefined && index.id !== wantId) {
-      return { accepted: false, reason: `legacy pose entity id mismatch (${index.id} != ${wantId})` };
-    }
-    trust = 'legacy';
-  }
-
-  const traceStart = identity.gameTime;
-  const traceEnd = traceStart + (identity.lastTick ?? 0) + 1;
-  const poseStart = index.gt0;
-  const poseEnd = poseStart + index.slots.length;
-  const overlap = Math.max(0, Math.min(traceEnd, poseEnd) - Math.max(traceStart, poseStart));
-  if (overlap <= 0) {
-    return {
-      accepted: false,
-      reason: `pose companion does not overlap measured trace ticks (trace [${traceStart},${traceEnd}) / pose [${poseStart},${poseEnd}))`
-    };
-  }
-  return { accepted: true, trust, traceStart, traceEnd, poseStart, poseEnd, overlap };
-}
-
 function expectedBinarySize(index) {
   const vertexCount = Array.isArray(index.lens)
     ? index.lens.reduce((a, b) => a + b, 0)
@@ -347,31 +272,10 @@ function summarizeGroups(index) {
   };
 }
 
-function resolveSiblingBinary(poseFile, bin) {
-  const base = path.resolve(path.dirname(poseFile));
-  const target = path.resolve(base, bin);
-  const rel = path.relative(base, target);
-  if (!rel || rel.startsWith('..') || path.isAbsolute(rel)) return null;
-  return target;
-}
-
-async function fileExists(file) {
-  try {
-    await fs.stat(file);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function reject(builder, poseFile, reason, data = {}) {
   builder.diagnostic('warn', 'pose companion rejected', {
     source: poseFile,
     reason,
     ...data
   });
-}
-
-function finiteOrNull(value) {
-  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }

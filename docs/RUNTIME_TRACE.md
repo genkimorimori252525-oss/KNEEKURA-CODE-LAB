@@ -57,3 +57,9 @@ runtime graph へ evidence として載せるのは、その行に明示され�
 client が別 writer / 別ファイルで生成する pose companion (`.pose.json` + `.pose.bin`) は main JSONL と同一視しない。CODE-LAB は別 adapter で統合し、UUID / gameTime / gt0 / measured tick overlap を検証してから render evidence として採用する。
 
 詳細は `docs/POSE_COMPANION.md`。
+
+## Bone palette companion
+
+YSMの post-geoRender per-bone TRS は main JSONL や pose vertices から推測せず、`SimPaletteTrace` の `.pal.json + .pal.bin` を別adapterで読む。
+
+詳細は `docs/PALETTE_COMPANION.md`。
