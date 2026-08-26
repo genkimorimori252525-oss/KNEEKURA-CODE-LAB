@@ -44,14 +44,14 @@ declared duration は使わない。
 次のtupleで集約する。
 
 ~~~text
-stage + packet + direction + channel + physicalSide
+stage + packet + direction + channel + physicalSide + payloadFingerprint
 ~~~
 
 各 runtime_network_observation は observationCount、first/lastGameTime、
 first/lastTick、thread samples、sequence samples と、最大5件の shallow payload sample を持つ。
 
 payload は KNEEKURA-LAB が public scalar field だけを採ったものなので、CODE-LAB は nested object を受け付けない。
-String payload field に Molang token が含まれる場合は既存の alias 正規化を通して共有 molang_variable へ接続する。
+String payload のうち field 名が `molang` / `expression` / `expr` 系で、かつ Molang token を実際に含むものだけを既存の alias 正規化へ通して共有 molang_variable に接続する。説明文や note に偶然 `v.foo` が含まれても Molang evidence にはしない。
 
 ~~~text
 runtime_network_observation
@@ -60,7 +60,7 @@ molang_variable(variable.wuqi)
 ~~~
 
 edge は stage=send/receive、field名、first/lastTick、observationCount、式sampleを保持する。
-同じpacket groupで座標や式が変化しても、eventごとにnodeを増やさず意味だけ集約する。
+同じ packet class / direction / channel でも payload が違えば別 `runtime_network_observation` に分ける。たとえば `v.wuqi=0` と `v.wuqi=1` は同じ ReimuSpellCardMolangPacket でも混ぜない。同一payloadの反復だけ observationCount へ集約する。
 
 ## Static join
 
@@ -143,3 +143,11 @@ packet payload に含まれていた Molang については、OBSERVED_PACKET_PA
 ただし、これはまだ「YSM commandが実際に実行成功した」証拠ではない。
 receive boundary の直後に registered consumer が呼ばれる設計であっても、command queue / sendCommand の実行結果までは
 別のruntime evidenceが必要なので、そこは推測して埋めない。
+
+
+## Payload fingerprint
+
+payload は key 名をソートした canonical JSON を SHA-1 で短縮し、16桁 fingerprint にする。
+fingerprint は grouping / runtime observation identity にのみ使い、元payload sample自体も別途保持する。
+
+目的は「同じpacket classだから同じ意味」と誤って潰さないこと。cryptographic security のための識別子ではない。

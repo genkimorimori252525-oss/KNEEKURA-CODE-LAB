@@ -22,7 +22,7 @@
 - [ ] Forge registry object names and IDs
 - [x] Forge 1.20.1 networking messages/channels (SimpleChannel, registerMessage/messageBuilder, direction, send sites, enqueueWork/bootstrap)
 - [x] runtime network evidence overlay (run-gated send/receive companions + N0-N2 delivery matrix)
-- [x] packet-carried Molang payload evidence (safe scalar payload → shared Molang variable)
+- [x] packet-carried Molang payload evidence (safe scalar payload → payload fingerprint → shared Molang variable; semantic field guard)
 - [ ] capability attachment/use
 - [x] resource/model/animation dependency graph (`ysm.json` resources + animation definitions + geometry models/bones)
 - [ ] access transformer / coremod edges
