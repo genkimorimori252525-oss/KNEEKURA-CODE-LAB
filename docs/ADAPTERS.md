@@ -8,7 +8,9 @@
 
 ## Understand Anything
 
-Understand Anything 自体は vendoring しません。`.understand-anything/knowledge-graph.json` を読み込む importer を追加するのが次段階です。
+`--understand <project-or-graph>` で現行の `knowledge-graph.json` を取り込めます。ファイルを直接指定するほか、プロジェクトルートを渡すと `.understand-anything/knowledge-graph.json` → `.ua/knowledge-graph.json` → `knowledge-graph.json` の順に自動検出します。
+
+`nodes` は `ua:<type>`、`edges` は `UA_<TYPE>` として名前空間を分け、`layers` と `tour` もグラフへ保持します。KNEEKURA 固有解析と衝突させず、後から同一ノードへ解決する resolver を追加できる形です。
 
 ## KNEEKURA-LAB runtime trace
 
