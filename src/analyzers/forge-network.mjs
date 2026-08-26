@@ -109,7 +109,6 @@ export function analyzeForgeNetworkJava(builder, java) {
   analyzePacketImplementation(builder, java, owner, profileCompatibility);
   analyzeSendSites(builder, java, owner, channels, profileCompatibility);
   analyzeNetworkBootstrap(builder, java, owner);
-  builder.addAnalyzer('forge-1.20.1-network', 'v1');
 }
 
 function analyzePacketImplementation(builder, java, owner, profileCompatibility) {
