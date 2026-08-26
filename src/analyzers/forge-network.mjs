@@ -312,7 +312,7 @@ function addMethodRef(builder, message, expression, edgeType, rel) {
 }
 
 function looksNetworkRelevant(source) {
-  return /net\.minecraftforge\.network|\bNetworkRegistry\b|\bSimpleChannel\b|\.registerMessage\s*\(|\.messageBuilder\s*\(|\bPacketDistributor\b|\bNetworkEvent\b|\bFriendlyByteBuf\b/.test(source);
+  return /net\.minecraftforge\.network|\bNetworkRegistry\b|\bSimpleChannel\b|\.registerMessage\s*\(|\.messageBuilder\s*\(|\bPacketDistributor\b|\bNetworkEvent\b|\bFriendlyByteBuf\b|\bFMLCommonSetupEvent\b/.test(source);
 }
 
 function extractStringConstants(source) {
