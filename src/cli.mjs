@@ -17,7 +17,7 @@ const flags = name => {
 if (cmd === 'scan') {
   const root = args.find(x=>!x.startsWith('--')) ?? '.';
   const out = flag('--out','dist/graph.json');
-  const graph = await scanRepository(root,{ codegraph:flag('--codegraph'), understand:flag('--understand'), trace:flag('--trace'), pose:flag('--pose'), palette:flag('--palette'), allowV1Pose:args.includes('--allow-v1-pose'), allowV1Palette:args.includes('--allow-v1-palette') });
+  const graph = await scanRepository(root,{ codegraph:flag('--codegraph'), understand:flag('--understand'), trace:flag('--trace'), pose:flag('--pose'), palette:flag('--palette'), network:flags('--net'), allowV1Pose:args.includes('--allow-v1-pose'), allowV1Palette:args.includes('--allow-v1-palette'), allowUnboundNet:args.includes('--allow-unbound-net') });
   await writeGraph(out, graph);
   console.log(`KNEEKURA graph: ${graph.nodes.length} nodes / ${graph.edges.length} edges -> ${out}`);
 } else if (cmd === 'workspace') {
@@ -54,7 +54,7 @@ if (cmd === 'scan') {
   });
   server.listen(port,'127.0.0.1',()=>console.log(`KNEEKURA-CODE-LAB viewer: http://127.0.0.1:${port}`));
 } else {
-  console.log('usage:\n  node src/cli.mjs scan <repo> --out dist/graph.json [--codegraph file.json] [--understand project-or-graph] [--trace trace.jsonl] [--pose stamp.pose.json] [--palette stamp.pal.json] [--allow-v1-pose] [--allow-v1-palette]\n  node src/cli.mjs workspace --repo tlm=C:\\path\\to\\tlm --repo ysm=C:\\path\\to\\ysm --out dist/workspace.json\n  node src/cli.mjs serve --graph dist/graph.json [--port 8789]');
+  console.log('usage:\n  node src/cli.mjs scan <repo> --out dist/graph.json [--codegraph file.json] [--understand project-or-graph] [--trace trace.jsonl] [--pose stamp.pose.json] [--palette stamp.pal.json] [--net process.net.jsonl ...] [--allow-v1-pose] [--allow-v1-palette] [--allow-unbound-net]\n  node src/cli.mjs workspace --repo tlm=C:\\path\\to\\tlm --repo ysm=C:\\path\\to\\ysm --out dist/workspace.json\n  node src/cli.mjs serve --graph dist/graph.json [--port 8789]');
 }
 
 async function writeGraph(out, graph) {
