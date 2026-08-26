@@ -1,0 +1,4 @@
+{"v":1,"ch":"net_meta","scenario":"ysm-compat","run":"run-42","bound":true,"physicalSide":"CLIENT","pid":"204","startedGameTime":1000,"file":"client-failed.net.jsonl"}
+{"v":1,"ch":"net","seq":1,"stage":"receive","physicalSide":"CLIENT","gameTime":1002,"thread":"Render thread","packet":"demo.net.ReimuPacket","packetSimple":"ReimuPacket","direction":"PLAY_TO_CLIENT","payload":{"x":0,"y":65,"z":0,"molangExpression":"(v.wuqi = 1)"}}
+{"v":1,"ch":"net_semantic","seq":2,"kind":"reimu_spellcard_handler","physicalSide":"CLIENT","gameTime":1002,"thread":"Render thread","payload":{"x":0,"y":65,"z":0,"molangExpression":"(v.wuqi = 1)"}}
+{"v":1,"ch":"net_semantic","seq":3,"kind":"ysm_molang_command_failed","physicalSide":"CLIENT","gameTime":1003,"thread":"Render thread","payload":{"molangExpression":"(v.wuqi = 1)","command":"ysmclient molang execute (v.wuqi = 1)","error":"synthetic failure"}}
