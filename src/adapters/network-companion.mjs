@@ -252,7 +252,8 @@ export async function importNetworkCompanion(builder, networkFile, opts = {}) {
         threads: g.threads,
         sampleSeq: g.sampleSeq,
         payloadFingerprint: g.payloadFingerprint,
-        payloadSamples: g.payloadSamples
+        payloadSamples: g.payloadSamples,
+        handledByClient: semanticHandledByClient(g)
       }
     );
 
