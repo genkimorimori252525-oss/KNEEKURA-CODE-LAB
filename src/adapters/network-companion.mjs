@@ -53,9 +53,12 @@ export async function importNetworkCompanion(builder, networkFile, opts = {}) {
   const inWindow = parsed.events.filter(e =>
     Number.isInteger(e.gameTime) && e.gameTime >= traceStart && e.gameTime < traceEnd
   );
-  if (!inWindow.length) {
+  const inWindowSemantics = parsed.semantics.filter(e =>
+    Number.isInteger(e.gameTime) && e.gameTime >= traceStart && e.gameTime < traceEnd
+  );
+  if (!inWindow.length && !inWindowSemantics.length) {
     reject(builder, networkFile,
-      `network companion has no events in measured trace window [${traceStart},${traceEnd})`,
+      `network companion has no rows in measured trace window [${traceStart},${traceEnd})`,
       { minGameTime: parsed.minGameTime, maxGameTime: parsed.maxGameTime });
     return;
   }
@@ -76,7 +79,10 @@ export async function importNetworkCompanion(builder, networkFile, opts = {}) {
     traceEndGameTime: traceEnd,
     totalEventCount: parsed.events.length,
     inWindowEventCount: inWindow.length,
-    ignoredOutsideWindowCount: parsed.events.length - inWindow.length
+    ignoredOutsideWindowCount: parsed.events.length - inWindow.length,
+    totalSemanticCount: parsed.semantics.length,
+    inWindowSemanticCount: inWindowSemantics.length,
+    ignoredOutsideWindowSemanticCount: parsed.semantics.length - inWindowSemantics.length
   });
 
   const runtime = builder.node('runtime', 'kneekura:trace', {
@@ -88,7 +94,8 @@ export async function importNetworkCompanion(builder, networkFile, opts = {}) {
     confidence: 1,
     runtimeObservation: true,
     identityTrust: identity.trust,
-    inWindowEventCount: inWindow.length
+    inWindowEventCount: inWindow.length,
+    inWindowSemanticCount: inWindowSemantics.length
   });
 
   const groups = aggregate(inWindow, traceStart);
@@ -225,11 +232,69 @@ export async function importNetworkCompanion(builder, networkFile, opts = {}) {
     }
   }
 
+  const semanticGroups = aggregateSemantics(inWindowSemantics, traceStart);
+  for (const g of semanticGroups) {
+    const semantic = builder.node(
+      'runtime_network_semantic_observation',
+      `${path.resolve(networkFile)}#semantic:${semanticGroupKey(g)}`,
+      {
+        label: g.kind,
+        runtimeObserved: true,
+        networkRuntimeEvidence: true,
+        semanticKind: g.kind,
+        physicalSide: g.physicalSide,
+        observationCount: g.observationCount,
+        firstGameTime: g.firstGameTime,
+        lastGameTime: g.lastGameTime,
+        firstTick: g.firstTick,
+        lastTick: g.lastTick,
+        threads: g.threads,
+        sampleSeq: g.sampleSeq,
+        payloadFingerprint: g.payloadFingerprint,
+        payloadSamples: g.payloadSamples
+      }
+    );
+
+    builder.edge(capture, semantic, 'HAS_RUNTIME_NETWORK_SEMANTIC', {
+      source: networkFile,
+      confidence: 1,
+      runtimeObservation: true,
+      semanticKind: g.kind,
+      observationCount: g.observationCount,
+      firstTick: g.firstTick,
+      lastTick: g.lastTick
+    });
+
+    for (const m of g.molangEvidence) {
+      const variable = builder.node('molang_variable', m.variable, {
+        label: m.variable,
+        runtimeObserved: true,
+        networkSemanticObserved: true
+      });
+      const edgeType = semanticMolangEdgeType(g.kind);
+      builder.edge(semantic, variable, edgeType, {
+        source: networkFile,
+        confidence: 1,
+        runtimeObservation: true,
+        networkRuntimeEvidence: true,
+        semanticObservation: true,
+        semanticKind: g.kind,
+        observationCount: m.observationCount,
+        firstTick: m.firstTick,
+        lastTick: m.lastTick,
+        fields: m.fields,
+        samples: m.samples
+      });
+    }
+  }
+
   Object.assign(capture, {
+    semanticGroupCount: semanticGroups.length,
     sendGroupCount: sendGroups,
     receiveGroupCount: receiveGroups,
     sendEventCount: sendEvents,
-    receiveEventCount: receiveEvents
+    receiveEventCount: receiveEvents,
+    semanticEventCount: inWindowSemantics.length
   });
 
 }
@@ -258,34 +323,54 @@ function parseNetworkText(text, source) {
   if (typeof meta.physicalSide !== 'string' || !meta.physicalSide) throw new Error('net_meta.physicalSide is required');
 
   const events = [];
+  const semantics = [];
   let prevSeq = 0;
   for (const { row, lineNo } of rows.slice(1)) {
-    if (row.ch !== 'net' || row.v !== 1) throw new Error(`line ${lineNo}: expected v1 ch=net`);
-    if (!Number.isInteger(row.seq) || row.seq <= prevSeq) throw new Error(`line ${lineNo}: seq must strictly increase`);
-    prevSeq = row.seq;
-    if (row.stage !== 'send' && row.stage !== 'receive') throw new Error(`line ${lineNo}: invalid stage`);
-    if (typeof row.packet !== 'string' || !row.packet) throw new Error(`line ${lineNo}: packet is required`);
-    if (!Number.isInteger(row.gameTime)) throw new Error(`line ${lineNo}: gameTime must be integer`);
-    if (row.direction !== undefined && typeof row.direction !== 'string') throw new Error(`line ${lineNo}: direction must be string`);
-    if (row.channel !== undefined && typeof row.channel !== 'string') throw new Error(`line ${lineNo}: channel must be string`);
-    if (row.payload !== undefined) {
-      if (!row.payload || typeof row.payload !== 'object' || Array.isArray(row.payload)) {
-        throw new Error(`line ${lineNo}: payload must be an object`);
-      }
-      for (const [key, value] of Object.entries(row.payload)) {
-        const scalar = typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
-        if (!scalar) throw new Error(`line ${lineNo}: payload.${key} must be scalar`);
-      }
+    if (row.v !== 1) throw new Error(`line ${lineNo}: expected v1 row`);
+    if (!Number.isInteger(row.seq) || row.seq <= prevSeq) {
+      throw new Error(`line ${lineNo}: seq must strictly increase`);
     }
-    events.push(row);
+    prevSeq = row.seq;
+    if (!Number.isInteger(row.gameTime)) throw new Error(`line ${lineNo}: gameTime must be integer`);
+    validateScalarPayload(row, lineNo);
+
+    if (row.ch === 'net') {
+      if (row.stage !== 'send' && row.stage !== 'receive') throw new Error(`line ${lineNo}: invalid stage`);
+      if (typeof row.packet !== 'string' || !row.packet) throw new Error(`line ${lineNo}: packet is required`);
+      if (row.direction !== undefined && typeof row.direction !== 'string') throw new Error(`line ${lineNo}: direction must be string`);
+      if (row.channel !== undefined && typeof row.channel !== 'string') throw new Error(`line ${lineNo}: channel must be string`);
+      events.push(row);
+      continue;
+    }
+
+    if (row.ch === 'net_semantic') {
+      if (typeof row.kind !== 'string' || !row.kind) throw new Error(`line ${lineNo}: semantic kind is required`);
+      semantics.push(row);
+      continue;
+    }
+
+    throw new Error(`line ${lineNo}: expected ch=net or ch=net_semantic`);
   }
 
+  const timed = [...events, ...semantics];
   return {
     meta,
     events,
-    minGameTime: events.length ? Math.min(...events.map(e => e.gameTime)) : null,
-    maxGameTime: events.length ? Math.max(...events.map(e => e.gameTime)) : null
+    semantics,
+    minGameTime: timed.length ? Math.min(...timed.map(e => e.gameTime)) : null,
+    maxGameTime: timed.length ? Math.max(...timed.map(e => e.gameTime)) : null
   };
+}
+
+function validateScalarPayload(row, lineNo) {
+  if (row.payload === undefined) return;
+  if (!row.payload || typeof row.payload !== 'object' || Array.isArray(row.payload)) {
+    throw new Error(`line ${lineNo}: payload must be an object`);
+  }
+  for (const [key, value] of Object.entries(row.payload)) {
+    const scalar = typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean';
+    if (!scalar) throw new Error(`line ${lineNo}: payload.${key} must be scalar`);
+  }
 }
 
 function matchNetworkIdentity(trace, meta, opts = {}) {
@@ -401,6 +486,180 @@ function aggregate(events, traceStart) {
       fields: [...m.fields]
     }))
   }));
+}
+
+function aggregateSemantics(rows, traceStart) {
+  const map = new Map();
+  for (const e of rows) {
+    const payloadFingerprint = fingerprintPayload(e.payload);
+    const key = [e.kind, e.physicalSide ?? '', payloadFingerprint].join('\u0000');
+    let g = map.get(key);
+    if (!g) {
+      g = {
+        kind: e.kind,
+        physicalSide: e.physicalSide ?? null,
+        observationCount: 0,
+        firstGameTime: e.gameTime,
+        lastGameTime: e.gameTime,
+        firstTick: e.gameTime - traceStart,
+        lastTick: e.gameTime - traceStart,
+        threads: [],
+        sampleSeq: [],
+        payloadSamples: [],
+        payloadFingerprint,
+        molangEvidence: new Map()
+      };
+      map.set(key, g);
+    }
+    g.observationCount++;
+    g.firstGameTime = Math.min(g.firstGameTime, e.gameTime);
+    g.lastGameTime = Math.max(g.lastGameTime, e.gameTime);
+    g.firstTick = Math.min(g.firstTick, e.gameTime - traceStart);
+    g.lastTick = Math.max(g.lastTick, e.gameTime - traceStart);
+    if (typeof e.thread === 'string' && e.thread && !g.threads.includes(e.thread) && g.threads.length < 8) {
+      g.threads.push(e.thread);
+    }
+    if (g.sampleSeq.length < 8) g.sampleSeq.push(e.seq);
+
+    if (e.payload && typeof e.payload === 'object' && !Array.isArray(e.payload)) {
+      if (g.payloadSamples.length < 5) {
+        g.payloadSamples.push({ seq: e.seq, tick: e.gameTime - traceStart, payload: e.payload });
+      }
+      for (const [field, value] of Object.entries(e.payload)) {
+        if (typeof value !== 'string' || !isMolangPayloadField(field)) continue;
+        for (const variable of extractMolangVariables(value)) {
+          let m = g.molangEvidence.get(variable);
+          if (!m) {
+            m = {
+              variable,
+              observationCount: 0,
+              firstTick: e.gameTime - traceStart,
+              lastTick: e.gameTime - traceStart,
+              fields: new Set(),
+              samples: []
+            };
+            g.molangEvidence.set(variable, m);
+          }
+          m.observationCount++;
+          m.firstTick = Math.min(m.firstTick, e.gameTime - traceStart);
+          m.lastTick = Math.max(m.lastTick, e.gameTime - traceStart);
+          m.fields.add(field);
+          if (m.samples.length < 5) {
+            m.samples.push({
+              seq: e.seq,
+              tick: e.gameTime - traceStart,
+              field,
+              value: value.slice(0, 500)
+            });
+          }
+        }
+      }
+    }
+  }
+
+  return [...map.values()].map(g => ({
+    ...g,
+    molangEvidence: [...g.molangEvidence.values()].map(m => ({
+      ...m,
+      fields: [...m.fields]
+    }))
+  }));
+}
+
+function semanticMolangEdgeType(kind) {
+  if (kind === 'reimu_spellcard_handler') return 'OBSERVED_MOLANG_HANDLER_EXECUTION';
+  if (kind === 'ysm_molang_command_dispatched') return 'OBSERVED_YSM_MOLANG_COMMAND_DISPATCH';
+  if (kind === 'ysm_molang_command_failed') return 'OBSERVED_YSM_MOLANG_COMMAND_FAILURE';
+  return 'OBSERVED_NETWORK_SEMANTIC_MOLANG';
+}
+
+function semanticGroupKey(g) {
+  return [g.kind, g.physicalSide ?? '', g.payloadFingerprint ?? 'none'].join('|');
+}
+
+export function deriveMolangTransportMatrices(builder) {
+  const variables = builder.graph.nodes.filter(n => n.kind === 'molang_variable');
+  for (const variable of variables) {
+    const incoming = builder.graph.edges.filter(e => e.to === variable.id);
+    const stages = [
+      {
+        id: 'M0',
+        label: 'Runtime Molang intent',
+        observed: incoming.some(e => e.type === 'OBSERVED_RUNTIME_MOLANG_SEND')
+      },
+      {
+        id: 'M1',
+        label: 'Packet send carries Molang',
+        observed: incoming.some(e => e.type === 'OBSERVED_PACKET_PAYLOAD_MOLANG' && e.stage === 'send')
+      },
+      {
+        id: 'M2',
+        label: 'Packet receive carries Molang',
+        observed: incoming.some(e => e.type === 'OBSERVED_PACKET_PAYLOAD_MOLANG' && e.stage === 'receive')
+      },
+      {
+        id: 'M3',
+        label: 'Client handler executed',
+        observed: incoming.some(e => e.type === 'OBSERVED_MOLANG_HANDLER_EXECUTION')
+      },
+      {
+        id: 'M4',
+        label: 'YSM command dispatched',
+        observed: incoming.some(e => e.type === 'OBSERVED_YSM_MOLANG_COMMAND_DISPATCH')
+      }
+    ];
+
+    if (!stages.some(s => s.observed)) continue;
+
+    let contiguous = -1;
+    for (let i = 0; i < stages.length; i++) {
+      if (!stages[i].observed) break;
+      contiguous = i;
+    }
+
+    const failureEdges = incoming.filter(e => e.type === 'OBSERVED_YSM_MOLANG_COMMAND_FAILURE');
+    const matrix = builder.node('molang_transport_matrix', variable.key, {
+      label: `Molang transport: ${variable.label}`,
+      variable: variable.key,
+      runtimeObserved: true,
+      evidenceSemantics: 'observed-vs-unobserved',
+      absenceIsFailure: false,
+      observedThroughStage: contiguous >= 0 ? stages[contiguous].id : null,
+      firstUnobservedStage: stages.find(s => !s.observed)?.id ?? null,
+      commandFailureObserved: failureEdges.length > 0,
+      commandFailureObservationCount: failureEdges.reduce((n, e) => n + (e.observationCount ?? 1), 0),
+      stageSummary: stages.map(s => ({
+        id: s.id,
+        label: s.label,
+        status: s.observed ? 'observed' : 'unobserved'
+      })),
+      interpretation: 'observed proves the named boundary; unobserved does not by itself prove failure'
+    });
+
+    builder.edge(matrix, variable, 'TRACKS_MOLANG_TRANSPORT', {
+      source: 'network-companion',
+      confidence: 1,
+      runtimeObservation: true
+    });
+
+    for (const [order, stage] of stages.entries()) {
+      const stageNode = builder.node('molang_transport_stage', `${variable.key}:${stage.id}`, {
+        label: `${stage.id} ${stage.label}`,
+        variable: variable.key,
+        stage: stage.id,
+        order,
+        status: stage.observed ? 'observed' : 'unobserved',
+        observed: stage.observed,
+        absenceIsFailure: false
+      });
+      builder.edge(matrix, stageNode, 'HAS_MOLANG_TRANSPORT_STAGE', {
+        source: 'network-companion',
+        confidence: 1,
+        order,
+        status: stageNode.status
+      });
+    }
+  }
 }
 
 export function deriveNetworkDeliveryMatrix(builder) {
