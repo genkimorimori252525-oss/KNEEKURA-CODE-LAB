@@ -1,0 +1,23 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "fixture-project",
+    "languages": ["java"],
+    "frameworks": ["Forge"],
+    "description": "Tiny Understand Anything fixture",
+    "gitCommitHash": "abc123"
+  },
+  "nodes": [
+    {"id":"file:src/Main.java","type":"file","name":"Main.java","filePath":"src/Main.java","summary":"Entrypoint"},
+    {"id":"class:src/Main.java:Main","type":"class","name":"Main","filePath":"src/Main.java","lineRange":[1,20],"summary":"Main class"}
+  ],
+  "edges": [
+    {"source":"file:src/Main.java","target":"class:src/Main.java:Main","type":"contains","weight":1}
+  ],
+  "layers": [
+    {"id":"layer:entry","name":"Entry","description":"Entry layer","nodeIds":["class:src/Main.java:Main"]}
+  ],
+  "tour": [
+    {"order":1,"title":"Start here","description":"Open the main class","nodeIds":["class:src/Main.java:Main"]}
+  ]
+}
