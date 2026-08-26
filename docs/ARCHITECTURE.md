@@ -34,10 +34,16 @@ Edge:
 - `REFERENCES_RESOURCE`
 - `DEPENDS_MOD`
 - `OPTIONAL_MOD`
+- `INJECTS_AT`
+- `DECLARES_NETWORK_CHANNEL`
+- `REGISTERS_PACKET`
+- `PACKET_DIRECTION`
+- `ENCODED_BY / DECODED_BY / HANDLED_BY`
+- `ENQUEUES_NETWORK_WORK`
+- `DISTRIBUTES_TO / SENDS_PACKET`
+- `SCHEDULES_NETWORK_INIT`
 
 将来:
-- `INJECTS_AT`
-- `REGISTERS_NETWORK_MESSAGE`
 - `USES_CAPABILITY`
 - `LOADS_MODEL`
 - `LOADS_ANIMATION`
@@ -48,3 +54,9 @@ Edge:
 ## Why adapters
 
 CodeGraph は汎用静的解析エンジンとして強い一方、Minecraft/Forge の意味はこのrepoが担当します。Understand Anything のような理解支援UI/LLM説明も IR の consumer として扱い、解析器そのものと密結合させません。
+
+## Primary platform profile
+
+KNEEKURA-CODE-LAB の第一級対象は **Minecraft 1.20.1 + Forge 47.x + Java 17**。\
+`gradle.properties` / `build.gradle` / `mods.toml` から実repoのplatformを検出し、`PRIMARY_EXACT` / best-effort を graph metadata と Viewer に明示する。\
+他バージョンを1.20.1として捏造せず、profile compatibility を各 Forge-specific node に残す。

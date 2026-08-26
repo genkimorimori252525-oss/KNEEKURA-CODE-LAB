@@ -18,6 +18,75 @@ test('Forge semantics are materialized in graph', async()=>{
   assert(g.nodes.some(n=>n.kind==='mod'&&n.key==='yes_steve_model'));
 });
 
+test('Forge 1.20.1 / 47.x is detected as the primary exact platform profile', async()=>{
+  const g=await scanRepository(path.join(ROOT,'fixtures/forge-mini'));
+  const p=g.nodes.find(n=>n.kind==='platform_profile');
+  assert(p);
+  assert.equal(p.loader,'forge');
+  assert.equal(p.minecraftVersion,'1.20.1');
+  assert.equal(p.forgeVersion,'47.2.0');
+  assert.equal(p.forgeFamily,'47.x');
+  assert.equal(p.javaMajor,17);
+  assert.equal(p.compatibility,'PRIMARY_EXACT');
+  assert.equal(p.primaryTarget,true);
+  assert.equal(g.meta.platform?.primaryTarget?.key,'forge-1.20.1-47.x');
+  assert.equal(g.meta.platform?.compatibility,'PRIMARY_EXACT');
+  assert(g.edges.some(e=>e.type==='MATCHES_PRIMARY_PLATFORM'&&e.from===p.id));
+  assert(g.edges.some(e=>e.type==='DECLARES_PLATFORM_PROFILE'));
+});
+
+test('Forge 1.20.1 SimpleChannel registrations, directions, handlers and sends form a network graph', async()=>{
+  const g=await scanRepository(path.join(ROOT,'fixtures/forge-mini'));
+
+  const channels=g.nodes.filter(n=>n.kind==='network_channel');
+  const main=channels.find(n=>n.resourceId==='demo:network');
+  const reimu=channels.find(n=>n.resourceId==='demo:reimu_net');
+  assert(main&&reimu);
+  assert.equal(main.protocolVersion,'1.0');
+  assert.equal(reimu.protocolVersion,'1');
+  assert.equal(main.profileCompatibility,'PRIMARY_EXACT');
+
+  const client=g.nodes.find(n=>n.kind==='network_message'&&n.key==='ClientPacket');
+  const server=g.nodes.find(n=>n.kind==='network_message'&&n.key==='ServerPacket');
+  const reimuPacket=g.nodes.find(n=>n.kind==='network_message'&&n.key==='ReimuPacket');
+  assert(client&&server&&reimuPacket);
+
+  const clientReg=g.edges.find(e=>e.type==='REGISTERS_PACKET'&&e.from===main.id&&e.to===client.id);
+  const serverReg=g.edges.find(e=>e.type==='REGISTERS_PACKET'&&e.from===main.id&&e.to===server.id);
+  const builderReg=g.edges.find(e=>e.type==='REGISTERS_PACKET'&&e.from===reimu.id&&e.to===reimuPacket.id);
+  assert(clientReg&&serverReg&&builderReg);
+  assert.equal(clientReg.registrationStyle,'registerMessage');
+  assert.equal(clientReg.discriminator,'7');
+  assert.equal(clientReg.direction,'PLAY_TO_CLIENT');
+  assert.equal(serverReg.direction,'PLAY_TO_SERVER');
+  assert.equal(builderReg.registrationStyle,'messageBuilder');
+  assert.equal(builderReg.discriminator,'id++');
+  assert.equal(builderReg.consumerMainThread,true);
+
+  assert(g.edges.some(e=>e.type==='PACKET_DIRECTION'&&e.from===client.id&&g.nodes.find(n=>n.id===e.to)?.key==='PLAY_TO_CLIENT'));
+  assert(g.edges.some(e=>e.type==='PACKET_DIRECTION'&&e.from===server.id&&g.nodes.find(n=>n.id===e.to)?.key==='PLAY_TO_SERVER'));
+
+  assert.equal(client.usesEnqueueWork,true);
+  assert.equal(client.marksPacketHandled,true);
+  const clientHandle=g.nodes.find(n=>n.kind==='method'&&n.label==='handle'&&n.path==='ClientPacket.java');
+  assert(clientHandle);
+  assert(g.edges.some(e=>e.type==='ENQUEUES_NETWORK_WORK'&&e.from===clientHandle.id));
+  const target=g.nodes.find(n=>n.kind==='network_handler_target'&&n.key==='demo.net.client.ClientMolangHandler.execute');
+  assert(target);
+  assert(g.edges.some(e=>e.type==='DISPATCHES_NETWORK_HANDLER'&&e.from===clientHandle.id&&e.to===target.id));
+
+  const tracking=g.nodes.find(n=>n.kind==='network_distribution'&&n.key==='TRACKING_ENTITY');
+  assert(tracking);
+  assert(g.edges.some(e=>e.type==='DISTRIBUTES_TO'&&e.to===tracking.id));
+  assert(g.edges.some(e=>e.type==='SENDS_PACKET'&&e.to===client.id));
+  assert(g.edges.some(e=>e.type==='SENDS_PACKET'&&e.to===server.id&&e.direction==='PLAY_TO_SERVER'));
+
+  const initRef=g.nodes.find(n=>n.kind==='network_init_ref'&&n.key==='BuilderNetworkFixture::init');
+  assert(initRef);
+  assert(g.edges.some(e=>e.type==='SCHEDULES_NETWORK_INIT'&&e.to===initRef.id));
+  assert(g.edges.some(e=>e.type==='IMPLEMENTS_NETWORK_INIT'&&e.to===initRef.id));
+});
+
 test('Deep Mixin injector semantics survive multiline nested annotations', async()=>{
   const g=await scanRepository(path.join(ROOT,'fixtures/forge-mini'));
   const edge=g.edges.find(e=>e.type==='INJECTS_AT'&&e.injector==='Inject');
