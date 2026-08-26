@@ -11,7 +11,7 @@ const flag = (name, fallback=null) => { const i=args.indexOf(name); return i>=0 
 if (cmd === 'scan') {
   const root = args.find(x=>!x.startsWith('--')) ?? '.';
   const out = flag('--out','dist/graph.json');
-  const graph = await scanRepository(root,{ codegraph:flag('--codegraph'), trace:flag('--trace') });
+  const graph = await scanRepository(root,{ codegraph:flag('--codegraph'), understand:flag('--understand'), trace:flag('--trace') });
   await fs.mkdir(path.dirname(out),{recursive:true});
   await fs.writeFile(out,JSON.stringify(graph,null,2));
   console.log(`KNEEKURA graph: ${graph.nodes.length} nodes / ${graph.edges.length} edges -> ${out}`);
@@ -22,9 +22,16 @@ if (cmd === 'scan') {
   const viewer = path.resolve(here,'../viewer');
   const server = http.createServer(async (req,res)=>{
     try {
+      const requestPath = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname);
       let target;
-      if (req.url === '/graph.json') target = graphFile;
-      else target = path.join(viewer, req.url === '/' ? 'index.html' : req.url.replace(/^\//,''));
+      if (requestPath === '/graph.json') target = graphFile;
+      else {
+        const rel = requestPath === '/' ? 'index.html' : requestPath.replace(/^\/+/, '');
+        target = path.resolve(viewer, rel);
+        if (target !== viewer && !target.startsWith(viewer + path.sep)) {
+          res.statusCode = 403; res.end('forbidden'); return;
+        }
+      }
       const data = await fs.readFile(target);
       const ext = path.extname(target);
       res.setHeader('content-type', ext==='.html'?'text/html; charset=utf-8':ext==='.js'?'text/javascript; charset=utf-8':ext==='.css'?'text/css; charset=utf-8':'application/json; charset=utf-8');
@@ -33,5 +40,5 @@ if (cmd === 'scan') {
   });
   server.listen(port,'127.0.0.1',()=>console.log(`KNEEKURA-CODE-LAB viewer: http://127.0.0.1:${port}`));
 } else {
-  console.log('usage:\n  node src/cli.mjs scan <repo> --out dist/graph.json [--codegraph file.json] [--trace trace.jsonl]\n  node src/cli.mjs serve --graph dist/graph.json [--port 8789]');
+  console.log('usage:\n  node src/cli.mjs scan <repo> --out dist/graph.json [--codegraph file.json] [--understand project-or-graph] [--trace trace.jsonl]\n  node src/cli.mjs serve --graph dist/graph.json [--port 8789]');
 }
