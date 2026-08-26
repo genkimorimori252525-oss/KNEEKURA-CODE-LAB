@@ -143,7 +143,8 @@ export async function importNetworkCompanion(builder, networkFile, opts = {}) {
         threads: g.threads,
         sampleSeq: g.sampleSeq,
         payloadFingerprint: g.payloadFingerprint,
-        payloadSamples: g.payloadSamples
+        payloadSamples: g.payloadSamples,
+        handledByClient: semanticHandledByClient(g)
       }
     );
 
@@ -251,7 +252,8 @@ export async function importNetworkCompanion(builder, networkFile, opts = {}) {
         threads: g.threads,
         sampleSeq: g.sampleSeq,
         payloadFingerprint: g.payloadFingerprint,
-        payloadSamples: g.payloadSamples
+        payloadSamples: g.payloadSamples,
+        handledByClient: semanticHandledByClient(g)
       }
     );
 
@@ -271,7 +273,8 @@ export async function importNetworkCompanion(builder, networkFile, opts = {}) {
         runtimeObserved: true,
         networkSemanticObserved: true
       });
-      const edgeType = semanticMolangEdgeType(g.kind);
+      const handledByClient = semanticHandledByClient(g);
+      const edgeType = semanticMolangEdgeType(g);
       builder.edge(semantic, variable, edgeType, {
         source: networkFile,
         confidence: 1,
@@ -279,6 +282,7 @@ export async function importNetworkCompanion(builder, networkFile, opts = {}) {
         networkRuntimeEvidence: true,
         semanticObservation: true,
         semanticKind: g.kind,
+        handledByClient,
         observationCount: m.observationCount,
         firstTick: m.firstTick,
         lastTick: m.lastTick,
@@ -566,11 +570,25 @@ function aggregateSemantics(rows, traceStart) {
   }));
 }
 
-function semanticMolangEdgeType(kind) {
+function semanticMolangEdgeType(group) {
+  const kind = group.kind;
   if (kind === 'reimu_spellcard_handler') return 'OBSERVED_MOLANG_HANDLER_EXECUTION';
   if (kind === 'ysm_molang_command_dispatched') return 'OBSERVED_YSM_MOLANG_COMMAND_DISPATCH';
   if (kind === 'ysm_molang_command_failed') return 'OBSERVED_YSM_MOLANG_COMMAND_FAILURE';
+  if (kind === 'ysm_client_command_result') {
+    const handled = semanticHandledByClient(group);
+    if (handled === true) return 'OBSERVED_YSM_CLIENT_COMMAND_HANDLED';
+    if (handled === false) return 'OBSERVED_YSM_CLIENT_COMMAND_FALLBACK';
+  }
   return 'OBSERVED_NETWORK_SEMANTIC_MOLANG';
+}
+
+function semanticHandledByClient(group) {
+  for (const sample of group.payloadSamples ?? []) {
+    const value = sample?.payload?.handledByClient;
+    if (typeof value === 'boolean') return value;
+  }
+  return null;
 }
 
 function semanticGroupKey(g) {
@@ -606,6 +624,11 @@ export function deriveMolangTransportMatrices(builder) {
         id: 'M4',
         label: 'YSM command dispatched',
         observed: incoming.some(e => e.type === 'OBSERVED_YSM_MOLANG_COMMAND_DISPATCH')
+      },
+      {
+        id: 'M5',
+        label: 'Forge client command consumed',
+        observed: incoming.some(e => e.type === 'OBSERVED_YSM_CLIENT_COMMAND_HANDLED')
       }
     ];
 
@@ -618,6 +641,7 @@ export function deriveMolangTransportMatrices(builder) {
     }
 
     const failureEdges = incoming.filter(e => e.type === 'OBSERVED_YSM_MOLANG_COMMAND_FAILURE');
+    const fallbackEdges = incoming.filter(e => e.type === 'OBSERVED_YSM_CLIENT_COMMAND_FALLBACK');
     const matrix = builder.node('molang_transport_matrix', variable.key, {
       label: `Molang transport: ${variable.label}`,
       variable: variable.key,
@@ -628,12 +652,14 @@ export function deriveMolangTransportMatrices(builder) {
       firstUnobservedStage: stages.find(s => !s.observed)?.id ?? null,
       commandFailureObserved: failureEdges.length > 0,
       commandFailureObservationCount: failureEdges.reduce((n, e) => n + (e.observationCount ?? 1), 0),
+      clientCommandFallbackObserved: fallbackEdges.length > 0,
+      clientCommandFallbackObservationCount: fallbackEdges.reduce((n, e) => n + (e.observationCount ?? 1), 0),
       stageSummary: stages.map(s => ({
         id: s.id,
         label: s.label,
         status: s.observed ? 'observed' : 'unobserved'
       })),
-      interpretation: 'observed proves the named boundary; unobserved does not by itself prove failure'
+      interpretation: 'M5 means Forge consumed the command client-side; it does not prove YSM Molang evaluation succeeded. Unobserved does not by itself prove failure.'
     });
 
     builder.edge(matrix, variable, 'TRACKS_MOLANG_TRANSPORT', {
