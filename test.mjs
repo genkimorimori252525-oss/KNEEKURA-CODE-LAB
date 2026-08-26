@@ -164,39 +164,46 @@ test('KNEEKURA network companions overlay real send and receive separately onto 
   assert(clientCapture);
   assert.equal(clientCapture.totalEventCount,2);
   assert.equal(clientCapture.inWindowEventCount,2);
-  assert.equal(clientCapture.totalSemanticCount,4);
-  assert.equal(clientCapture.inWindowSemanticCount,4);
-  assert.equal(clientCapture.semanticGroupCount,4);
-  assert.equal(clientCapture.semanticEventCount,4);
+  assert.equal(clientCapture.totalSemanticCount,6);
+  assert.equal(clientCapture.inWindowSemanticCount,6);
+  assert.equal(clientCapture.semanticGroupCount,6);
+  assert.equal(clientCapture.semanticEventCount,6);
 
   const semanticNodes=g.nodes.filter(n=>n.kind==='runtime_network_semantic_observation');
-  assert.equal(semanticNodes.length,4);
+  assert.equal(semanticNodes.length,6);
   assert.equal(semanticNodes.filter(n=>n.semanticKind==='reimu_spellcard_handler').length,2);
+  assert.equal(semanticNodes.filter(n=>n.semanticKind==='ysm_client_command_result').length,2);
   assert.equal(semanticNodes.filter(n=>n.semanticKind==='ysm_molang_command_dispatched').length,2);
+  assert(semanticNodes.filter(n=>n.semanticKind==='ysm_client_command_result').every(n=>n.handledByClient===true));
 
   const handlerEdges=g.edges.filter(e=>e.type==='OBSERVED_MOLANG_HANDLER_EXECUTION');
+  const handledEdges=g.edges.filter(e=>e.type==='OBSERVED_YSM_CLIENT_COMMAND_HANDLED');
   const dispatchEdges=g.edges.filter(e=>e.type==='OBSERVED_YSM_MOLANG_COMMAND_DISPATCH');
   assert.equal(handlerEdges.length,2);
+  assert.equal(handledEdges.length,2);
   assert.equal(dispatchEdges.length,2);
   assert(handlerEdges.some(e=>e.to===wuqi.id&&e.firstTick===2));
+  assert(handledEdges.some(e=>e.to===wuqi.id&&e.firstTick===3&&e.handledByClient===true));
   assert(dispatchEdges.some(e=>e.to===wuqi.id&&e.firstTick===3));
   assert(handlerEdges.some(e=>e.to===zui.id&&e.firstTick===4));
+  assert(handledEdges.some(e=>e.to===zui.id&&e.firstTick===5&&e.handledByClient===true));
   assert(dispatchEdges.some(e=>e.to===zui.id&&e.firstTick===5));
 
   const wuqiMatrix=g.nodes.find(n=>n.kind==='molang_transport_matrix'&&n.variable==='variable.wuqi');
   assert(wuqiMatrix);
-  assert.equal(wuqiMatrix.observedThroughStage,'M4');
+  assert.equal(wuqiMatrix.observedThroughStage,'M5');
   assert.equal(wuqiMatrix.firstUnobservedStage,null);
   assert.equal(wuqiMatrix.commandFailureObserved,false);
+  assert.equal(wuqiMatrix.clientCommandFallbackObserved,false);
   assert.deepEqual(wuqiMatrix.stageSummary.map(s=>s.status),
-    ['observed','observed','observed','observed','observed']);
+    ['observed','observed','observed','observed','observed','observed']);
 
   const zuiMatrix=g.nodes.find(n=>n.kind==='molang_transport_matrix'&&n.variable==='variable.roaming.zui');
   assert(zuiMatrix);
   assert.equal(zuiMatrix.observedThroughStage,null);
   assert.equal(zuiMatrix.firstUnobservedStage,'M0');
   assert.deepEqual(zuiMatrix.stageSummary.map(s=>s.status),
-    ['unobserved','observed','observed','observed','observed']);
+    ['unobserved','observed','observed','observed','observed','observed']);
 });
 
 test('KNEEKURA network send does not invent a receive observation', async()=>{
@@ -233,8 +240,40 @@ test('KNEEKURA Molang command failure is evidence, not an invented successful di
   assert.equal(matrix.firstUnobservedStage,'M4');
   assert.equal(matrix.commandFailureObserved,true);
   assert.equal(matrix.commandFailureObservationCount,1);
+  assert.equal(matrix.clientCommandFallbackObserved,false);
   assert.deepEqual(matrix.stageSummary.map(s=>s.status),
-    ['observed','observed','observed','observed','unobserved']);
+    ['observed','observed','observed','observed','unobserved','unobserved']);
+});
+
+test('KNEEKURA Forge client-command fallback is evidence and does not become M5', async()=>{
+  const g=await scanRepository(path.join(ROOT,'fixtures/forge-mini'), {
+    trace:path.join(ROOT,'fixtures/runtime/kneekura-trace.jsonl'),
+    network:[
+      path.join(ROOT,'fixtures/runtime/kneekura-server.net.jsonl'),
+      path.join(ROOT,'fixtures/runtime/kneekura-client-command-fallback.net.jsonl')
+    ]
+  });
+
+  const wuqi=g.nodes.find(n=>n.kind==='molang_variable'&&n.key==='variable.wuqi');
+  assert(wuqi);
+  const fallback=g.edges.find(e=>e.type==='OBSERVED_YSM_CLIENT_COMMAND_FALLBACK'&&e.to===wuqi.id);
+  assert(fallback);
+  assert.equal(fallback.handledByClient,false);
+  assert(g.edges.some(e=>e.type==='OBSERVED_YSM_MOLANG_COMMAND_DISPATCH'&&e.to===wuqi.id));
+  assert(!g.edges.some(e=>e.type==='OBSERVED_YSM_CLIENT_COMMAND_HANDLED'&&e.to===wuqi.id));
+
+  const semantic=g.nodes.find(n=>n.kind==='runtime_network_semantic_observation'&&n.semanticKind==='ysm_client_command_result');
+  assert(semantic);
+  assert.equal(semantic.handledByClient,false);
+
+  const matrix=g.nodes.find(n=>n.kind==='molang_transport_matrix'&&n.variable==='variable.wuqi');
+  assert(matrix);
+  assert.equal(matrix.observedThroughStage,'M4');
+  assert.equal(matrix.firstUnobservedStage,'M5');
+  assert.equal(matrix.clientCommandFallbackObserved,true);
+  assert.equal(matrix.clientCommandFallbackObservationCount,1);
+  assert.deepEqual(matrix.stageSummary.map(s=>s.status),
+    ['observed','observed','observed','observed','observed','unobserved']);
 });
 
 test('KNEEKURA network companion run mismatch, unbound identity and nested payload are rejected', async()=>{
