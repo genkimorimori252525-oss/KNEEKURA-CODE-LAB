@@ -8,6 +8,7 @@ import { importCodeGraph } from '../adapters/codegraph.mjs';
 import { importRuntimeTrace } from '../adapters/runtime-trace.mjs';
 import { importPoseCompanion } from '../adapters/pose-companion.mjs';
 import { importUnderstandAnything } from '../adapters/understand-anything.mjs';
+import { deriveYsmFidelityMatrix } from '../analyzers/fidelity.mjs';
 
 export async function scanRepository(root, opts={}) {
   root = path.resolve(root);
@@ -35,5 +36,6 @@ export async function scanRepository(root, opts={}) {
   if (opts.understand) await importUnderstandAnything(b, opts.understand);
   if (opts.trace) await importRuntimeTrace(b, opts.trace);
   if (opts.pose) await importPoseCompanion(b, opts.pose, { trace: opts.trace, allowV1: opts.allowV1Pose });
+  if (opts.trace || opts.pose) deriveYsmFidelityMatrix(b);
   return b.finish();
 }
