@@ -206,6 +206,11 @@ test('Evidence Capsule deduplicates IDs and tiny budget forces PARTIAL/BUDGET_EX
   const ids = execution.state.capsule.evidence.map(item => item.id);
   assert.equal(ids.length, new Set(ids).size);
   assert.equal(execution.state.capsule.budget.budget_exhausted, true);
+  assert.equal(
+    execution.state.capsule.budget.packed_bytes >
+      execution.state.capsule.budget.max_bytes,
+    true
+  );
   assert.equal(execution.result.status, 'PARTIAL');
   assert.equal(
     execution.result.warnings.some(item =>
