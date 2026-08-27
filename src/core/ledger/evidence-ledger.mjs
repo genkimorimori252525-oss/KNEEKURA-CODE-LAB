@@ -102,7 +102,7 @@ export function addClaim(ledger, claim) {
     throw new Error('claim already exists: ' + claim.id);
   }
 
-  ledger.claims.push(structuredClone(claim));
+  ledger.claims.push(deepFreeze(structuredClone(claim)));
   ledger.claims.sort((a, b) => a.id.localeCompare(b.id));
   return claim.id;
 }
@@ -110,22 +110,19 @@ export function addClaim(ledger, claim) {
 export function replaceClaim(ledger, claim) {
   assertLedger(ledger);
   validateClaimRecordV1(claim);
-  assertVerifiedStateHasMachineRecords(claim);
+  assertVerifiedStateHasMachineRecords(ledger, claim);
   assertClaimEvidenceRefsExist(ledger, claim);
 
   const index = ledger.claims.findIndex(existing => existing.id === claim.id);
   if (index < 0) throw new Error('claim not found: ' + claim.id);
-  ledger.claims[index] = structuredClone(claim);
+  ledger.claims[index] = deepFreeze(structuredClone(claim));
   ledger.claims.sort((a, b) => a.id.localeCompare(b.id));
   return claim.id;
 }
 
 export function addVerificationRecord(ledger, record) {
   assertLedger(ledger);
-  if (!record || typeof record !== 'object' || Array.isArray(record)) {
-    throw new TypeError('verification record must be an object');
-  }
-  if (typeof record.id !== 'string' || !record.id) throw new TypeError('verification record id is required');
+  validateVerificationRecord(record);
 
   const existing = ledger.verification_records.find(item => item.id === record.id);
   if (existing) {
@@ -258,10 +255,18 @@ function assertClaimIngressState(claim) {
   }
 }
 
-function assertVerifiedStateHasMachineRecords(claim) {
-  if (['VERIFIED','VERIFIED_WITH_LIMITS','REJECTED'].includes(claim.status)) {
-    if (!Array.isArray(claim.verifier_results) || claim.verifier_results.length === 0) {
-      throw new Error('verified/rejected claim state requires machine verifier_results');
+function assertVerifiedStateHasMachineRecords(ledger, claim) {
+  if (!['VERIFIED','VERIFIED_WITH_LIMITS','REJECTED'].includes(claim.status)) return;
+
+  if (!Array.isArray(claim.verifier_results) || claim.verifier_results.length === 0) {
+    throw new Error('verified/rejected claim state requires machine verifier_results');
+  }
+
+  const registered = new Set(ledger.verification_records.map(record => record.id));
+  for (const record of claim.verifier_results) {
+    validateVerificationRecord(record);
+    if (!registered.has(record.id)) {
+      throw new Error('claim references unregistered machine verifier result: ' + record.id);
     }
   }
 }
