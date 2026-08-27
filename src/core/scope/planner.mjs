@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { createCoverageManifest } from './coverage.mjs';
+import { isFlowSemanticEdge, isStrongSemanticEdge } from './relationships.mjs';
 
 export const SCOPE_PLANNER_ID = 'core-scope-planner';
 export const SCOPE_PLANNER_VERSION = 'v1';
@@ -13,40 +14,6 @@ const DEFAULT_DEPTH = Object.freeze({
   AUDIT: 4,
   RUNTIME: 3
 });
-
-const FLOW_EDGE_TYPES = new Set([
-  'CALLS',
-  'REFERENCES',
-  'READS',
-  'WRITES',
-  'EXTENDS',
-  'IMPLEMENTS',
-  'REGISTERS_PACKET',
-  'SENDS_PACKET',
-  'HANDLED_BY',
-  'ENCODED_BY',
-  'DECODED_BY',
-  'DECLARES_NETWORK_CHANNEL',
-  'USES_NETWORK_CHANNEL',
-  'DISPATCHES_NETWORK_HANDLER',
-  'PLAYS_YSM_ANIMATION',
-  'DISPATCHES_YSM_ANIMATION',
-  'PROVIDES_ANIMATION_NAME',
-  'READS_MOLANG',
-  'WRITES_MOLANG',
-  'BOUNDARY_PRODUCES_MOLANG',
-  'BOUNDARY_CONSUMES_MOLANG',
-  'BOUNDARY_DISPATCHES_ANIMATION',
-  'BOUNDARY_PROVIDES_ANIMATION'
-]);
-
-const STRUCTURAL_EDGE_TYPES = new Set([
-  'DECLARES',
-  'DECLARES_METHOD',
-  'EXTENDS',
-  'IMPLEMENTS',
-  ...FLOW_EDGE_TYPES
-]);
 
 export function planScope(graph, request = {}, options = {}) {
   if (!graph?.nodes || !graph?.edges) throw new TypeError('scope planner requires a graph');
@@ -402,20 +369,9 @@ function adjacent(graph, nodeId, mode) {
 }
 
 function allowedEdge(mode, edge) {
-  if (!edge) return false;
-  if (edge.strength === 'CORRELATED' || String(edge.type).includes('CORRELATED')) return false;
-  if (Number(edge.confidence ?? 1) < 0.75) return false;
-  if (String(edge.type).startsWith('UA_')) {
-    return !['UA_CONTAINS','UA_LAYER_CONTAINS','UA_TOUR_HIGHLIGHTS'].includes(edge.type);
-  }
-  if (mode === 'TRACE' || mode === 'RUNTIME') {
-    return FLOW_EDGE_TYPES.has(edge.type) ||
-      edge.runtimeObservation === true ||
-      edge.boundary === true;
-  }
-  return STRUCTURAL_EDGE_TYPES.has(edge.type) ||
-    edge.boundary === true ||
-    edge.runtimeObservation === true;
+  return mode === 'TRACE' || mode === 'RUNTIME'
+    ? isFlowSemanticEdge(edge)
+    : isStrongSemanticEdge(edge);
 }
 
 function nodeScopeItem(node, role, depth, seedId) {

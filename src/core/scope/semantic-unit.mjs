@@ -1,34 +1,8 @@
 import crypto from 'node:crypto';
 import { ruleMatchesNode } from '../rules/resolver.mjs';
+import { isStrongSemanticEdge } from './relationships.mjs';
 
-const STRONG_EDGE_TYPES = new Set([
-  'DECLARES',
-  'DECLARES_METHOD',
-  'EXTENDS',
-  'IMPLEMENTS',
-  'CALLS',
-  'REFERENCES',
-  'READS',
-  'WRITES',
-  'REGISTERS_PACKET',
-  'SENDS_PACKET',
-  'HANDLED_BY',
-  'ENCODED_BY',
-  'DECODED_BY',
-  'DECLARES_NETWORK_CHANNEL',
-  'USES_NETWORK_CHANNEL',
-  'DISPATCHES_NETWORK_HANDLER',
-  'PLAYS_YSM_ANIMATION',
-  'DISPATCHES_YSM_ANIMATION',
-  'PROVIDES_ANIMATION_NAME',
-  'READS_MOLANG',
-  'WRITES_MOLANG',
-  'REFERENCES_BONE',
-  'BOUNDARY_PRODUCES_MOLANG',
-  'BOUNDARY_CONSUMES_MOLANG',
-  'BOUNDARY_DISPATCHES_ANIMATION',
-  'BOUNDARY_PROVIDES_ANIMATION'
-]);
+export { isStrongSemanticEdge } from './relationships.mjs';
 
 export function buildSemanticAnalysisUnits(graph, scope, ruleResolution, {
   maxUnitItems = 50
@@ -171,17 +145,6 @@ export function buildSemanticAnalysisUnits(graph, scope, ruleResolution, {
       fingerprint: unit.deterministic_fingerprint
     })))
   };
-}
-
-export function isStrongSemanticEdge(edge) {
-  if (!edge) return false;
-  if (edge.strength === 'CORRELATED' || String(edge.type).includes('CORRELATED')) return false;
-  if (Number(edge.confidence ?? 1) < 0.75) return false;
-  if (STRONG_EDGE_TYPES.has(edge.type)) return true;
-  if (String(edge.type).startsWith('UA_')) {
-    return !['UA_CONTAINS','UA_LAYER_CONTAINS','UA_TOUR_HIGHLIGHTS'].includes(edge.type);
-  }
-  return edge.boundary === true;
 }
 
 function splitComponent(component, adjacency, itemByNode, maxUnitItems) {

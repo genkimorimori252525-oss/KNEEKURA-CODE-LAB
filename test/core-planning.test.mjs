@@ -326,3 +326,70 @@ test('item budget exhaustion is PARTIAL, not the safer explicit-depth BOUNDED st
   assert.equal(terminal.completeness, 'PARTIAL');
   assert.equal(terminal.entries.some(entry => entry.reason_code === 'BUDGET_EXHAUSTED'), true);
 });
+
+
+test('current Forge/YSM semantic edge vocabulary remains traversable and grouped deterministically', () => {
+  const b = new GraphBuilder('/domain');
+  const file = b.node('file', 'src/ReimuPacket.java', { path: 'src/ReimuPacket.java', language: 'java' });
+  const packetClass = b.node('class', 'demo.ReimuPacket', { label: 'ReimuPacket', path: 'src/ReimuPacket.java', language: 'java' });
+  const packet = b.node('network_packet', 'ReimuPacket', { label: 'ReimuPacket' });
+  const handler = b.node('method', 'demo.ReimuPacket#handle(2)', { label: 'handle', path: 'src/ReimuPacket.java' });
+  const molang = b.node('molang_variable', 'v.wuqi', { label: 'v.wuqi' });
+  const animation = b.node('animation_name', 'idle2', { label: 'idle2' });
+  const bone = b.node('bone_name', 'head', { label: 'head' });
+  const resource = b.node('resource', 'ysm.animation.json', { label: 'ysm.animation.json', path: 'ysm.animation.json' });
+
+  b.edge(file, packetClass, 'DECLARES');
+  b.edge(packetClass, packet, 'IMPLEMENTS_PACKET');
+  b.edge(packet, handler, 'HANDLED_BY');
+  b.edge(handler, molang, 'WRITES_MOLANG');
+  b.edge(molang, animation, 'PROVIDES_ANIMATION_NAME');
+  b.edge(animation, bone, 'ANIMATES_BONE');
+  b.edge(packetClass, resource, 'REFERENCES_RESOURCE');
+
+  const graph = b.finish();
+  const scope = planScope(graph, {
+    mode: 'TRACE',
+    seeds: [{ kind: 'PATH', value: 'src/ReimuPacket.java' }]
+  }, { maxDepth: 6 });
+  const rules = resolveRules({ graph, request: { mode: 'TRACE' }, scope });
+  const saus = buildSemanticAnalysisUnits(graph, scope, rules, { maxUnitItems: 20 });
+
+  const selected = new Set(scope.selected_ids);
+  for (const node of [file, packetClass, packet, handler, molang, animation, bone, resource]) {
+    assert.equal(selected.has('node:' + node.id), true, 'expected traversal to include ' + node.kind);
+  }
+
+  const domainUnit = saus.units.find(unit => unit.primary_targets.includes('node:' + file.id));
+  assert.ok(domainUnit);
+  const members = new Set([
+    ...domainUnit.primary_targets,
+    ...domainUnit.dependency_items,
+    ...domainUnit.supporting_items
+  ]);
+  assert.equal(members.has('node:' + bone.id), true);
+  assert.equal(members.has('node:' + resource.id), true);
+});
+
+test('broad external containment and co-change relationships cannot become authoritative SAU edges', () => {
+  const b = new GraphBuilder('/external');
+  const a = b.node('class', 'A');
+  const bnode = b.node('class', 'B');
+  const c = b.node('class', 'C');
+  b.edge(a, bnode, 'UA_CONTAINS', { confidence: 1 });
+  b.edge(bnode, c, 'CODEGRAPH_COCHANGE', { confidence: 1 });
+
+  const graph = b.finish();
+  const scope = planScope(graph, {
+    mode: 'UNDERSTAND',
+    seeds: [
+      { kind: 'GRAPH_NODE', value: a.id },
+      { kind: 'GRAPH_NODE', value: bnode.id },
+      { kind: 'GRAPH_NODE', value: c.id }
+    ]
+  }, { maxDepth: 0 });
+  const rules = resolveRules({ graph, request: { mode: 'UNDERSTAND' }, scope });
+  const saus = buildSemanticAnalysisUnits(graph, scope, rules);
+
+  assert.equal(saus.units.length, 3);
+});
