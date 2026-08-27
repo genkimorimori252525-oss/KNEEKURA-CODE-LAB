@@ -42,12 +42,23 @@ export async function acquireWithExploration(
       dependency_fingerprint: dependencyFingerprint,
       evidence_ids: result.evidence?.map(item => item.id) ?? []
     });
+    await emit(onEvent, 'METRICS_UPDATED', {
+      metrics: {
+        provider_reuse_count: 1,
+        cache_hits: 1
+      }
+    });
     return {
       ...result,
       reused: true
     };
   }
 
+  await emit(onEvent, 'METRICS_UPDATED', {
+    metrics: {
+      cache_misses: 1
+    }
+  });
   await emit(onEvent, 'PROVIDER_STARTED', {
     provider_id: providerId,
     provider_version: providerVersion,
@@ -55,6 +66,11 @@ export async function acquireWithExploration(
   });
 
   const result = await acquireAndRecord(provider, context, unit);
+  await emit(onEvent, 'METRICS_UPDATED', {
+    metrics: {
+      provider_acquisitions: 1
+    }
+  });
   const fidelity = fidelityForProviderResult(result);
   recordProviderAcquisition(explorationLedger, {
     providerId,
