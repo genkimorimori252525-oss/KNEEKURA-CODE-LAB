@@ -221,6 +221,8 @@ Cross-snapshot reuse must never be authorized solely by a matching path.
 
 Content/artifact identity and explicit dependencies are required.
 
+Exploration Ledger provider-result replay is intentionally same-snapshot only. A caller request to directly replay a cached provider result across snapshots is rejected. Cross-snapshot reuse occurs at the content-addressed cache/artifact layer (for example C1); canonical EvidenceRecords and Claims are re-established/revalidated for the target snapshot rather than inheriting stale snapshot provenance.
+
 ## Claim reuse safety
 
 A prior Claim is reusable only after its dependencies are revalidated.
@@ -257,7 +259,7 @@ Session state records:
 - invalidation_reasons
 - coverage_expansion_count
 
-Milestone E actively records provider acquisition/reuse and cache hit/miss events.
+Milestone E actively records provider acquisition/reuse and cache hit/miss events. Continuation planning also emits machine-counted invalidation reasons suitable for a METRICS_UPDATED session event.
 
 ReasoningBridge and Evidence Capsule counters are reserved now and become active in Milestone F without changing the session metrics schema.
 
@@ -276,6 +278,9 @@ Milestone E is implementation-complete only when regressions demonstrate:
 - path-only cross-snapshot evidence reuse is rejected
 - child session state preserves parent/target/reused/invalidated identities
 - finalized sessions reject further event appends
+- concurrent in-process session appends remain serialized into one valid event hash chain
+- cross-snapshot provider-result replay is rejected
+- continuation invalidation reasons are machine-counted
 - session event-chain tampering is detected
 - session replay reproduces terminal coverage and claims
 - CORE cache/session storage cannot be placed inside the target repository
