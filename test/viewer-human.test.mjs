@@ -644,3 +644,53 @@ test('focused fallback adds exactly one graph hop and does not cascade', () => {
     ['ab']
   );
 });
+
+
+test('Viewer lazy loader refuses external or escaping manifest refs', async () => {
+  const run = await execution();
+  const bundle = createHumanViewerManifest(run.result);
+  const evidence = run.result.evidence[0];
+  assert.ok(evidence);
+
+  const externalManifest = structuredClone(bundle.manifest);
+  externalManifest.evidence_index[evidence.id].ref =
+    'https://example.invalid/evidence.json';
+
+  const baseResources = new Map([
+    ['/viewer-manifest.json', externalManifest],
+    ['/analysis-result.json', bundle.result],
+    ['/graph.json', run.state.graph]
+  ]);
+  const fetchImpl = async url => {
+    const value = baseResources.get(String(url));
+    if (value == null) {
+      return {
+        status: 404,
+        ok: false,
+        async json() { return null; }
+      };
+    }
+    return {
+      status: 200,
+      ok: true,
+      async json() { return structuredClone(value); }
+    };
+  };
+
+  const externalLoaded = await loadViewerSources({ fetchImpl });
+  await assert.rejects(
+    () => externalLoaded.loadEvidence(evidence.id),
+    /external Viewer refs are forbidden/
+  );
+
+  const escapingManifest = structuredClone(bundle.manifest);
+  escapingManifest.evidence_index[evidence.id].ref =
+    '../outside/evidence.json';
+  baseResources.set('/viewer-manifest.json', escapingManifest);
+
+  const escapingLoaded = await loadViewerSources({ fetchImpl });
+  await assert.rejects(
+    () => escapingLoaded.loadEvidence(evidence.id),
+    /may not escape its bundle/
+  );
+});
