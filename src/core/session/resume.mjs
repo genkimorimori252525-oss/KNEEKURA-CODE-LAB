@@ -8,7 +8,9 @@ export function planSessionContinuation({
   availableEvidenceIds = [],
   currentCoverageFingerprint = null,
   currentVerifierVersions = null,
-  currentRuleVersions = null
+  currentRuleVersions = null,
+  currentEngineFingerprint = null,
+  currentRuleFingerprints = null
 }) {
   if (!parentSession || typeof parentSession !== 'object') {
     throw new TypeError('parentSession is required');
@@ -31,14 +33,23 @@ export function planSessionContinuation({
 
   const reusableClaimIds = [];
   const invalidatedClaims = [];
+  const sessionReasons = sessionCompatibilityReasons(parentSession, {
+    currentEngineFingerprint,
+    currentRuleFingerprints
+  });
 
   for (const claim of Object.values(parentSession.claims ?? {}).sort(compareClaim)) {
     const result = evaluateClaimReuse(claim, {
       availableEvidenceIds: reusedEvidenceIds,
       currentCoverageFingerprint,
       currentVerifierVersions,
-      currentRuleVersions
+      currentRuleVersions,
+      requireCoverageFingerprint: true,
+      requireVerifierVersions: true,
+      requireRuleVersions: true
     });
+    result.reasons.push(...sessionReasons);
+    result.reusable = result.reasons.length === 0;
 
     if (result.reusable) {
       reusableClaimIds.push(claim.id);
@@ -92,6 +103,43 @@ export function assertNoPathOnlyReuse(continuation, parentSession) {
     }
   }
   return true;
+}
+
+function sessionCompatibilityReasons(parentSession, {
+  currentEngineFingerprint,
+  currentRuleFingerprints
+}) {
+  const reasons = [];
+
+  if (parentSession.engine_fingerprint) {
+    if (!currentEngineFingerprint) {
+      reasons.push({ code: 'ENGINE_DEPENDENCY_UNVERIFIED' });
+    } else if (currentEngineFingerprint !== parentSession.engine_fingerprint) {
+      reasons.push({
+        code: 'ENGINE_CHANGED',
+        previous: parentSession.engine_fingerprint,
+        current: currentEngineFingerprint
+      });
+    }
+  }
+
+  const previousRules = [...new Set((parentSession.rule_fingerprints ?? []).map(String))].sort();
+  if (previousRules.length) {
+    if (!currentRuleFingerprints) {
+      reasons.push({ code: 'RULESET_DEPENDENCIES_UNVERIFIED' });
+    } else {
+      const currentRules = [...new Set(currentRuleFingerprints.map(String))].sort();
+      if (JSON.stringify(previousRules) !== JSON.stringify(currentRules)) {
+        reasons.push({
+          code: 'RULESET_CHANGED',
+          previous: previousRules,
+          current: currentRules
+        });
+      }
+    }
+  }
+
+  return reasons;
 }
 
 function compareClaim(a, b) {
