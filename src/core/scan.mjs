@@ -6,17 +6,23 @@ import {
   assertWorkspaceSnapshotUnchanged,
   captureWorkspaceSnapshot
 } from './identity/snapshot.mjs';
-import { analyzeJava } from '../analyzers/java.mjs';
-import { analyzeForgeJava, analyzeModsToml } from '../analyzers/forge.mjs';
-import { analyzeForgeNetworkJava } from '../analyzers/forge-network.mjs';
+import { acquireAndRecord } from './evidence/provider.mjs';
+import {
+  javaLexicalProvider,
+  forgeJavaProvider,
+  forgeNetworkProvider,
+  minecraftJavaProvider,
+  forgeModsTomlProvider,
+  minecraftJsonProvider,
+  codeGraphProvider,
+  understandAnythingProvider,
+  runtimeTraceProvider,
+  poseCompanionProvider,
+  paletteCompanionProvider,
+  networkCompanionProvider
+} from './evidence/providers.mjs';
 import { detectPlatformProfile } from '../analyzers/platform.mjs';
-import { analyzeMinecraftJavaBridge, analyzeMinecraftJson } from '../analyzers/minecraft.mjs';
-import { importCodeGraph } from '../adapters/codegraph.mjs';
-import { importRuntimeTrace } from '../adapters/runtime-trace.mjs';
-import { importPoseCompanion } from '../adapters/pose-companion.mjs';
-import { importPaletteCompanion } from '../adapters/palette-companion.mjs';
-import { importNetworkCompanion, deriveNetworkDeliveryMatrix, deriveMolangTransportMatrices } from '../adapters/network-companion.mjs';
-import { importUnderstandAnything } from '../adapters/understand-anything.mjs';
+import { deriveNetworkDeliveryMatrix, deriveMolangTransportMatrices } from '../adapters/network-companion.mjs';
 import { deriveYsmFidelityMatrix } from '../analyzers/fidelity.mjs';
 
 export async function scanRepository(root, opts={}) {
@@ -34,30 +40,87 @@ export async function scanRepository(root, opts={}) {
   b.graph.meta.repository = repositoryIdentity;
   b.graph.meta.snapshot = snapshotIdentity;
 
+  const providerContext = {
+    builder: b,
+    root,
+    repository: repositoryIdentity,
+    snapshot: snapshotIdentity
+  };
+
   await detectPlatformProfile(b, root, files);
   b.addAnalyzer('forge-1.20.1-network','v1');
+
   for (const file of files) {
     try {
       if (file.endsWith('.java')) {
-        const j = await analyzeJava(b,file,root);
-        analyzeForgeJava(b,j);
-        analyzeForgeNetworkJava(b,j);
-        analyzeMinecraftJavaBridge(b,j);
+        const javaResult = await acquireAndRecord(
+          javaLexicalProvider,
+          providerContext,
+          { file }
+        );
+        const java = javaResult.value;
+        if (!java) continue;
+
+        await acquireAndRecord(forgeJavaProvider, providerContext, { file, java });
+        await acquireAndRecord(forgeNetworkProvider, providerContext, { file, java });
+        await acquireAndRecord(minecraftJavaProvider, providerContext, { file, java });
       } else if (file.endsWith('mods.toml')) {
-        await analyzeModsToml(b,file,root);
+        await acquireAndRecord(forgeModsTomlProvider, providerContext, { file });
       } else if (file.endsWith('.json')) {
-        await analyzeMinecraftJson(b,file,root);
+        await acquireAndRecord(minecraftJsonProvider, providerContext, { file });
       }
     } catch (e) {
-      b.diagnostic('error','analysis failed',{ file:path.relative(root,file), error:String(e?.stack||e) });
+      b.diagnostic('error','provider orchestration failed',{
+        file:path.relative(root,file),
+        code:'INTERNAL_INVARIANT',
+        error:String(e?.stack||e)
+      });
     }
   }
-  if (opts.codegraph) await importCodeGraph(b, opts.codegraph);
-  if (opts.understand) await importUnderstandAnything(b, opts.understand);
-  if (opts.trace) await importRuntimeTrace(b, opts.trace);
-  if (opts.pose) await importPoseCompanion(b, opts.pose, { trace: opts.trace, allowV1: opts.allowV1Pose });
-  if (opts.palette) await importPaletteCompanion(b, opts.palette, { trace: opts.trace, allowV1: opts.allowV1Palette });
-  for (const net of opts.network ?? []) await importNetworkCompanion(b, net, { trace: opts.trace, allowUnbound: opts.allowUnboundNet });
+
+  if (opts.codegraph) {
+    await acquireAndRecord(codeGraphProvider, providerContext, {
+      file: opts.codegraph,
+      artifact: true
+    });
+  }
+  if (opts.understand) {
+    await acquireAndRecord(understandAnythingProvider, providerContext, {
+      file: opts.understand,
+      artifact: true
+    });
+  }
+  if (opts.trace) {
+    await acquireAndRecord(runtimeTraceProvider, providerContext, {
+      file: opts.trace,
+      artifact: true
+    });
+  }
+  if (opts.pose) {
+    await acquireAndRecord(poseCompanionProvider, providerContext, {
+      file: opts.pose,
+      artifact: true,
+      dependencyFiles: opts.trace ? [opts.trace] : [],
+      options: { trace: opts.trace, allowV1: opts.allowV1Pose }
+    });
+  }
+  if (opts.palette) {
+    await acquireAndRecord(paletteCompanionProvider, providerContext, {
+      file: opts.palette,
+      artifact: true,
+      dependencyFiles: opts.trace ? [opts.trace] : [],
+      options: { trace: opts.trace, allowV1: opts.allowV1Palette }
+    });
+  }
+  for (const net of opts.network ?? []) {
+    await acquireAndRecord(networkCompanionProvider, providerContext, {
+      file: net,
+      artifact: true,
+      dependencyFiles: opts.trace ? [opts.trace] : [],
+      options: { trace: opts.trace, allowUnbound: opts.allowUnboundNet }
+    });
+  }
+
   if (b.graph.nodes.some(n => n.kind === 'runtime_network_capture')) {
     deriveNetworkDeliveryMatrix(b);
     deriveMolangTransportMatrices(b);
