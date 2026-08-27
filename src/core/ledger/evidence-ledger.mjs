@@ -4,6 +4,7 @@ import {
   validateCoverageManifestV1,
   validateEvidenceRecordV1
 } from '../schema/v1.mjs';
+import { validateVerificationRecord } from '../verification/record.mjs';
 
 export const EVIDENCE_LEDGER_SCHEMA = 'core.evidence-ledger/v1';
 
@@ -56,23 +57,29 @@ export function storeEvidence(ledger, records) {
   assertLedger(ledger);
   const input = Array.isArray(records) ? records : [records];
   const stored = [];
+  const byDedupKey = new Map(
+    ledger.evidence.map(item => [evidenceDedupKey(item), item])
+  );
+  const byId = new Map(ledger.evidence.map(item => [item.id, item]));
 
   for (const record of input) {
     validateEvidenceRecordV1(record);
     assertEvidenceIntegrity(record);
-    const duplicate = findEquivalentEvidence(ledger, record);
+    const key = evidenceDedupKey(record);
+    const duplicate = byDedupKey.get(key);
     if (duplicate) {
       stored.push({ id: duplicate.id, reused: true });
       continue;
     }
 
-    const idCollision = ledger.evidence.find(item => item.id === record.id);
-    if (idCollision) {
+    if (byId.has(record.id)) {
       throw new Error('evidence id collision with different content: ' + record.id);
     }
 
     const frozen = deepFreeze(structuredClone(record));
     ledger.evidence.push(frozen);
+    byDedupKey.set(key, frozen);
+    byId.set(frozen.id, frozen);
     stored.push({ id: frozen.id, reused: false });
   }
 
