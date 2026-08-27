@@ -321,7 +321,7 @@ export function resolveSeed(seed, graph, index = buildIndex(graph)) {
       ].filter(Boolean).some(candidate => String(candidate) === value);
       if (matches) {
         items.push({
-          id: 'evidence:' + record.id,
+          id: record.id,
           evidence_id: record.id,
           kind: 'evidence',
           label: record.id,

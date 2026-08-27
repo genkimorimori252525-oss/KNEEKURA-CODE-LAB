@@ -152,7 +152,7 @@ export const FLOW_SEMANTIC_EDGE_TYPES = Object.freeze(new Set([
 
 export function isStrongSemanticEdge(edge) {
   if (!baseEligible(edge)) return false;
-  const type = String(edge.type ?? '');
+  const type = String(edge.type ?? '').toUpperCase();
   if (STRONG_SEMANTIC_EDGE_TYPES.has(type)) return true;
   if (type.startsWith('UA_')) return externalSemanticEdge(type, ['UA_CONTAINS','UA_LAYER_CONTAINS','UA_TOUR_HIGHLIGHTS']);
   if (type.startsWith('CODEGRAPH_')) return externalSemanticEdge(type, []);
@@ -162,7 +162,7 @@ export function isStrongSemanticEdge(edge) {
 
 export function isFlowSemanticEdge(edge) {
   if (!baseEligible(edge)) return false;
-  const type = String(edge.type ?? '');
+  const type = String(edge.type ?? '').toUpperCase();
   if (FLOW_SEMANTIC_EDGE_TYPES.has(type)) return true;
   if (type.startsWith('UA_')) return externalSemanticEdge(type, ['UA_CONTAINS','UA_LAYER_CONTAINS','UA_TOUR_HIGHLIGHTS']);
   if (type.startsWith('CODEGRAPH_')) return externalSemanticEdge(type, []);

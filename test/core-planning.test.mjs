@@ -103,7 +103,7 @@ test('scope planner resolves exact paths, graph nodes, runtime refs and explicit
   assert.deepEqual(pathSeed.candidate_ids, ['node:' + nodes.fileA.id]);
   assert.equal(plan.selected_ids.includes('node:' + nodes.repo.id), true);
   assert.equal(plan.selected_ids.includes('node:' + nodes.runtime.id), true);
-  assert.equal(plan.selected_ids.includes('evidence:evidence:runtime-42'), true);
+  assert.equal(plan.selected_ids.includes('evidence:runtime-42'), true);
   assert.equal(plan.decisions.every(item => item.planner_id === 'core-scope-planner'), true);
 });
 
@@ -548,4 +548,51 @@ test('SAU fingerprint changes when its deterministic budget contract changes', (
   assert.ok(unitA);
   assert.ok(unitB);
   assert.notEqual(unitA.deterministic_fingerprint, unitB.deterministic_fingerprint);
+});
+
+
+test('semantic relationship matching is case-normalized without weakening correlated-edge rejection', () => {
+  const b = new GraphBuilder('/case');
+  const a = b.node('class', 'A');
+  const target = b.node('class', 'B');
+  const unrelated = b.node('class', 'C');
+  b.edge(a, target, 'calls', { confidence: 1 });
+  b.edge(target, unrelated, 'codegraph_cochange', { confidence: 1 });
+
+  const graph = b.finish();
+  const scope = planScope(graph, {
+    mode: 'TRACE',
+    seeds: [{ kind: 'GRAPH_NODE', value: a.id }]
+  }, { maxDepth: 2 });
+
+  assert.equal(scope.selected_ids.includes('node:' + target.id), true);
+  assert.equal(scope.selected_ids.includes('node:' + unrelated.id), false);
+});
+
+test('runtime evidence scope IDs reuse canonical EvidenceRecord IDs without double prefixing', () => {
+  const { graph } = fixtureGraph();
+  const plan = planScope(graph, {
+    mode: 'RUNTIME',
+    seeds: [{ kind: 'RUNTIME_REF', value: 'artifact:runtime-42' }]
+  }, { maxDepth: 0 });
+
+  const evidenceItem = plan.items.find(item => item.evidence_id === 'evidence:runtime-42');
+  assert.ok(evidenceItem);
+  assert.equal(evidenceItem.id, 'evidence:runtime-42');
+});
+
+test('SAU purpose is semantic and does not encode a pre-sort ordinal', () => {
+  const { graph, nodes } = fixtureGraph();
+  const scope = planScope(graph, {
+    mode: 'TRACE',
+    seeds: [
+      { kind: 'GRAPH_NODE', value: nodes.service.id },
+      { kind: 'GRAPH_NODE', value: nodes.unrelated.id }
+    ]
+  }, { maxDepth: 1 });
+  const rules = resolveRules({ graph, request: { mode: 'TRACE' }, scope });
+  const saus = buildSemanticAnalysisUnits(graph, scope, rules);
+
+  assert.equal(saus.units.every(unit => /^Semantic unit: /.test(unit.purpose)), true);
+  assert.equal(saus.units.every(unit => !/^Semantic unit \d+:/.test(unit.purpose)), true);
 });

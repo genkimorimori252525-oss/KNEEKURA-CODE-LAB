@@ -11,6 +11,7 @@ export function buildSemanticAnalysisUnits(graph, scope, ruleResolution, {
 
   const selectedItems = (scope.items ?? [])
     .filter(item => item.selected !== false && item.status !== 'UNEXPLORED');
+  const itemById = new Map(selectedItems.map(item => [item.id, item]));
   const itemByNode = new Map(
     selectedItems.filter(item => item.node_id).map(item => [item.node_id, item])
   );
@@ -66,7 +67,7 @@ export function buildSemanticAnalysisUnits(graph, scope, ruleResolution, {
     const pseudoIds = chunk.filter(id => !byId.has(id));
     const members = [
       ...graphNodeIds.map(nodeId => itemByNode.get(nodeId)).filter(Boolean),
-      ...pseudoIds.map(id => selectedItems.find(item => item.id === id)).filter(Boolean)
+      ...pseudoIds.map(id => itemById.get(id)).filter(Boolean)
     ].sort(compareItems);
 
     const memberNodeSet = new Set(graphNodeIds);
@@ -96,7 +97,7 @@ export function buildSemanticAnalysisUnits(graph, scope, ruleResolution, {
       ...(edge.boundary ? { workspace_boundary: true } : {})
     })).sort((a, b) => a.edge_id.localeCompare(b.edge_id));
 
-    const purpose = unitPurpose(primary, members, byId, index);
+    const purpose = unitPurpose(primary, members, byId);
     const fingerprint = digestObject({
       purpose,
       members: members.map(item => [item.id, item.role]),
@@ -195,12 +196,12 @@ function splitComponent(component, adjacency, itemByNode, maxUnitItems) {
   return chunks;
 }
 
-function unitPurpose(primary, members, byId, index) {
+function unitPurpose(primary, members, byId) {
   const labels = primary.map(item =>
     item.node_id ? byId.get(item.node_id)?.label ?? item.label : item.label
   ).filter(Boolean);
   const chosen = labels.length ? labels : members.map(item => item.label).filter(Boolean);
-  return 'Semantic unit ' + (index + 1) + ': ' + chosen.slice(0, 3).join(' / ');
+  return 'Semantic unit: ' + chosen.slice(0, 3).join(' / ');
 }
 
 function compareEdges(a, b) {
