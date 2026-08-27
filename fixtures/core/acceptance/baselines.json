@@ -1,0 +1,24 @@
+{
+  "schema": "core.acceptance-baselines/v1",
+  "architecture_section": "CORE_ARCHITECTURE.md#29",
+  "snapshots": {
+    "KNEEKURA-CODE-LAB": "7a20ed6c4fdcb3ec39b072d5bb0d4c158820cb12",
+    "YSM decoded repo": "cdd903691c129ce565d4680ba83c00f2d04993d6",
+    "KNEEKURA-LAB": "15c270377d27fc06976d29fd285152a368ff9b58",
+    "reimu-mod": "ff4e3e03c3d1f44da4e1b722bb35b80209d4b8e2"
+  },
+  "acceptance_ids": [
+    "AT-01",
+    "AT-02",
+    "AT-03",
+    "AT-04",
+    "AT-05",
+    "AT-06",
+    "AT-07",
+    "AT-08",
+    "AT-09",
+    "AT-10",
+    "AT-11",
+    "AT-12"
+  ]
+}
