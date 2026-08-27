@@ -36,6 +36,23 @@ export function createSessionStore({
   if (!storageRoot) throw new TypeError('storageRoot is required');
   const root = path.resolve(String(storageRoot));
   assertCoreOwnedStorage(root, targetRepositoryRoot);
+  const appendQueues = new Map();
+
+  const queuedAppend = async (sessionId, type, payload) => {
+    const previous = appendQueues.get(sessionId) ?? Promise.resolve();
+    const next = previous
+      .catch(() => {})
+      .then(() => {
+        const eventPath = path.join(sessionDirectory(root, sessionId), 'events.jsonl');
+        return appendEventFile(eventPath, { type, payload });
+      });
+    appendQueues.set(sessionId, next);
+    try {
+      return await next;
+    } finally {
+      if (appendQueues.get(sessionId) === next) appendQueues.delete(sessionId);
+    }
+  };
 
   return Object.freeze({
     root,
@@ -73,11 +90,12 @@ export function createSessionStore({
     },
 
     async append(sessionId, type, payload = {}) {
-      const eventPath = path.join(sessionDirectory(root, sessionId), 'events.jsonl');
-      return appendEventFile(eventPath, { type, payload });
+      return queuedAppend(sessionId, type, payload);
     },
 
     async readEvents(sessionId) {
+      const pending = appendQueues.get(sessionId);
+      if (pending) await pending.catch(() => {});
       const eventPath = path.join(sessionDirectory(root, sessionId), 'events.jsonl');
       const events = await readEventFile(eventPath);
       verifyEventChain(events);
@@ -380,7 +398,7 @@ function stableStringify(value) {
 
 async function writeJsonAtomic(file, value) {
   await fs.mkdir(path.dirname(file), { recursive: true });
-  const temp = file + '.tmp-' + process.pid;
+  const temp = file + '.tmp-' + process.pid + '-' + crypto.randomUUID();
   await fs.writeFile(temp, JSON.stringify(value, null, 2) + '\n', 'utf8');
   await fs.rename(temp, file);
 }
