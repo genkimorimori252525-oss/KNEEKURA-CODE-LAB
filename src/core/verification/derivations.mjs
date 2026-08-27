@@ -1,4 +1,5 @@
 import {
+  createClaimEvidenceLink,
   createClaimRecord
 } from '../ledger/claims.mjs';
 
@@ -26,14 +27,24 @@ export function deriveClientCommandConsumed(dependencyClaim, {
     throw new TypeError('client-command-consumed derivation requires ysm.client_command_handled=true');
   }
 
+  const evidenceLinks = dependencyClaim.evidence_links.map(link =>
+    createClaimEvidenceLink({
+      evidenceId: link.evidence_id,
+      role: 'SUPPORT',
+      strength: 'INDIRECT',
+      rationale: 'safe derivation depends on verified client-command handled evidence'
+    })
+  );
+
   return createClaimRecord({
     type: 'DERIVED',
     subject: structuredClone(dependencyClaim.subject),
     predicate: 'ysm.client_command_consumed',
     objectOrValue: true,
+    evidenceLinks,
     dependencyClaimIds: [dependencyClaim.id],
     coverageRef,
-    provenanceRefs,
+    provenanceRefs: [...new Set([dependencyClaim.id, ...provenanceRefs])],
     derivation: SAFE_DERIVATION_RULES.CLIENT_COMMAND_CONSUMED,
     confidence: {
       level: dependencyClaim.status === 'VERIFIED' ? 'HIGH' : 'MEDIUM',
