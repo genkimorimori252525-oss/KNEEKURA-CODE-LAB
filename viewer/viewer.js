@@ -354,10 +354,12 @@ function renderGraph() {
     if (node.crossRepository) group.classList.add('cross-repository');
     if (node.runtimeObserved) group.classList.add('runtime-observed');
 
-    const panel = source.result
-      ? model.node(node.id)
-      : null;
-    if (panel?.claims?.length) group.classList.add('has-claim');
+    if (
+      source.result &&
+      model.claim_node_ids.has(String(node.id))
+    ) {
+      group.classList.add('has-claim');
+    }
 
     group.setAttribute(
       'transform',
@@ -575,15 +577,8 @@ function applyFilter() {
   let visible = new Set(
     graphState.nodes
       .filter(node => {
-        const panel = source.result
-          ? model.node(node.id)
-          : null;
-        const claimText = (panel?.claims ?? [])
-          .map(claim =>
-            claim.predicate + ' ' +
-            JSON.stringify(claim.object_or_value)
-          )
-          .join(' ');
+        const claimText =
+          model.claim_search_by_node.get(String(node.id)) ?? '';
         const haystack = (
           String(node.label ?? '') + ' ' +
           String(node.key ?? '') + ' ' +
