@@ -507,7 +507,6 @@ function renderNodeDetail(panel) {
     jsonDetails('Raw node data', node);
 
   wireRefButtons(detail);
-  wireNodeButtons(detail);
 }
 
 async function openEvidence(evidenceId) {
