@@ -14,6 +14,7 @@ import {
   createEvidenceLedgerFromGraph,
   finalizeEvidenceLedger,
   reconstructConclusions,
+  replaceClaim,
   storeEvidence
 } from '../src/core/ledger/evidence-ledger.mjs';
 import {
@@ -802,4 +803,93 @@ test('DERIVED Claim ID includes deterministic derivation lineage rather than evi
   assert.equal(first.id, reordered.id);
   assert.notEqual(first.id, differentLineage.id);
   assert.deepEqual(first.dependency_claim_ids, ['claim:a', 'claim:z']);
+});
+
+
+test('negative verification searches the graph and refuses a strong negative when positive evidence exists', () => {
+  const { graph, node, snapshot } = syntheticGraph({
+    edgeType: 'OBSERVED_PACKET_RECEIVE',
+    key: 'ReimuPacket',
+    kind: 'network_message'
+  });
+  const coverage = completeCoverage(snapshot.snapshot_id, ['scope:A','scope:B']);
+  const ledger = createEvidenceLedgerFromGraph(graph, coverage);
+  const claim = createClaimRecord({
+    type: 'NEGATIVE',
+    subject: { node_id: node.id, key: node.key },
+    predicate: 'runtime.packet_received',
+    objectOrValue: false,
+    coverageRef: ledger.coverage_ref
+  });
+  addClaim(ledger, claim);
+
+  const result = verifyAndRecordClaim(ledger, claim.id, {
+    graph,
+    coverage,
+    negativeContext: negativeContext()
+  });
+
+  assert.equal(result.status, 'UNRESOLVED');
+  const negative = result.records.find(record =>
+    record.verifier_id === 'core.verifier.negative'
+  );
+  assert.ok(negative);
+  assert.equal(negative.findings[0].code, 'COUNTEREVIDENCE_FOUND');
+  assert.equal(
+    negative.findings[0].details.refs.some(ref => ref.startsWith('edge:')),
+    true
+  );
+});
+
+test('Ledger ingress cannot accept a host-forged already-VERIFIED claim', () => {
+  const { graph, node, snapshot } = syntheticGraph({
+    key: 'ReimuPacket',
+    kind: 'network_message'
+  });
+  const coverage = completeCoverage(snapshot.snapshot_id);
+  const ledger = createEvidenceLedgerFromGraph(graph, coverage);
+  const proposed = createClaimRecord({
+    type: 'INFERRED',
+    subject: { node_id: node.id, key: node.key },
+    predicate: 'runtime.packet_received',
+    objectOrValue: true,
+    coverageRef: ledger.coverage_ref
+  });
+
+  const forged = {
+    ...structuredClone(proposed),
+    status: 'VERIFIED',
+    verifier_results: []
+  };
+  assert.throws(
+    () => addClaim(ledger, forged),
+    /ingress must be PROPOSED/
+  );
+});
+
+test('Ledger replacement cannot promote a claim without machine verifier records', () => {
+  const { graph, node, snapshot } = syntheticGraph({
+    key: 'ReimuPacket',
+    kind: 'network_message'
+  });
+  const coverage = completeCoverage(snapshot.snapshot_id);
+  const ledger = createEvidenceLedgerFromGraph(graph, coverage);
+  const proposed = createClaimRecord({
+    type: 'INFERRED',
+    subject: { node_id: node.id, key: node.key },
+    predicate: 'runtime.packet_received',
+    objectOrValue: true,
+    coverageRef: ledger.coverage_ref
+  });
+  addClaim(ledger, proposed);
+
+  const forged = {
+    ...structuredClone(proposed),
+    status: 'VERIFIED',
+    verifier_results: []
+  };
+  assert.throws(
+    () => replaceClaim(ledger, forged),
+    /requires machine verifier_results/
+  );
 });
