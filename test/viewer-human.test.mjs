@@ -434,15 +434,21 @@ test('Viewer bundle writer rejects paths that escape the output root', async () 
     path.join(os.tmpdir(), 'kneekura-viewer-containment-')
   );
   try {
-    await assert.rejects(
-      () => writeHumanViewerBundle({
-        result: run.result,
-        graph: run.state.graph,
-        outDir: root,
-        resultFile: '../escape.json'
-      }),
-      /must stay inside the Viewer bundle/
-    );
+    for (const resultFile of [
+      '../escape.json',
+      '..\\escape.json',
+      'C:\\outside\\escape.json'
+    ]) {
+      await assert.rejects(
+        () => writeHumanViewerBundle({
+          result: run.result,
+          graph: run.state.graph,
+          outDir: root,
+          resultFile
+        }),
+        /must stay inside the Viewer bundle/
+      );
+    }
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }
@@ -763,7 +769,9 @@ test('Viewer lazy loader rejects protocol-relative and encoded traversal refs', 
 
   for (const ref of [
     '//example.invalid/evidence.json',
-    '%2e%2e/outside/evidence.json'
+    'data:application/json,%7B%7D',
+    '%2e%2e/outside/evidence.json',
+    '..\\outside\\evidence.json'
   ]) {
     const manifest = structuredClone(bundle.manifest);
     manifest.evidence_index[evidence.id].ref = ref;
