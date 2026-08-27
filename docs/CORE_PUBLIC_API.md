@@ -93,6 +93,25 @@ are not verified or written to session Claim events; CORE reports a
 NEGATIVE proposals remain subject to the Milestone D negative gate. A language
 model cannot turn incomplete coverage into an authoritative absence claim.
 
+### Optional host Evidence context cache
+
+A ReasoningBridge adapter may optionally provide
+`knownEvidenceIds({ analysis_id, snapshot_id, evidence_ids })`.
+
+The adapter must return only stable Evidence IDs whose canonical EvidenceRecord
+content is already retained by that host. CORE then omits those full records
+from the host transmission and adds their IDs to
+`capsule.reused_evidence_ids`.
+
+Evidence not explicitly acknowledged remains transmitted as the canonical full
+EvidenceRecord. Returning an ID that is not present in the current capsule is
+rejected.
+
+This is a transmission optimization only. The canonical Evidence Capsule used
+for CORE proposal validation, Evidence Ledger, Claims, Coverage, and verifier
+semantics is unchanged. AT-08 verifies that repeated same-snapshot analysis
+reduces host transmission without semantic drift.
+
 ## Evidence Capsule
 
 Schema:
