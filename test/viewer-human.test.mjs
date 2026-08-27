@@ -733,3 +733,46 @@ test('Viewer lazy Evidence loader requires canonical core.evidence/v1 schema', a
     /must use core\.evidence\/v1/
   );
 });
+
+
+test('Viewer lazy loader rejects protocol-relative and encoded traversal refs', async () => {
+  const run = await execution();
+  const bundle = createHumanViewerManifest(run.result);
+  const evidence = run.result.evidence[0];
+  assert.ok(evidence);
+
+  const resources = new Map([
+    ['/analysis-result.json', bundle.result],
+    ['/graph.json', run.state.graph]
+  ]);
+  const fetchImpl = async url => {
+    const value = resources.get(String(url));
+    if (value == null) {
+      return {
+        status: 404,
+        ok: false,
+        async json() { return null; }
+      };
+    }
+    return {
+      status: 200,
+      ok: true,
+      async json() { return structuredClone(value); }
+    };
+  };
+
+  for (const ref of [
+    '//example.invalid/evidence.json',
+    '%2e%2e/outside/evidence.json'
+  ]) {
+    const manifest = structuredClone(bundle.manifest);
+    manifest.evidence_index[evidence.id].ref = ref;
+    resources.set('/viewer-manifest.json', manifest);
+
+    const loaded = await loadViewerSources({ fetchImpl });
+    await assert.rejects(
+      () => loaded.loadEvidence(evidence.id),
+      /external Viewer refs are forbidden|may not escape its bundle/
+    );
+  }
+});
