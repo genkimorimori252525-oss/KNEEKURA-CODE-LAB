@@ -5,7 +5,8 @@ import {
   CACHE_TIERS,
   canonicalDependencies,
   dependencyFingerprint,
-  contentDigest
+  contentDigest,
+  digestObject
 } from './fingerprint.mjs';
 
 export const CACHE_ARTIFACT_SCHEMA = 'core.cache-artifact/v1';
@@ -99,13 +100,17 @@ export function createCacheStore({
       requireString(key, 'key');
 
       const normalizedDependencies = canonicalDependencies(dependencies);
-      const record = {
+      const identity = {
         schema: CACHE_ARTIFACT_SCHEMA,
         tier,
         key,
         dependencies: normalizedDependencies,
         dependency_fingerprint: dependencyFingerprint(normalizedDependencies),
-        payload: structuredClone(payload),
+        payload: structuredClone(payload)
+      };
+      const record = {
+        ...identity,
+        artifact_digest: digestObject(identity),
         metadata: structuredClone(metadata)
       };
       const file = artifactPath(root, tier, key);
@@ -113,22 +118,9 @@ export function createCacheStore({
 
       if (await exists(file)) {
         const existing = JSON.parse(await fs.readFile(file, 'utf8'));
-        const existingIdentity = {
-          schema: existing.schema,
-          tier: existing.tier,
-          key: existing.key,
-          dependencies: existing.dependencies,
-          dependency_fingerprint: existing.dependency_fingerprint,
-          payload: existing.payload
-        };
-        const incomingIdentity = {
-          schema: record.schema,
-          tier: record.tier,
-          key: record.key,
-          dependencies: record.dependencies,
-          dependency_fingerprint: record.dependency_fingerprint,
-          payload: record.payload
-        };
+        validateArtifactRecord(existing, tier, key);
+        const existingIdentity = artifactIdentity(existing);
+        const incomingIdentity = artifactIdentity(record);
         if (stableJson(existingIdentity) !== stableJson(incomingIdentity)) {
           throw new Error('cache key collision with different content: ' + key);
         }
@@ -230,6 +222,21 @@ function validateArtifactRecord(record, tier, key) {
   if (record.dependency_fingerprint !== expected) {
     throw new Error('cache artifact dependency fingerprint mismatch');
   }
+  const expectedArtifactDigest = digestObject(artifactIdentity(record));
+  if (record.artifact_digest !== expectedArtifactDigest) {
+    throw new Error('cache artifact content digest mismatch');
+  }
+}
+
+function artifactIdentity(record) {
+  return {
+    schema: record.schema,
+    tier: record.tier,
+    key: record.key,
+    dependencies: canonicalDependencies(record.dependencies ?? []),
+    dependency_fingerprint: record.dependency_fingerprint,
+    payload: structuredClone(record.payload)
+  };
 }
 
 function assertTier(tier) {
