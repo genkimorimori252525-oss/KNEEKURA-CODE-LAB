@@ -277,7 +277,7 @@ test('AT-05 cross-repository semantic path preserves provenance and never invent
   );
   const bone = graph.nodes.find(node =>
     node.kind === 'bone_name' &&
-    node.key === 'head'
+    node.key === 'RightHandLocator'
   );
 
   assert.ok(molang);
@@ -315,8 +315,15 @@ test('AT-05 cross-repository semantic path preserves provenance and never invent
     edge.type === 'PROVIDES_ANIMATION_NAME' &&
     edge.repository === 'ysm'
   );
+  const ysmAnimationDefinition = graph.nodes.find(node =>
+    node.kind === 'animation_definition' &&
+    node.repository === 'ysm' &&
+    node.label === 'idle2'
+  );
+  assert.ok(ysmAnimationDefinition);
+
   const animatesBone = graph.edges.find(edge =>
-    edge.from === animation.id &&
+    edge.from === ysmAnimationDefinition.id &&
     edge.to === bone.id &&
     edge.type === 'ANIMATES_BONE' &&
     edge.repository === 'ysm'
@@ -531,7 +538,10 @@ test('AT-08 same-snapshot resume reuses evidence and reduces host transmission w
     question: 'Repeat the same runtime trace without retransmitting known evidence.',
     scope: { paths: ['ReimuPacket.java'] },
     policy: 'precision',
-    output_profile: 'compact',
+    output_profile: 'forensic',
+    budget: {
+      capsule_bytes: 196000
+    },
     runtime_artifacts: [
       { kind: 'trace', path: TRACE },
       { kind: 'network', path: SERVER_NET },
