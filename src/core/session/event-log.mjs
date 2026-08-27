@@ -46,12 +46,14 @@ export function createSessionStore({
     } = {}) {
       requireString(sessionId, 'sessionId');
       const dir = sessionDirectory(root, sessionId);
+      await fs.mkdir(path.dirname(dir), { recursive: true });
       await fs.mkdir(dir, { recursive: false });
       const eventPath = path.join(dir, 'events.jsonl');
       await fs.writeFile(eventPath, '', { flag: 'wx' });
       await appendEventFile(eventPath, {
         type: 'SESSION_STARTED',
         payload: {
+          session_id: sessionId,
           parent_session_id: parentSessionId,
           target_snapshot_id: targetSnapshotId,
           normalized_request: structuredClone(normalizedRequest),
