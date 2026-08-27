@@ -290,10 +290,15 @@ test('KNEEKURA formal M6 imports only explicit applied-state evidence', async()=
   const wuqi=g.nodes.find(n=>n.kind==='molang_variable'&&n.key==='variable.wuqi');
   assert(wuqi);
 
+  const handler=g.edges.find(e=>e.type==='OBSERVED_MOLANG_HANDLER_EXECUTION'&&e.to===wuqi.id);
   const pre=g.edges.find(e=>e.type==='OBSERVED_YSM_MOLANG_COMMAND_PRE_DISPATCH'&&e.to===wuqi.id);
   const applied=g.edges.find(e=>e.type==='OBSERVED_YSM_MOLANG_STATE_APPLIED'&&e.to===wuqi.id);
+  assert(handler);
   assert(pre);
   assert(applied);
+  assert.equal(handler.packetTraceId,17);
+  assert.equal(pre.packetTraceIds,'17');
+  assert.equal(applied.packetTraceIds,'17');
   assert.equal(applied.before,0);
   assert.equal(applied.after,1);
   assert.equal(applied.expectedValue,1);
@@ -328,6 +333,7 @@ test('KNEEKURA weak state correlation never becomes M6', async()=>{
   assert(wuqi);
   const correlated=g.edges.find(e=>e.type==='OBSERVED_YSM_STATE_CORRELATED'&&e.to===wuqi.id);
   assert(correlated);
+  assert.equal(correlated.packetTraceIds,'17');
   assert.equal(correlated.controlledE2Qualified,false);
   assert.equal(correlated.evidenceLevel,'E2_ACTUAL_PRE_POST_TRANSITION_UNQUALIFIED');
   assert(!g.edges.some(e=>e.type==='OBSERVED_YSM_MOLANG_STATE_APPLIED'&&e.to===wuqi.id));
