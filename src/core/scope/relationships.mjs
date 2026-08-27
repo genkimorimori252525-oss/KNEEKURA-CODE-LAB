@@ -1,0 +1,186 @@
+const CORRELATED_MARKERS = ['CORRELATED', 'COCHANGE', 'CO_CHANGE', 'SIMILAR'];
+
+export const STRONG_SEMANTIC_EDGE_TYPES = Object.freeze(new Set([
+  'DECLARES',
+  'DECLARES_METHOD',
+  'EXTENDS',
+  'IMPLEMENTS',
+  'CALLS',
+  'REFERENCES',
+  'READS',
+  'WRITES',
+
+  'ACCESSES_REGISTRY',
+  'CREATES_DEFERRED_REGISTER',
+  'DECLARES_MOD',
+  'INJECTS_AT',
+  'MIXES_INTO',
+  'MOD_ENTRYPOINT',
+  'REFERENCES_RESOURCE',
+  'SUBSCRIBES_EVENT',
+
+  'DECLARES_NETWORK_CHANNEL',
+  'DECLARES_NETWORK_SEND',
+  'DECODED_BY',
+  'DISPATCHES_NETWORK_HANDLER',
+  'DISTRIBUTES_TO',
+  'ENCODED_BY',
+  'ENQUEUES_NETWORK_WORK',
+  'GUARDS_NETWORK_SIDE',
+  'HANDLED_BY',
+  'IMPLEMENTS_NETWORK_INIT',
+  'IMPLEMENTS_PACKET',
+  'PACKET_DIRECTION',
+  'REFERENCES_NETWORK_CHANNEL',
+  'REGISTERS_PACKET',
+  'SCHEDULES_NETWORK_INIT',
+  'SENDS_PACKET',
+  'USES_FORGE_NETWORK_API',
+  'USES_NETWORK_CHANNEL',
+
+  'ANIMATES_BONE',
+  'BONE_CHILD_OF',
+  'DECLARES_ANIMATION',
+  'DECLARES_ANIMATION_CONTROLLER',
+  'DECLARES_MODEL',
+  'DECLARES_YSM_MODEL_PACK',
+  'HAS_BONE',
+  'HAS_LOCATOR',
+  'PROVIDES_ANIMATION_NAME',
+  'PROVIDES_BONE_NAME',
+  'READS_MOLANG',
+  'WRITES_MOLANG',
+
+  'BOUNDARY_PRODUCES_MOLANG',
+  'BOUNDARY_CONSUMES_MOLANG',
+  'BOUNDARY_DISPATCHES_ANIMATION',
+  'BOUNDARY_PROVIDES_ANIMATION',
+
+  'OBSERVED_RUNTIME_ENTITY',
+  'OBSERVED_RUNTIME_INSTANCE',
+  'OBSERVED_RUNTIME_MOD',
+  'RUNTIME_INSTANCE_OF',
+  'OBSERVED_POSE_COMPANION',
+  'OBSERVED_RENDERED_POSE',
+  'OBSERVED_PALETTE_COMPANION',
+  'OBSERVED_RUNTIME_BONE_PALETTE',
+  'OBSERVED_RUNTIME_BONE_TRANSFORM',
+  'OBSERVED_NETWORK_COMPANION',
+  'OBSERVED_ON_NETWORK_CHANNEL',
+  'OBSERVED_PACKET_DIRECTION',
+  'OBSERVED_PACKET_PAYLOAD_MOLANG',
+  'HAS_RUNTIME_BONE_SERIES',
+  'HAS_RUNTIME_NETWORK_OBSERVATION',
+  'HAS_RUNTIME_NETWORK_SEMANTIC',
+  'HAS_MOLANG_TRANSPORT_STAGE',
+  'HAS_NETWORK_DELIVERY_STAGE',
+  'TRACKS_MOLANG_TRANSPORT',
+  'SUPPORTED_BY',
+
+  'TESTS',
+  'TESTS_TARGET',
+  'TEST_TARGET',
+  'VERIFIES'
+]));
+
+export const FLOW_SEMANTIC_EDGE_TYPES = Object.freeze(new Set([
+  'DECLARES',
+  'DECLARES_METHOD',
+  'EXTENDS',
+  'IMPLEMENTS',
+  'CALLS',
+  'REFERENCES',
+  'READS',
+  'WRITES',
+  'REFERENCES_RESOURCE',
+  'INJECTS_AT',
+  'MIXES_INTO',
+
+  'DECLARES_NETWORK_CHANNEL',
+  'DECLARES_NETWORK_SEND',
+  'DECODED_BY',
+  'DISPATCHES_NETWORK_HANDLER',
+  'DISTRIBUTES_TO',
+  'ENCODED_BY',
+  'ENQUEUES_NETWORK_WORK',
+  'HANDLED_BY',
+  'IMPLEMENTS_NETWORK_INIT',
+  'IMPLEMENTS_PACKET',
+  'PACKET_DIRECTION',
+  'REFERENCES_NETWORK_CHANNEL',
+  'REGISTERS_PACKET',
+  'SCHEDULES_NETWORK_INIT',
+  'SENDS_PACKET',
+  'USES_NETWORK_CHANNEL',
+
+  'ANIMATES_BONE',
+  'BONE_CHILD_OF',
+  'DECLARES_ANIMATION',
+  'DECLARES_ANIMATION_CONTROLLER',
+  'DECLARES_MODEL',
+  'DECLARES_YSM_MODEL_PACK',
+  'HAS_BONE',
+  'HAS_LOCATOR',
+  'PROVIDES_ANIMATION_NAME',
+  'PROVIDES_BONE_NAME',
+  'READS_MOLANG',
+  'WRITES_MOLANG',
+
+  'BOUNDARY_PRODUCES_MOLANG',
+  'BOUNDARY_CONSUMES_MOLANG',
+  'BOUNDARY_DISPATCHES_ANIMATION',
+  'BOUNDARY_PROVIDES_ANIMATION',
+
+  'OBSERVED_RUNTIME_ENTITY',
+  'OBSERVED_RUNTIME_INSTANCE',
+  'RUNTIME_INSTANCE_OF',
+  'OBSERVED_RENDERED_POSE',
+  'OBSERVED_RUNTIME_BONE_PALETTE',
+  'OBSERVED_RUNTIME_BONE_TRANSFORM',
+  'OBSERVED_ON_NETWORK_CHANNEL',
+  'OBSERVED_PACKET_DIRECTION',
+  'OBSERVED_PACKET_PAYLOAD_MOLANG',
+  'HAS_RUNTIME_NETWORK_OBSERVATION',
+  'HAS_RUNTIME_NETWORK_SEMANTIC',
+  'TRACKS_MOLANG_TRANSPORT',
+
+  'TESTS',
+  'TESTS_TARGET',
+  'TEST_TARGET',
+  'VERIFIES'
+]));
+
+export function isStrongSemanticEdge(edge) {
+  if (!baseEligible(edge)) return false;
+  const type = String(edge.type ?? '').toUpperCase();
+  if (STRONG_SEMANTIC_EDGE_TYPES.has(type)) return true;
+  if (type.startsWith('UA_')) return externalSemanticEdge(type, ['UA_CONTAINS','UA_LAYER_CONTAINS','UA_TOUR_HIGHLIGHTS']);
+  if (type.startsWith('CODEGRAPH_')) return externalSemanticEdge(type, []);
+  if (type.startsWith('OBSERVED_') || type.startsWith('HAS_RUNTIME_')) return true;
+  return edge.boundary === true || edge.runtimeObservation === true;
+}
+
+export function isFlowSemanticEdge(edge) {
+  if (!baseEligible(edge)) return false;
+  const type = String(edge.type ?? '').toUpperCase();
+  if (FLOW_SEMANTIC_EDGE_TYPES.has(type)) return true;
+  if (type.startsWith('UA_')) return externalSemanticEdge(type, ['UA_CONTAINS','UA_LAYER_CONTAINS','UA_TOUR_HIGHLIGHTS']);
+  if (type.startsWith('CODEGRAPH_')) return externalSemanticEdge(type, []);
+  if (type.startsWith('OBSERVED_') || type.startsWith('HAS_RUNTIME_')) return true;
+  return edge.boundary === true || edge.runtimeObservation === true;
+}
+
+function baseEligible(edge) {
+  if (!edge) return false;
+  const type = String(edge.type ?? '').toUpperCase();
+  if (edge.strength === 'CORRELATED') return false;
+  if (CORRELATED_MARKERS.some(marker => type.includes(marker))) return false;
+  return Number(edge.confidence ?? 1) >= 0.75;
+}
+
+function externalSemanticEdge(type, excluded) {
+  if (excluded.includes(type)) return false;
+  const upper = type.toUpperCase();
+  return !CORRELATED_MARKERS.some(marker => upper.includes(marker)) &&
+    !upper.includes('RELATED');
+}
