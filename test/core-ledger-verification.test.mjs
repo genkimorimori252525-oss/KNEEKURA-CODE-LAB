@@ -893,3 +893,57 @@ test('Ledger replacement cannot promote a claim without machine verifier records
     /requires machine verifier_results/
   );
 });
+
+
+test('stored EvidenceRecords are deeply immutable Ledger facts', () => {
+  const { graph, repository, snapshot } = syntheticGraph();
+  const coverage = completeCoverage(snapshot.snapshot_id);
+  const evidence = runtimeEvidence({
+    repository,
+    snapshot,
+    edgeTypes: { OBSERVED_PACKET_SEND: 1 }
+  });
+  const ledger = ledgerWithEvidence(graph, coverage, evidence);
+  const stored = ledger.evidence[0];
+
+  assert.equal(Object.isFrozen(stored), true);
+  assert.equal(Object.isFrozen(stored.observation), true);
+  assert.equal(Object.isFrozen(stored.observation.graph_delta), true);
+  assert.throws(
+    () => {
+      stored.observation.graph_delta.edge_types.OBSERVED_PACKET_SEND = 999;
+    },
+    TypeError
+  );
+  assert.equal(
+    stored.observation.graph_delta.edge_types.OBSERVED_PACKET_SEND,
+    1
+  );
+});
+
+test('HYPOTHESIS remains UNRESOLVED even when deterministic verification otherwise runs', () => {
+  const { graph, node, snapshot } = syntheticGraph({
+    key: 'HypothesisTarget',
+    kind: 'class'
+  });
+  const coverage = completeCoverage(snapshot.snapshot_id);
+  const ledger = createEvidenceLedgerFromGraph(graph, coverage);
+  const hypothesis = createClaimRecord({
+    type: 'HYPOTHESIS',
+    subject: { node_id: node.id, key: node.key },
+    predicate: 'hypothesis.possible_behavior',
+    objectOrValue: true,
+    coverageRef: ledger.coverage_ref
+  });
+  addClaim(ledger, hypothesis);
+
+  const result = verifyAndRecordClaim(ledger, hypothesis.id, {
+    graph,
+    coverage
+  });
+
+  assert.equal(result.status, 'UNRESOLVED');
+  const stored = ledger.claims.find(claim => claim.id === hypothesis.id);
+  assert.equal(stored.status, 'UNRESOLVED');
+  assert.equal(reconstructConclusions(ledger).some(claim => claim.id === hypothesis.id), false);
+});
