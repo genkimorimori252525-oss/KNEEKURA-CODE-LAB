@@ -501,7 +501,8 @@ function renderNodeDetail(panel) {
     '<h3>Claims / evidence</h3><div class="list">' +
     claimRows + '</div>' +
     '<h3>Coverage</h3><div class="list">' +
-    coverageRows + '</div>';
+    coverageRows + '</div>' +
+    jsonDetails('Raw node data', node);
 
   wireRefButtons(detail);
   wireNodeButtons(detail);
@@ -672,6 +673,13 @@ function relationRows(rows) {
         ? '<div class="row-meta">stage: ' +
           esc(row.stage) + '</div>'
         : '') +
+      ((row.evidence || row.fields || row.samples)
+        ? jsonDetails('edge evidence', {
+            evidence: row.evidence,
+            fields: row.fields,
+            samples: row.samples
+          })
+        : '') +
       '</div>'
     ).join('') +
     '</div>';
@@ -742,6 +750,12 @@ function renderValidation(overview) {
     );
   }
   return sections.join('');
+}
+
+function jsonDetails(title, value) {
+  return '<details><summary>' + esc(title) + '</summary>' +
+    '<pre>' + esc(JSON.stringify(value, null, 2)) + '</pre>' +
+    '</details>';
 }
 
 function fidelityBlock(title, value) {
