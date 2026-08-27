@@ -947,3 +947,47 @@ test('HYPOTHESIS remains UNRESOLVED even when deterministic verification otherwi
   assert.equal(stored.status, 'UNRESOLVED');
   assert.equal(reconstructConclusions(ledger).some(claim => claim.id === hypothesis.id), false);
 });
+
+
+test('counterexample verifier searches graph candidates even when host omitted counterevidence links', () => {
+  const { graph, node, repository, snapshot } = syntheticGraph({
+    edgeType: 'OBSERVED_YSM_CLIENT_COMMAND_HANDLED',
+    edgeAttrs: { handledByClient: true }
+  });
+  graph.edges.push({
+    id: 'edge:fixture-fallback',
+    from: 'runtime:fixture-fallback',
+    to: node.id,
+    type: 'OBSERVED_YSM_CLIENT_COMMAND_FALLBACK',
+    handledByClient: false,
+    runtimeObservation: true,
+    confidence: 1
+  });
+
+  const coverage = completeCoverage(snapshot.snapshot_id);
+  const evidence = runtimeEvidence({
+    repository,
+    snapshot,
+    edgeTypes: { OBSERVED_YSM_CLIENT_COMMAND_HANDLED: 1 }
+  });
+  const ledger = ledgerWithEvidence(graph, coverage, evidence);
+  const claim = createClaimRecord({
+    type: 'OBSERVED',
+    subject: { node_id: node.id, key: node.key },
+    predicate: 'ysm.client_command_handled',
+    objectOrValue: true,
+    evidenceLinks: [createClaimEvidenceLink({
+      evidenceId: evidence.id,
+      role: 'SUPPORT',
+      strength: 'DIRECT'
+    })],
+    coverageRef: ledger.coverage_ref
+  });
+  addClaim(ledger, claim);
+
+  const result = verifyAndRecordClaim(ledger, claim.id, { graph, coverage });
+  assert.equal(result.status, 'VERIFIED_WITH_LIMITS');
+  assert.equal(result.records.some(record =>
+    record.findings.some(item => item.code === 'PLAUSIBLE_COUNTEREXAMPLE_FOUND')
+  ), true);
+});
