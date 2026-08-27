@@ -101,8 +101,18 @@ async function requireFetchJson(fetchImpl, url) {
 }
 
 function resolveRef(ref, base) {
-  const value = String(ref).replaceAll('\\\\', '/');
-  if (/^[a-z]+:\/\//i.test(value)) {
+  let value;
+  try {
+    value = decodeURIComponent(String(ref));
+  } catch {
+    throw new Error('Viewer ref contains invalid percent encoding');
+  }
+  value = value.replaceAll('\\\\', '/');
+
+  if (
+    /^[a-z][a-z0-9+.-]*:/i.test(value) ||
+    value.startsWith('//')
+  ) {
     throw new Error('external Viewer refs are forbidden');
   }
   if (value.split('/').includes('..')) {
