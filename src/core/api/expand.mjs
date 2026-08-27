@@ -161,7 +161,11 @@ function expansionSeed(state, target) {
     return seedForEvidence(evidence);
   }
   if (kind === 'GRAPH_NODE' || kind === 'NODE') {
-    return { kind: 'GRAPH_NODE', value: String(ref) };
+    const nodeId = String(ref);
+    if (!state.graph.nodes.some(node => node.id === nodeId)) {
+      throw new Error('expand GraphNode not found: ' + nodeId);
+    }
+    return { kind: 'GRAPH_NODE', value: nodeId };
   }
   if (kind === 'PATH') return { kind: 'PATH', value: String(ref) };
   if (kind === 'SYMBOL') return { kind: 'SYMBOL', value: String(ref) };
