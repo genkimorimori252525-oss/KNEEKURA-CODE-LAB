@@ -467,3 +467,45 @@ test('cross-snapshot continuation invalidates claims when engine or rules are no
   });
   assert.deepEqual(compatible.reusable_claim_ids, ['claim:stable']);
 });
+
+
+test('persisted Exploration Ledger resumes same-snapshot provider reuse after reload', async () => {
+  const coreRoot = await tempRoot('kneekura-exploration-persist-');
+  try {
+    const sessionStore = createSessionStore({
+      storageRoot: coreRoot,
+      targetRepositoryRoot: FORGE_FIXTURE
+    });
+    await sessionStore.startSession({
+      sessionId: 'session:persisted-exploration'
+    });
+
+    const firstLedger = createExplorationLedger();
+    const firstGraph = await scanRepository(FORGE_FIXTURE, {
+      explorationLedger: firstLedger
+    });
+    const acquired = firstLedger.metrics.provider_acquisitions;
+    assert.ok(acquired > 0);
+
+    await sessionStore.writeExplorationLedger(
+      'session:persisted-exploration',
+      firstLedger
+    );
+    const restored = await sessionStore.readExplorationLedger(
+      'session:persisted-exploration',
+      { targetSnapshotId: firstGraph.meta.snapshot.snapshot_id }
+    );
+
+    const secondGraph = await scanRepository(FORGE_FIXTURE, {
+      explorationLedger: restored
+    });
+
+    assert.equal(restored.metrics.provider_acquisitions, acquired);
+    assert.ok(restored.metrics.provider_reuse_count >= acquired);
+    assert.equal(secondGraph.meta.snapshot.snapshot_id, firstGraph.meta.snapshot.snapshot_id);
+    assert.equal(secondGraph.nodes.length, firstGraph.nodes.length);
+    assert.equal(secondGraph.edges.length, firstGraph.edges.length);
+  } finally {
+    await fs.rm(coreRoot, { recursive: true, force: true });
+  }
+});
