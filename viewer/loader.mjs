@@ -107,7 +107,7 @@ function resolveRef(ref, base) {
   } catch {
     throw new Error('Viewer ref contains invalid percent encoding');
   }
-  value = value.replaceAll('\\\\', '/');
+  value = normalizeSeparators(value);
 
   if (
     /^[a-z][a-z0-9+.-]*:/i.test(value) ||
@@ -122,13 +122,19 @@ function resolveRef(ref, base) {
     return value;
   }
 
-  const baseValue = String(base).replaceAll('\\\\', '/');
+  const baseValue = normalizeSeparators(base);
   const slash = baseValue.lastIndexOf('/');
   if (slash < 0) return value.replace(/^\.\//, '');
   return (
     baseValue.slice(0, slash + 1) +
     value.replace(/^\.\//, '')
   );
+}
+
+function normalizeSeparators(value) {
+  return String(value)
+    .split(String.fromCharCode(92))
+    .join('/');
 }
 
 function assertAnalysisResult(result) {
