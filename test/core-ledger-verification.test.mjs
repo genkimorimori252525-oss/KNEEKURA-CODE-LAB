@@ -1162,3 +1162,38 @@ test('M6 verifier accepts a formally qualified edge even when an unqualified M6 
   const result = verifyAndRecordClaim(ledger, claim.id, { graph, coverage });
   assert.equal(result.status, 'VERIFIED');
 });
+
+
+test('Claim construction reports deterministic validation errors for missing identity inputs', () => {
+  assert.throws(
+    () => createClaimRecord({
+      type: 'INFERRED',
+      subject: null,
+      predicate: 'fixture.missing_subject',
+      objectOrValue: true,
+      coverageRef: 'coverage:test'
+    }),
+    /claim subject is required/
+  );
+
+  assert.throws(
+    () => createClaimRecord({
+      type: 'INFERRED',
+      subject: 'Subject',
+      predicate: 'fixture.missing_object',
+      coverageRef: 'coverage:test'
+    }),
+    /claim objectOrValue is required/
+  );
+
+  const unknown = createClaimRecord({
+    type: 'UNKNOWN',
+    subject: 'Subject',
+    predicate: 'fixture.unknown',
+    objectOrValue: null,
+    coverageRef: 'coverage:test',
+    unresolvedReason: 'fixture intentionally unresolved'
+  });
+  assert.equal(unknown.object_or_value, null);
+  assert.equal(unknown.status, 'UNRESOLVED');
+});
