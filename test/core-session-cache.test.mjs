@@ -970,3 +970,108 @@ test('in-memory Exploration Ledger acquisition tampering is detected before reus
     /exploration acquisition content digest mismatch/
   );
 });
+
+
+test('session store refuses invalid lifecycle events before persisting them', async () => {
+  const root = await tempRoot('kneekura-session-lifecycle-write-');
+  try {
+    const store = createSessionStore({ storageRoot: root });
+    const emptySessionId = 'session:empty-invalid';
+    const emptyDir = path.join(
+      root,
+      'sessions',
+      Buffer.from(emptySessionId).toString('base64url')
+    );
+    await fs.mkdir(emptyDir, { recursive: true });
+    const emptyEvents = path.join(emptyDir, 'events.jsonl');
+    await fs.writeFile(emptyEvents, '', 'utf8');
+
+    await assert.rejects(
+      () => store.append(emptySessionId, 'SCOPE_DECISION', {
+        decision: { id: 'scope:invalid-first' }
+      }),
+      /first session event must be SESSION_STARTED/
+    );
+    assert.equal(await fs.readFile(emptyEvents, 'utf8'), '');
+
+    const normalSessionId = 'session:duplicate-start';
+    await store.startSession({ sessionId: normalSessionId });
+    const before = await store.readEvents(normalSessionId);
+    await assert.rejects(
+      () => store.append(normalSessionId, 'SESSION_STARTED', {
+        session_id: normalSessionId
+      }),
+      /SESSION_STARTED may only be appended as the first event/
+    );
+    const after = await store.readEvents(normalSessionId);
+    assert.deepEqual(after, before);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test('session event digests hash the exact JSON-persisted payload form', async () => {
+  const root = await tempRoot('kneekura-session-json-canonical-');
+  try {
+    const store = createSessionStore({ storageRoot: root });
+    const sessionId = 'session:json-canonical';
+    await store.startSession({
+      sessionId,
+      normalizedRequest: {
+        keep: 'value',
+        dropped: undefined
+      }
+    });
+    await store.append(sessionId, 'SCOPE_DECISION', {
+      decision: {
+        id: 'scope:canonical',
+        optional: undefined
+      }
+    });
+
+    const events = await store.readEvents(sessionId);
+    assert.equal(verifyEventChain(events), true);
+    assert.deepEqual(events[0].payload.normalized_request, { keep: 'value' });
+    assert.deepEqual(events[1].payload.decision, { id: 'scope:canonical' });
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test('cache fingerprint participates in exploration reuse lookup when supplied', () => {
+  const exploration = createExplorationLedger({ snapshotId: 'snapshot:1' });
+  recordProviderAcquisition(exploration, {
+    providerId: 'fixture-provider',
+    providerVersion: 'v1',
+    dependencyFingerprint: 'sha256:' + '1'.repeat(64),
+    cacheFingerprint: 'sha256:' + '2'.repeat(64),
+    fidelity: 2,
+    result: {
+      provider: { id: 'fixture-provider', version: 'v1' },
+      dependency_fingerprint: 'sha256:' + '1'.repeat(64),
+      evidence: [{ id: 'evidence:cache-fingerprint' }]
+    },
+    snapshotId: 'snapshot:1'
+  });
+
+  const mismatch = findReusableAcquisition(exploration, {
+    providerId: 'fixture-provider',
+    providerVersion: 'v1',
+    dependencyFingerprint: 'sha256:' + '1'.repeat(64),
+    cacheFingerprint: 'sha256:' + '3'.repeat(64),
+    requiredFidelity: 1,
+    targetSnapshotId: 'snapshot:1'
+  });
+  assert.equal(mismatch, null);
+
+  const match = findReusableAcquisition(exploration, {
+    providerId: 'fixture-provider',
+    providerVersion: 'v1',
+    dependencyFingerprint: 'sha256:' + '1'.repeat(64),
+    cacheFingerprint: 'sha256:' + '2'.repeat(64),
+    requiredFidelity: 1,
+    targetSnapshotId: 'snapshot:1'
+  });
+  assert.ok(match);
+  assert.equal(match.evidence_ids[0], 'evidence:cache-fingerprint');
+});
