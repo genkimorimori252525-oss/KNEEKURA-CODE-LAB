@@ -127,8 +127,10 @@ export function canonicalDependencies(dependencies = []) {
     if (!normalized.kind) normalized.kind = 'ref';
     return normalized;
   });
-  rows.sort((a, b) => stableStringify(a).localeCompare(stableStringify(b)));
-  return rows;
+  const unique = new Map(rows.map(row => [stableStringify(row), row]));
+  return [...unique.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, row]) => row);
 }
 
 export function digestObject(value) {
