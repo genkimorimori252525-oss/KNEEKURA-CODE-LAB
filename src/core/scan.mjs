@@ -1,6 +1,11 @@
 import path from 'node:path';
 import { GraphBuilder } from './graph.mjs';
 import { walk } from './walk.mjs';
+import { resolveRepositoryIdentity } from './identity/repository.mjs';
+import {
+  assertWorkspaceSnapshotUnchanged,
+  captureWorkspaceSnapshot
+} from './identity/snapshot.mjs';
 import { analyzeJava } from '../analyzers/java.mjs';
 import { analyzeForgeJava, analyzeModsToml } from '../analyzers/forge.mjs';
 import { analyzeForgeNetworkJava } from '../analyzers/forge-network.mjs';
@@ -21,6 +26,14 @@ export async function scanRepository(root, opts={}) {
   b.addAnalyzer('forge-semantics','v2');
   b.addAnalyzer('minecraft-ysm-semantics','v2');
   const files = await walk(root);
+  const repositoryIdentity =
+    opts.repositoryIdentity ??
+    await resolveRepositoryIdentity(root, opts.identity ?? {});
+  const snapshotIdentity =
+    await captureWorkspaceSnapshot(root, repositoryIdentity, { files });
+  b.graph.meta.repository = repositoryIdentity;
+  b.graph.meta.snapshot = snapshotIdentity;
+
   await detectPlatformProfile(b, root, files);
   b.addAnalyzer('forge-1.20.1-network','v1');
   for (const file of files) {
@@ -50,5 +63,16 @@ export async function scanRepository(root, opts={}) {
     deriveMolangTransportMatrices(b);
   }
   if (opts.trace || opts.pose || opts.palette) deriveYsmFidelityMatrix(b);
+
+  if (snapshotIdentity.kind === 'WORKSPACE') {
+    const currentFiles = await walk(root);
+    const currentSnapshot = await captureWorkspaceSnapshot(
+      root,
+      repositoryIdentity,
+      { files: currentFiles }
+    );
+    assertWorkspaceSnapshotUnchanged(snapshotIdentity, currentSnapshot);
+  }
+
   return b.finish();
 }

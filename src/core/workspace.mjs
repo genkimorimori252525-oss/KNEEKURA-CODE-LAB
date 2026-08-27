@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { GraphBuilder } from './graph.mjs';
 import { scanRepository } from './scan.mjs';
+import { createMultiRepoSnapshot } from './identity/snapshot.mjs';
 
 // These nodes describe cross-repository protocol names, not repository-local implementation symbols.
 // They are intentionally shared so independently scanned mods meet at the same semantic contract.
@@ -91,6 +92,19 @@ export function mergeWorkspaceGraphs(entries) {
     boundaryEdgeCount: result.edges.filter(e => e.boundary).length,
     sharedKinds: [...SHARED_KINDS]
   };
+  result.meta.repositories = entries.map(({ name, graph }) => ({
+    name,
+    repository: graph.meta?.repository ?? null,
+    snapshot: graph.meta?.snapshot ?? null
+  }));
+
+  const constituents = result.meta.repositories
+    .map(entry => entry.snapshot)
+    .filter(Boolean);
+
+  if (constituents.length === entries.length) {
+    result.meta.snapshot = createMultiRepoSnapshot(constituents);
+  }
   return result;
 }
 

@@ -85,7 +85,7 @@ export function createArchiveSnapshot(repositoryIdentity, archiveDigest) {
     kind: 'ARCHIVE',
     repository_id: repositoryId,
     archive_digest: digest,
-    snapshot_id: snapshotId({ kind: 'ARCHIVE', repository_id: repository_id: repositoryId, archive_digest: digest })
+    snapshot_id: snapshotId({ kind: 'ARCHIVE', repository_id: repositoryId, archive_digest: digest })
   };
 }
 
