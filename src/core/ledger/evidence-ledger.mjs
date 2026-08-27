@@ -145,10 +145,10 @@ export function finalizeEvidenceLedger(ledger) {
     snapshot_ids: [...ledger.snapshot_ids].sort(),
     coverage: ledger.coverage ? structuredClone(ledger.coverage) : null,
     coverage_ref: ledger.coverage_ref,
-    evidence: ledger.evidence.map(structuredClone),
-    claims: ledger.claims.map(structuredClone),
+    evidence: ledger.evidence.map(item => structuredClone(item)),
+    claims: ledger.claims.map(item => structuredClone(item)),
     claim_evidence_links: flattenClaimEvidenceLinks(ledger.claims),
-    verification_records: ledger.verification_records.map(structuredClone)
+    verification_records: ledger.verification_records.map(item => structuredClone(item))
   };
   snapshot.fingerprint = digestObject({
     repository_ids: snapshot.repository_ids,
@@ -165,7 +165,7 @@ export function reconstructConclusions(ledger) {
   assertLedger(ledger);
   return ledger.claims
     .filter(claim => ['VERIFIED','VERIFIED_WITH_LIMITS'].includes(claim.status))
-    .map(structuredClone)
+    .map(item => structuredClone(item))
     .sort((a, b) => a.id.localeCompare(b.id));
 }
 
