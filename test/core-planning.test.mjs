@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { GraphBuilder } from '../src/core/graph.mjs';
 import { planScope } from '../src/core/scope/planner.mjs';
 import {
@@ -11,6 +13,10 @@ import {
 import { resolveRules } from '../src/core/rules/resolver.mjs';
 import { buildSemanticAnalysisUnits } from '../src/core/scope/semantic-unit.mjs';
 import { planDeterministicAnalysis } from '../src/core/planning.mjs';
+import { scanRepository } from '../src/core/scan.mjs';
+
+const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const FORGE_FIXTURE = path.join(ROOT, 'fixtures/forge-mini');
 
 function fixtureGraph() {
   const b = new GraphBuilder('/fixture');
@@ -392,4 +398,72 @@ test('broad external containment and co-change relationships cannot become autho
   const saus = buildSemanticAnalysisUnits(graph, scope, rules);
 
   assert.equal(saus.units.length, 3);
+});
+
+
+test('real forge-mini graph plans ReimuPacket and YSM Molang scope without LLM authority', async () => {
+  const graph = await scanRepository(FORGE_FIXTURE);
+  const request = {
+    mode: 'TRACE',
+    seeds: [
+      { kind: 'SYMBOL', value: 'demo.net.ReimuPacket' },
+      { kind: 'SYMBOL', value: 'v.wuqi' }
+    ]
+  };
+
+  const first = planDeterministicAnalysis(graph, request, {
+    scope: { maxDepth: 4 },
+    semanticUnits: { maxUnitItems: 30 }
+  });
+  const second = planDeterministicAnalysis(graph, request, {
+    scope: { maxDepth: 4 },
+    semanticUnits: { maxUnitItems: 30 }
+  });
+
+  const packetSeed = first.scope.seeds.find(item =>
+    item.seed.kind === 'SYMBOL' && item.seed.value === 'demo.net.ReimuPacket'
+  );
+  const molangSeed = first.scope.seeds.find(item =>
+    item.seed.kind === 'SYMBOL' && item.seed.value === 'v.wuqi'
+  );
+
+  assert.equal(packetSeed.status, 'RESOLVED');
+  assert.equal(molangSeed.status, 'RESOLVED');
+  assert.equal(first.coverage_initial.entries.some(entry => entry.status === 'PENDING'), true);
+  assert.equal(first.coverage.entries.some(entry => entry.status === 'PENDING'), false);
+  assert.equal(
+    first.scope.decisions.every(decision =>
+      decision.reason &&
+      decision.cause &&
+      decision.planner_id === 'core-scope-planner' &&
+      decision.planner_version === 'v1'
+    ),
+    true
+  );
+  assert.equal(first.rules.applied.some(rule => rule.rule_id === 'core.java.structural'), true);
+  assert.equal(first.rules.applied.some(rule => rule.rule_id === 'core.forge.network-semantics'), true);
+  assert.equal(first.rules.applied.some(rule => rule.rule_id === 'core.ysm.semantic-contracts'), true);
+
+  const packetNode = graph.nodes.find(node =>
+    node.kind === 'class' && node.key === 'demo.net.ReimuPacket'
+  );
+  const packetSemantic = graph.nodes.find(node =>
+    node.kind === 'network_packet' && node.label === 'ReimuPacket'
+  );
+  assert.ok(packetNode);
+  assert.ok(packetSemantic);
+
+  const packetUnit = first.semantic_units.units.find(unit =>
+    [...unit.primary_targets, ...unit.dependency_items, ...unit.supporting_items]
+      .includes('node:' + packetNode.id)
+  );
+  assert.ok(packetUnit);
+  assert.equal(
+    [...packetUnit.primary_targets, ...packetUnit.dependency_items, ...packetUnit.supporting_items]
+      .includes('node:' + packetSemantic.id),
+    true
+  );
+
+  assert.equal(first.deterministic_fingerprint, second.deterministic_fingerprint);
+  assert.equal(Object.hasOwn(first, 'claims'), false);
 });
