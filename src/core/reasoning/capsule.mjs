@@ -207,6 +207,27 @@ export function packEvidenceCapsule({
     omitted_evidence_ids: base.omitted_evidence_ids,
     budget_exhausted: base.budget.budget_exhausted
   });
+
+  base.budget.packed_bytes = byteLength(base);
+  base.budget.estimated_tokens = estimateTokens(base.budget.packed_bytes);
+  if (base.budget.packed_bytes > maxBytes) {
+    base.budget.budget_exhausted = true;
+    base.fingerprint = digestObject({
+      profile: base.profile,
+      question: base.question,
+      mode: base.mode,
+      policy: base.policy,
+      target_scope: base.target_scope,
+      graph_paths: base.graph_paths,
+      applicable_rules: base.applicable_rules,
+      verified_fact_ids: base.verified_fact_ids,
+      coverage: base.coverage,
+      unknowns: base.unknowns,
+      evidence_ids: base.evidence.map(item => item.id),
+      omitted_evidence_ids: base.omitted_evidence_ids,
+      budget_exhausted: true
+    });
+  }
   return base;
 }
 
