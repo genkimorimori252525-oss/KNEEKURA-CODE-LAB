@@ -122,10 +122,14 @@ function resolveWithinBundle(root, relativePath, name) {
   if (typeof relativePath !== 'string' || !relativePath.trim()) {
     throw new TypeError(name + ' must be a non-empty relative path');
   }
-  if (path.isAbsolute(relativePath)) {
+  const normalized = normalizeSeparators(relativePath);
+  if (
+    path.isAbsolute(relativePath) ||
+    normalized.startsWith('/') ||
+    /^[A-Za-z]:\//.test(normalized)
+  ) {
     throw new Error(name + ' must stay inside the Viewer bundle');
   }
-  const normalized = relativePath.replaceAll('\\\\', '/');
   const target = path.resolve(root, ...normalized.split('/'));
   if (target !== root && !target.startsWith(root + path.sep)) {
     throw new Error(name + ' must stay inside the Viewer bundle');
@@ -134,6 +138,12 @@ function resolveWithinBundle(root, relativePath, name) {
     throw new Error(name + ' must resolve to a file or subdirectory');
   }
   return target;
+}
+
+function normalizeSeparators(value) {
+  return String(value)
+    .split(String.fromCharCode(92))
+    .join('/');
 }
 
 function compactProvenance(provenance = {}) {
