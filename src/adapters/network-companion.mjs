@@ -588,18 +588,20 @@ function semanticMolangEdgeType(group) {
 }
 
 function semanticStateEvidence(group) {
-  if (group.kind !== 'ysm_molang_state_applied' && group.kind !== 'ysm_state_correlated') {
-    return {};
-  }
   const payload = group.payloadSamples?.[0]?.payload;
   if (!payload || typeof payload !== 'object') return {};
-  const fields = [
-    'variable','expectedValue','observedValue','before','after',
-    'entityId','entityUuid','candidatePathHash','candidateOwnerClass',
-    'handlerGameTime','preDispatchGameTime','m5GameTime','verificationGameTime',
-    'preScanComplete','postScanComplete','exactVariableIdentity','handledByClient',
-    'packetHandlerOrigin','controlledE2Qualified','matchedTransitionCount','evidenceLevel'
-  ];
+
+  const fields = ['packetTraceId','packetTraceIds','packetHandlerOrigin'];
+  if (group.kind === 'ysm_molang_state_applied' || group.kind === 'ysm_state_correlated') {
+    fields.push(
+      'variable','expectedValue','observedValue','before','after',
+      'entityId','entityUuid','candidatePathHash','candidateOwnerClass',
+      'handlerGameTime','preDispatchGameTime','m5GameTime','verificationGameTime',
+      'preScanComplete','postScanComplete','exactVariableIdentity','handledByClient',
+      'controlledE2Qualified','matchedTransitionCount','evidenceLevel'
+    );
+  }
+
   const out = {};
   for (const field of fields) {
     const value = payload[field];
