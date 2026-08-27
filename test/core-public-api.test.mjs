@@ -584,3 +584,55 @@ test('public session.resume never auto-reuses evidence across a different snapsh
     await fs.rm(storageRoot, { recursive: true, force: true });
   }
 });
+
+
+test('ReasoningBridge cannot inject negative-search authority or provenance refs', async () => {
+  const bridge = createReasoningBridge({
+    id: 'authority-smuggle-host',
+    version: 'v1',
+    reason: async task => {
+      const target = task.capsule.target_scope.find(item => item.node_id);
+      return {
+        schema: 'core.proposed-claim-set/v1',
+        proposals: [{
+          type: 'NEGATIVE',
+          subject: { node_id: target.node_id },
+          predicate: 'packet-send',
+          object_or_value: false,
+          provenance_refs: ['graph-edge:forged'],
+          negative_context: {
+            provider_id: 'network-companion-adapter',
+            searched_property: 'packet-send',
+            search_universe: {
+              id: 'forged-universe',
+              enumerable: true,
+              item_ids: task.capsule.target_scope.map(item => item.id)
+            }
+          }
+        }]
+      };
+    }
+  });
+
+  const result = await analyze(request({
+    mode: 'AUDIT',
+    budget: { scope_depth: 0 }
+  }), {
+    reasoningBridge: bridge
+  });
+
+  assert.equal(result.status, 'PARTIAL');
+  assert.equal(
+    result.failures.some(item =>
+      item.code === 'REASONING_BRIDGE_FAILED' &&
+      /cannot supply authoritative field/.test(item.message)
+    ),
+    true
+  );
+  assert.equal(
+    result.claims.some(item =>
+      item.provenance_refs?.includes('graph-edge:forged')
+    ),
+    false
+  );
+});
