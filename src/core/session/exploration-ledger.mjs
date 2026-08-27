@@ -148,7 +148,10 @@ export function evaluateClaimReuse(claim, {
   availableEvidenceIds = [],
   currentCoverageFingerprint = null,
   currentVerifierVersions = null,
-  currentRuleVersions = null
+  currentRuleVersions = null,
+  requireCoverageFingerprint = false,
+  requireVerifierVersions = false,
+  requireRuleVersions = false
 } = {}) {
   if (!claim || typeof claim !== 'object') throw new TypeError('claim is required');
   const reasons = [];
@@ -166,7 +169,11 @@ export function evaluateClaimReuse(claim, {
     }
   }
 
-  if (currentCoverageFingerprint) {
+  if (requireCoverageFingerprint && !currentCoverageFingerprint) {
+    reasons.push({
+      code: 'COVERAGE_UNVERIFIED_FOR_REUSE'
+    });
+  } else if (currentCoverageFingerprint) {
     const expected = 'coverage:' + currentCoverageFingerprint;
     if (claim.coverage_ref !== expected) {
       reasons.push({
@@ -177,13 +184,25 @@ export function evaluateClaimReuse(claim, {
     }
   }
 
-  if (currentVerifierVersions) {
+  if (requireVerifierVersions && !currentVerifierVersions && (claim.verifier_results ?? []).length) {
+    reasons.push({
+      code: 'VERIFIER_DEPENDENCIES_UNVERIFIED'
+    });
+  } else if (currentVerifierVersions) {
     const versions = currentVerifierVersions instanceof Map
       ? currentVerifierVersions
       : new Map(Object.entries(currentVerifierVersions));
     for (const record of claim.verifier_results ?? []) {
+      if (!versions.has(record.verifier_id)) {
+        reasons.push({
+          code: 'VERIFIER_UNAVAILABLE',
+          verifier_id: record.verifier_id,
+          previous: record.verifier_version
+        });
+        continue;
+      }
       const current = versions.get(record.verifier_id);
-      if (current != null && current !== record.verifier_version) {
+      if (current !== record.verifier_version) {
         reasons.push({
           code: 'VERIFIER_CHANGED',
           verifier_id: record.verifier_id,
@@ -194,18 +213,31 @@ export function evaluateClaimReuse(claim, {
     }
   }
 
-  if (claim.derivation && currentRuleVersions) {
+  if (claim.derivation && requireRuleVersions && !currentRuleVersions) {
+    reasons.push({
+      code: 'RULE_DEPENDENCIES_UNVERIFIED',
+      rule_id: claim.derivation.rule_id
+    });
+  } else if (claim.derivation && currentRuleVersions) {
     const versions = currentRuleVersions instanceof Map
       ? currentRuleVersions
       : new Map(Object.entries(currentRuleVersions));
-    const current = versions.get(claim.derivation.rule_id);
-    if (current != null && current !== claim.derivation.rule_version) {
+    if (!versions.has(claim.derivation.rule_id)) {
       reasons.push({
-        code: 'RULE_CHANGED',
+        code: 'RULE_UNAVAILABLE',
         rule_id: claim.derivation.rule_id,
-        previous: claim.derivation.rule_version,
-        current
+        previous: claim.derivation.rule_version
       });
+    } else {
+      const current = versions.get(claim.derivation.rule_id);
+      if (current !== claim.derivation.rule_version) {
+        reasons.push({
+          code: 'RULE_CHANGED',
+          rule_id: claim.derivation.rule_id,
+          previous: claim.derivation.rule_version,
+          current
+        });
+      }
     }
   }
 
