@@ -86,6 +86,10 @@ Scope is rejected.
 Proposal evidence IDs must already exist in the canonical Evidence Ledger and
 must have been included in the exact Evidence Capsule given to the bridge.
 
+A single ReasoningBridge result is bounded to 64 proposals. Excess proposals
+are not verified or written to session Claim events; CORE reports a
+`PROPOSAL_LIMIT_EXCEEDED` rejection summary instead.
+
 NEGATIVE proposals remain subject to the Milestone D negative gate. A language
 model cannot turn incomplete coverage into an authoritative absence claim.
 
@@ -214,12 +218,19 @@ Resume requires persistent CORE-owned session storage.
 Same snapshot:
 
 - replays the finalized parent AnalysisSession;
+- restores and validates the persisted Exploration Ledger;
+- treats only Evidence IDs present in non-stale restored acquisitions as
+  available for reuse;
 - checks current CORE engine compatibility;
 - checks Coverage fingerprint;
 - checks verifier versions;
 - checks deterministic derivation rule versions;
 - reports reusable/invalidated Evidence and Claims;
-- reports whether a persisted Exploration Ledger is available.
+- reports whether persisted Exploration state is available.
+
+If the Exploration Ledger is missing or cannot be validated, session event IDs
+alone do not count as rehydratable Evidence; affected Evidence/Claims are
+invalidated and `requires_reanalysis` becomes true.
 
 Different snapshot:
 
