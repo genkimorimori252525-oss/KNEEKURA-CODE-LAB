@@ -759,3 +759,174 @@ test('cache reuse ignores informational metadata differences for identical artif
     await fs.rm(root, { recursive: true, force: true });
   }
 });
+
+
+test('persisted C1 artifact payload tampering is detected before reuse', async () => {
+  const root = await tempRoot('kneekura-cache-tamper-');
+  try {
+    const store = createCacheStore({ storageRoot: root });
+    const digest = contentDigest('class TamperTarget {}');
+    const key = c1ArtifactKey({
+      content_digest: digest,
+      provider_id: 'builtin-java',
+      provider_version: 'lexical-v1'
+    });
+    const dependencies = [{ kind: 'content', id: digest }];
+    await store.putArtifact({
+      tier: 'C1',
+      key,
+      dependencies,
+      payload: { facts: ['original'] }
+    });
+
+    const file = path.join(
+      root, 'cache', 'C1',
+      Buffer.from(key).toString('base64url') + '.json'
+    );
+    const stored = JSON.parse(await fs.readFile(file, 'utf8'));
+    stored.payload.facts = ['tampered'];
+    await fs.writeFile(file, JSON.stringify(stored, null, 2) + '\n', 'utf8');
+
+    await assert.rejects(
+      () => store.getArtifact({ tier: 'C1', key, expectedDependencies: dependencies }),
+      /cache artifact content digest mismatch/
+    );
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test('persisted Exploration Ledger tampering is detected before restore', async () => {
+  const root = await tempRoot('kneekura-exploration-tamper-');
+  try {
+    const store = createSessionStore({ storageRoot: root });
+    const sessionId = 'session:exploration-tamper';
+    await store.startSession({ sessionId });
+
+    const exploration = createExplorationLedger({ snapshotId: 'snapshot:1' });
+    recordProviderAcquisition(exploration, {
+      providerId: 'fixture-provider',
+      providerVersion: 'v1',
+      dependencyFingerprint: 'sha256:' + '1'.repeat(64),
+      fidelity: 1,
+      result: {
+        provider: { id: 'fixture-provider', version: 'v1' },
+        dependency_fingerprint: 'sha256:' + '1'.repeat(64),
+        evidence: [{ id: 'evidence:fixture' }]
+      },
+      snapshotId: 'snapshot:1'
+    });
+    await store.writeExplorationLedger(sessionId, exploration);
+
+    const file = path.join(
+      root, 'sessions',
+      Buffer.from(sessionId).toString('base64url'),
+      'exploration.json'
+    );
+    const envelope = JSON.parse(await fs.readFile(file, 'utf8'));
+    envelope.ledger.acquisitions[0].fidelity = 99;
+    await fs.writeFile(file, JSON.stringify(envelope, null, 2) + '\n', 'utf8');
+
+    await assert.rejects(
+      () => store.readExplorationLedger(sessionId),
+      /exploration snapshot digest mismatch/
+    );
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test('Exploration Ledger rejects provider identity and dependency mismatches', () => {
+  const exploration = createExplorationLedger({ snapshotId: 'snapshot:1' });
+  assert.throws(
+    () => recordProviderAcquisition(exploration, {
+      providerId: 'expected-provider',
+      providerVersion: 'v1',
+      dependencyFingerprint: 'sha256:' + '1'.repeat(64),
+      fidelity: 1,
+      result: {
+        provider: { id: 'different-provider', version: 'v1' },
+        dependency_fingerprint: 'sha256:' + '1'.repeat(64),
+        evidence: []
+      },
+      snapshotId: 'snapshot:1'
+    }),
+    /provider result identity mismatch/
+  );
+  assert.throws(
+    () => recordProviderAcquisition(exploration, {
+      providerId: 'expected-provider',
+      providerVersion: 'v1',
+      dependencyFingerprint: 'sha256:' + '1'.repeat(64),
+      fidelity: 1,
+      result: {
+        provider: { id: 'expected-provider', version: 'v1' },
+        dependency_fingerprint: 'sha256:' + '2'.repeat(64),
+        evidence: []
+      },
+      snapshotId: 'snapshot:1'
+    }),
+    /provider result dependency fingerprint mismatch/
+  );
+});
+
+test('same-snapshot reuse requires explicit matching stored snapshot when target is known', () => {
+  const exploration = createExplorationLedger();
+  recordProviderAcquisition(exploration, {
+    providerId: 'fixture-provider',
+    providerVersion: 'v1',
+    dependencyFingerprint: 'sha256:' + '1'.repeat(64),
+    fidelity: 1,
+    result: {
+      provider: { id: 'fixture-provider', version: 'v1' },
+      dependency_fingerprint: 'sha256:' + '1'.repeat(64),
+      evidence: []
+    },
+    snapshotId: null
+  });
+  const reused = findReusableAcquisition(exploration, {
+    providerId: 'fixture-provider',
+    providerVersion: 'v1',
+    dependencyFingerprint: 'sha256:' + '1'.repeat(64),
+    targetSnapshotId: 'snapshot:known'
+  });
+  assert.equal(reused, null);
+});
+
+test('session lifecycle validation requires one start and terminal finalize', () => {
+  const wrongFirst = createSessionEvent({
+    sequence: 1,
+    type: 'SCOPE_DECISION',
+    payload: { decision: { id: 'scope:first' } },
+    timestamp: '2026-01-01T00:00:00.000Z'
+  });
+  assert.throws(
+    () => verifyEventChain([wrongFirst]),
+    /must begin with SESSION_STARTED/
+  );
+
+  const start = createSessionEvent({
+    sequence: 1,
+    type: 'SESSION_STARTED',
+    payload: { session_id: 'session:lifecycle' },
+    timestamp: '2026-01-01T00:00:00.000Z'
+  });
+  const finalized = createSessionEvent({
+    sequence: 2,
+    type: 'SESSION_FINALIZED',
+    payload: {},
+    previousDigest: start.event_digest,
+    timestamp: '2026-01-01T00:00:01.000Z'
+  });
+  const afterFinalize = createSessionEvent({
+    sequence: 3,
+    type: 'SCOPE_DECISION',
+    payload: { decision: { id: 'scope:late' } },
+    previousDigest: finalized.event_digest,
+    timestamp: '2026-01-01T00:00:02.000Z'
+  });
+  assert.throws(
+    () => verifyEventChain([start, finalized, afterFinalize]),
+    /SESSION_FINALIZED must be the final event/
+  );
+});
