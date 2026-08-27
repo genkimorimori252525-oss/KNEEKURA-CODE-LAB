@@ -320,8 +320,7 @@ async function ingestBridgeProposal({
       dependencyClaimIds: proposal.dependency_claim_ids,
       coverageRef: ledger.coverage_ref,
       provenanceRefs: [
-        'reasoning-bridge:proposal:' + index,
-        ...proposal.provenance_refs
+        'reasoning-bridge:proposal:' + index
       ],
       unresolvedReason: proposal.unresolved_reason ?? null
     });
@@ -341,14 +340,10 @@ async function ingestBridgeProposal({
       claim: structuredClone(claim)
     });
 
-    const negativeContexts = proposal.type === 'NEGATIVE'
-      ? new Map([[claim.id, proposal.negative_context ?? {}]])
-      : undefined;
     const verified = verifyAndRecordClaim(ledger, claim.id, {
       ...verificationContext,
       graph,
-      coverage: planning.coverage,
-      ...(negativeContexts ? { negativeContexts } : {})
+      coverage: planning.coverage
     });
     await appendVerificationEvent(session, verified.claim);
 
