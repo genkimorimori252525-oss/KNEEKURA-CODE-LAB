@@ -2,6 +2,10 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { assertCoreOwnedStorage } from '../cache/store.mjs';
+import {
+  restoreExplorationLedger,
+  serializeExplorationLedger
+} from './exploration-ledger.mjs';
 
 export const SESSION_EVENT_SCHEMA = 'core.session-event/v1';
 export const SESSION_STATE_SCHEMA = 'core.analysis-session-state/v1';
@@ -85,6 +89,19 @@ export function createSessionStore({
       const file = path.join(sessionDirectory(root, sessionId), 'state.json');
       await writeJsonAtomic(file, state);
       return state;
+    },
+
+    async writeExplorationLedger(sessionId, ledger) {
+      const file = path.join(sessionDirectory(root, sessionId), 'exploration.json');
+      const serialized = serializeExplorationLedger(ledger);
+      await writeJsonAtomic(file, serialized);
+      return serialized;
+    },
+
+    async readExplorationLedger(sessionId, options = {}) {
+      const file = path.join(sessionDirectory(root, sessionId), 'exploration.json');
+      const value = JSON.parse(await fs.readFile(file, 'utf8'));
+      return restoreExplorationLedger(value, options);
     }
   });
 }
