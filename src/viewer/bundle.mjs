@@ -79,18 +79,22 @@ export async function writeHumanViewerBundle({
     throw new TypeError('viewer bundle requires graph nodes/edges');
   }
 
+  const root = path.resolve(outDir);
+  const resultPath = resolveWithinBundle(root, resultFile, 'resultFile');
+  const graphPath = resolveWithinBundle(root, graphFile, 'graphFile');
+  const manifestPath = resolveWithinBundle(root, manifestFile, 'manifestFile');
+  const evidenceDir = resolveWithinBundle(root, evidenceBase, 'evidenceBase');
+
   const bundle = createHumanViewerManifest(result, {
     resultRef: resultFile,
     graphRef: graphFile,
     evidenceBase
   });
-  const root = path.resolve(outDir);
-  const evidenceDir = path.join(root, ...evidenceBase.split('/'));
 
   await fs.mkdir(evidenceDir, { recursive: true });
-  await writeJsonAtomic(path.join(root, resultFile), bundle.result);
-  await writeJsonAtomic(path.join(root, graphFile), graph);
-  await writeJsonAtomic(path.join(root, manifestFile), bundle.manifest);
+  await writeJsonAtomic(resultPath, bundle.result);
+  await writeJsonAtomic(graphPath, graph);
+  await writeJsonAtomic(manifestPath, bundle.manifest);
 
   for (const record of result.evidence ?? []) {
     validateEvidenceRecordV1(record);
@@ -102,9 +106,9 @@ export async function writeHumanViewerBundle({
 
   return {
     root,
-    manifest_path: path.join(root, manifestFile),
-    result_path: path.join(root, resultFile),
-    graph_path: path.join(root, graphFile),
+    manifest_path: manifestPath,
+    result_path: resultPath,
+    graph_path: graphPath,
     evidence_count: result.evidence?.length ?? 0,
     manifest: bundle.manifest
   };
@@ -112,6 +116,24 @@ export async function writeHumanViewerBundle({
 
 export function encodeRef(value) {
   return Buffer.from(String(value), 'utf8').toString('base64url');
+}
+
+function resolveWithinBundle(root, relativePath, name) {
+  if (typeof relativePath !== 'string' || !relativePath.trim()) {
+    throw new TypeError(name + ' must be a non-empty relative path');
+  }
+  if (path.isAbsolute(relativePath)) {
+    throw new Error(name + ' must stay inside the Viewer bundle');
+  }
+  const normalized = relativePath.replaceAll('\\\\', '/');
+  const target = path.resolve(root, ...normalized.split('/'));
+  if (target !== root && !target.startsWith(root + path.sep)) {
+    throw new Error(name + ' must stay inside the Viewer bundle');
+  }
+  if (target === root) {
+    throw new Error(name + ' must resolve to a file or subdirectory');
+  }
+  return target;
 }
 
 function compactProvenance(provenance = {}) {
