@@ -159,10 +159,14 @@ export function evaluateNegativeGate({
 function searchGraphForPositiveProperty(graph, property, activeProviderIds) {
   const providerIds = new Set(activeProviderIds);
   const nodeKinds = new Set();
+  const nodeKindPrefixes = new Set();
+  const javaClassTypes = new Set();
   const edgeTypes = new Set();
 
-  const add = ({ nodes = [], edges = [] }) => {
+  const add = ({ nodes = [], nodePrefixes = [], classTypes = [], edges = [] }) => {
     for (const kind of nodes) nodeKinds.add(kind);
+    for (const prefix of nodePrefixes) nodeKindPrefixes.add(prefix);
+    for (const classType of classTypes) javaClassTypes.add(classType);
     for (const type of edges) edgeTypes.add(type);
   };
 
@@ -202,10 +206,10 @@ function searchGraphForPositiveProperty(graph, property, activeProviderIds) {
   }
 
   if (providerIds.has('pose-companion-adapter') && property === 'runtime-pose') {
-    add({ nodes: ['runtime_pose_companion','runtime_rendered_pose'] });
+    add({ nodes: ['runtime_pose_capture'] });
   }
   if (providerIds.has('palette-companion-adapter') && property === 'runtime-bone-palette') {
-    add({ nodes: ['runtime_bone_palette','runtime_bone_transform'] });
+    add({ nodes: ['runtime_palette_capture','runtime_bone_series'] });
   }
 
   if (providerIds.has('forge-1.20.1-network')) {
@@ -222,10 +226,10 @@ function searchGraphForPositiveProperty(graph, property, activeProviderIds) {
     const map = {
       package: { nodes: ['package'] },
       import: { edges: ['IMPORTS'] },
-      class: { nodes: ['class'] },
-      interface: { nodes: ['interface'] },
-      enum: { nodes: ['enum'] },
-      record: { nodes: ['record'] },
+      class: { classTypes: ['class'] },
+      interface: { classTypes: ['interface'] },
+      enum: { classTypes: ['enum'] },
+      record: { classTypes: ['record'] },
       method: { nodes: ['method'] }
     };
     if (map[property]) add(map[property]);
@@ -246,9 +250,18 @@ function searchGraphForPositiveProperty(graph, property, activeProviderIds) {
   ) {
     const map = {
       molang: { nodes: ['molang_variable'], edges: ['READS_MOLANG','WRITES_MOLANG'] },
-      animation: { nodes: ['animation_name'], edges: ['DECLARES_ANIMATION','PROVIDES_ANIMATION_NAME'] },
-      bone: { nodes: ['bone_name'], edges: ['HAS_BONE','ANIMATES_BONE','PROVIDES_BONE_NAME'] },
-      resource: { nodes: ['resource'], edges: ['REFERENCES_RESOURCE'] },
+      animation: {
+        nodes: ['animation_name','animation_definition','animation_controller'],
+        edges: ['DECLARES_ANIMATION','PROVIDES_ANIMATION_NAME']
+      },
+      bone: {
+        nodes: ['bone_name','model_bone','model_bone_reference'],
+        edges: ['HAS_BONE','ANIMATES_BONE','PROVIDES_BONE_NAME']
+      },
+      resource: {
+        nodes: ['resource_directory','model_definition','ysm_model_pack'],
+        edges: ['REFERENCES_RESOURCE']
+      },
       'ysm-bridge': {
         edges: [
           'BOUNDARY_PRODUCES_MOLANG',
@@ -262,22 +275,29 @@ function searchGraphForPositiveProperty(graph, property, activeProviderIds) {
   }
 
   if (providerIds.has('forge-mods-toml') && property === 'forge-mod-metadata') {
-    add({ nodes: ['forge_mod'] });
+    add({ nodes: ['mod'], edges: ['DECLARES_MOD'] });
   }
   if (providerIds.has('codegraph-adapter') && property === 'external-codegraph') {
-    add({ nodes: ['codegraph_project'] });
+    add({ nodePrefixes: ['codegraph:'] });
   }
   if (providerIds.has('understand-anything-adapter') && property === 'external-understanding') {
-    add({ nodes: ['ua_project'] });
+    add({ nodePrefixes: ['ua:'] });
   }
 
-  if (!nodeKinds.size && !edgeTypes.size) {
+  if (!nodeKinds.size && !nodeKindPrefixes.size && !javaClassTypes.size && !edgeTypes.size) {
     return { supported: false, refs: [] };
   }
 
   const refs = [];
   for (const node of graph?.nodes ?? []) {
-    if (nodeKinds.has(node.kind)) refs.push('node:' + node.id);
+    const kind = String(node.kind ?? '');
+    const prefixMatch = [...nodeKindPrefixes].some(prefix => kind.startsWith(prefix));
+    const classTypeMatch =
+      kind === 'class' &&
+      javaClassTypes.has(String(node.classType ?? 'class'));
+    if (nodeKinds.has(kind) || prefixMatch || classTypeMatch) {
+      refs.push('node:' + node.id);
+    }
   }
   for (const edge of graph?.edges ?? []) {
     if (edgeTypes.has(edge.type)) refs.push('edge:' + edge.id);
