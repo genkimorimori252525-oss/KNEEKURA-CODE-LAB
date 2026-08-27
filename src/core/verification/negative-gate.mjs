@@ -108,7 +108,13 @@ export function evaluateNegativeGate({
 
   const current = new Set(currentSnapshotIds);
   if (current.size) {
-    if (coverage.snapshot_id && !current.has(coverage.snapshot_id)) {
+    if (!coverage.snapshot_id) {
+      return denied(
+        'COVERAGE_SNAPSHOT_UNSPECIFIED',
+        'strong negative verification requires Coverage bound to an explicit snapshot'
+      );
+    }
+    if (!current.has(coverage.snapshot_id)) {
       return denied('STALE_SNAPSHOT', 'Coverage Manifest belongs to a different snapshot');
     }
     for (const record of evidenceRecords) {
