@@ -292,12 +292,6 @@ function evidenceRoleVerifier(claim, context) {
 
 function counterexampleVerifier(claim, context) {
   const links = claim.counterevidence_links;
-  if (!links.length) {
-    return record('counterexample', 'VERIFIED', [], [
-      finding('NO_COUNTEREVIDENCE', 'no explicit counterevidence is linked to the claim')
-    ]);
-  }
-
   const direct = links.filter(link => link.strength === 'DIRECT');
   if (direct.length) {
     return record('counterexample', 'REJECTED', direct.map(link => link.evidence_id), [
@@ -308,12 +302,70 @@ function counterexampleVerifier(claim, context) {
     ]);
   }
 
-  return record('counterexample', 'VERIFIED_WITH_LIMITS', links.map(link => link.evidence_id), [
-    finding('COUNTEREVIDENCE_LIMITS', 'indirect or correlated counterevidence limits the claim', {
-      severity: 'WARN',
-      refs: links.map(link => link.evidence_id)
-    })
+  const graphCandidates = plausibleCounterexampleEdges(claim, context.graph);
+  const explicitRefs = links.map(link => link.evidence_id);
+  const graphRefs = graphCandidates.map(edge => edge.id);
+  const checked = [...explicitRefs, ...graphRefs];
+
+  if (links.length || graphCandidates.length) {
+    const findings = [];
+    if (links.length) {
+      findings.push(finding(
+        'COUNTEREVIDENCE_LIMITS',
+        'indirect or correlated counterevidence limits the claim',
+        { severity: 'WARN', refs: explicitRefs }
+      ));
+    }
+    if (graphCandidates.length) {
+      findings.push(finding(
+        'PLAUSIBLE_COUNTEREXAMPLE_FOUND',
+        'deterministic graph search found a plausible contradictory runtime outcome',
+        {
+          severity: 'WARN',
+          refs: graphRefs,
+          details: {
+            edge_types: [...new Set(graphCandidates.map(edge => edge.type))].sort()
+          }
+        }
+      ));
+    }
+    return record('counterexample', 'VERIFIED_WITH_LIMITS', checked, findings);
+  }
+
+  return record('counterexample', 'VERIFIED', [], [
+    finding('NO_COUNTEREVIDENCE', 'no explicit or deterministic graph counterevidence candidate was found')
   ]);
+}
+
+function plausibleCounterexampleEdges(claim, graph) {
+  if (!graph?.edges || claim.object_or_value !== true) return [];
+  const nodeId = resolveSubjectNodeId(claim.subject, graph);
+  if (!nodeId) return [];
+
+  const map = {
+    'ysm.client_command_handled': [
+      'OBSERVED_YSM_CLIENT_COMMAND_FALLBACK',
+      'OBSERVED_YSM_MOLANG_COMMAND_FAILURE'
+    ],
+    'ysm.client_command_consumed': [
+      'OBSERVED_YSM_CLIENT_COMMAND_FALLBACK',
+      'OBSERVED_YSM_MOLANG_COMMAND_FAILURE'
+    ],
+    'ysm.molang_command_dispatched': [
+      'OBSERVED_YSM_MOLANG_COMMAND_FAILURE'
+    ],
+    'ysm.molang_state_applied': [
+      'OBSERVED_YSM_MOLANG_COMMAND_FAILURE',
+      'OBSERVED_YSM_CLIENT_COMMAND_FALLBACK'
+    ]
+  };
+
+  const edgeTypes = new Set(map[claim.predicate] ?? []);
+  if (!edgeTypes.size) return [];
+
+  return graph.edges
+    .filter(edge => edge.to === nodeId && edgeTypes.has(edge.type))
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
 }
 
 function runtimeStaticVerifier(claim, context) {
