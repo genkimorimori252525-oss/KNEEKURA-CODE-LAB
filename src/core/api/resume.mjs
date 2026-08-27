@@ -34,6 +34,23 @@ export async function resumeAnalysisSession({
   }
 
   const sameSnapshot = target === parent.target_snapshot_id;
+  let explorationAvailable = false;
+  let availableEvidenceIds = [];
+
+  if (sameSnapshot && typeof sessionStore.readExplorationLedger === 'function') {
+    try {
+      const exploration = await sessionStore.readExplorationLedger(
+        sessionId,
+        { targetSnapshotId: target }
+      );
+      explorationAvailable = true;
+      availableEvidenceIds = explorationEvidenceIds(exploration);
+    } catch {
+      explorationAvailable = false;
+      availableEvidenceIds = [];
+    }
+  }
+
   const currentVerifierVersions = sameSnapshot
     ? verifierVersionsFromClaims(parent.claims)
     : null;
@@ -45,7 +62,7 @@ export async function resumeAnalysisSession({
     parentSession: parent,
     targetSnapshotId: target,
     availableEvidenceIds: sameSnapshot
-      ? parent.evidence_ids ?? []
+      ? availableEvidenceIds
       : [],
     currentCoverageFingerprint: sameSnapshot
       ? parent.coverage?.fingerprint ?? null
@@ -62,18 +79,6 @@ export async function resumeAnalysisSession({
     assertNoPathOnlyReuse(continuation, {
       evidence_records: []
     });
-  }
-
-  let explorationAvailable = false;
-  if (sameSnapshot && typeof sessionStore.readExplorationLedger === 'function') {
-    try {
-      await sessionStore.readExplorationLedger(sessionId, {
-        targetSnapshotId: target
-      });
-      explorationAvailable = true;
-    } catch {
-      explorationAvailable = false;
-    }
   }
 
   return {
@@ -93,6 +98,15 @@ export async function resumeAnalysisSession({
       continuation.invalidated_evidence_ids.length > 0 ||
       continuation.invalidated_claims.length > 0
   };
+}
+
+function explorationEvidenceIds(exploration) {
+  const ids = [];
+  for (const acquisition of exploration?.acquisitions ?? []) {
+    if (acquisition.stale) continue;
+    for (const id of acquisition.evidence_ids ?? []) ids.push(String(id));
+  }
+  return [...new Set(ids)].sort();
 }
 
 function verifierVersionsFromClaims(claims) {
