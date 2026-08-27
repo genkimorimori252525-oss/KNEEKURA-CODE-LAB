@@ -936,3 +936,37 @@ test('session lifecycle validation requires one start and terminal finalize', ()
     /SESSION_FINALIZED must be the final event/
   );
 });
+
+
+test('in-memory Exploration Ledger acquisition tampering is detected before reuse', () => {
+  const exploration = createExplorationLedger({ snapshotId: 'snapshot:1' });
+  recordProviderAcquisition(exploration, {
+    providerId: 'fixture-provider',
+    providerVersion: 'v1',
+    dependencyFingerprint: 'sha256:' + '1'.repeat(64),
+    fidelity: 2,
+    result: {
+      provider: { id: 'fixture-provider', version: 'v1' },
+      dependency_fingerprint: 'sha256:' + '1'.repeat(64),
+      evidence: [{ id: 'evidence:stable' }],
+      graph_fragment: {
+        nodes: [{ id: 'node:1', kind: 'class', key: 'Stable', label: 'Stable' }],
+        edges: []
+      }
+    },
+    snapshotId: 'snapshot:1'
+  });
+
+  exploration.acquisitions[0].provider_result.graph_fragment.nodes[0].label = 'tampered';
+
+  assert.throws(
+    () => findReusableAcquisition(exploration, {
+      providerId: 'fixture-provider',
+      providerVersion: 'v1',
+      dependencyFingerprint: 'sha256:' + '1'.repeat(64),
+      requiredFidelity: 1,
+      targetSnapshotId: 'snapshot:1'
+    }),
+    /exploration acquisition content digest mismatch/
+  );
+});
