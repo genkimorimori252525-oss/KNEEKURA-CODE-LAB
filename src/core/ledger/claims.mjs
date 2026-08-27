@@ -66,8 +66,8 @@ export function createClaimRecord({
     subject: structuredClone(subject),
     predicate,
     object_or_value: structuredClone(objectOrValue),
-    evidence_links: evidenceLinks.map(structuredClone),
-    counterevidence_links: counterevidenceLinks.map(structuredClone),
+    evidence_links: evidenceLinks.map(item => structuredClone(item)),
+    counterevidence_links: counterevidenceLinks.map(item => structuredClone(item)),
     dependency_claim_ids: [...dependencyClaimIds],
     coverage_ref: String(coverageRef),
     provenance_refs: [...provenanceRefs],
@@ -90,7 +90,7 @@ export function applyVerificationResult(claim, {
 }) {
   const next = structuredClone(claim);
   next.status = status;
-  next.verifier_results = verifierResults.map(structuredClone);
+  next.verifier_results = verifierResults.map(item => structuredClone(item));
   if (confidence) next.confidence = structuredClone(confidence);
   validateClaimRecordV1(next);
   return next;
