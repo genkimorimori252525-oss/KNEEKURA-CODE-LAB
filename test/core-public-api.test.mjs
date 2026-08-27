@@ -7,13 +7,13 @@ import { fileURLToPath } from 'node:url';
 
 import {
   analyze,
-  analyzeInternal,
   createCoreEngine,
   createReasoningBridge,
   createStaticReasoningBridge,
   packEvidenceCapsule,
   renderAnalysisForAI
 } from '../src/core/api.mjs';
+import { analyzeInternal } from '../src/core/api/analyze.mjs';
 import { validateAnalysisResultV1 } from '../src/core/schema/v1.mjs';
 import { createSessionStore } from '../src/core/session/event-log.mjs';
 import {
