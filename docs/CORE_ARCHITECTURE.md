@@ -1,9 +1,9 @@
 # CORE Architecture v1
 
 Status: **DESIGN FROZEN / implementation-ready**  
-Repository substrate: \`genkimorimori252525-oss/KNEEKURA-CODE-LAB\`  
-Baseline source snapshot: \`7a20ed6c4fdcb3ec39b072d5bb0d4c158820cb12\`  
-Architecture schema family: \`core.* / v1\`
+Repository substrate: `genkimorimori252525-oss/KNEEKURA-CODE-LAB`  
+Baseline source snapshot: `7a20ed6c4fdcb3ec39b072d5bb0d4c158820cb12`  
+Architecture schema family: `core.* / v1`
 
 ## 1. Purpose
 
@@ -28,20 +28,20 @@ CORE should make the host AI better partly by giving it better evidence, but equ
 
 KNEEKURA-CODE-LAB already provides valuable foundations:
 
-- \`kneekura.graph/v1\`;
+- `kneekura.graph/v1`;
 - stable graph node IDs;
 - generic and Minecraft/Forge/YSM semantic analyzers;
 - repository/workspace graph merge;
 - shared semantic-contract nodes such as Molang variables, animation names, and bone names;
 - explicit static/runtime separation;
 - runtime packet, pose, palette, and M0-M6 evidence;
-- conservative behavior such as \`unobserved != failed\`;
+- conservative behavior such as `unobserved != failed`;
 - current Human Viewer;
 - adapters for external analysis outputs.
 
 CORE **does not rewrite this from scratch**.
 
-\`kneekura.graph/v1\` becomes a compatibility and migration input/output. Existing analyzers are progressively converted into Evidence Providers and domain semantic providers. Existing Viewer functionality remains usable while the new canonical \`core.evidence/v1\` and \`core.analysis-result/v1\` contracts are introduced.
+`kneekura.graph/v1` becomes a compatibility and migration input/output. Existing analyzers are progressively converted into Evidence Providers and domain semantic providers. Existing Viewer functionality remains usable while the new canonical `core.evidence/v1` and `core.analysis-result/v1` contracts are introduced.
 
 ## 3. Non-goals
 
@@ -206,7 +206,7 @@ A host may not:
 - approve a NEGATIVE claim without the CORE gate;
 - change repository/snapshot identity.
 
-A provider-specific adapter implements \`ReasoningBridge\`; CORE itself stores no provider credentials and does not own provider billing.
+A provider-specific adapter implements `ReasoningBridge`; CORE itself stores no provider credentials and does not own provider billing.
 
 ## 7. Analysis modes and analysis policy
 
@@ -214,21 +214,21 @@ Mode and policy are orthogonal.
 
 ### 7.1 Modes
 
-- \`UNDERSTAND\`: structure, responsibilities, major components, boundaries.
-- \`TRACE\`: prove or disprove a path from A to B, including alternatives and gaps.
-- \`DIAGNOSE\`: generate/test root-cause hypotheses with counterevidence.
-- \`IMPACT\`: reverse dependency and propagation analysis for a proposed or actual change.
-- \`REVIEW\`: diff-centered correctness/risk analysis.
-- \`AUDIT\`: broad repository search for a property/risk/invariant.
-- \`RUNTIME\`: convenience preset emphasizing static/runtime reconciliation.
+- `UNDERSTAND`: structure, responsibilities, major components, boundaries.
+- `TRACE`: prove or disprove a path from A to B, including alternatives and gaps.
+- `DIAGNOSE`: generate/test root-cause hypotheses with counterevidence.
+- `IMPACT`: reverse dependency and propagation analysis for a proposed or actual change.
+- `REVIEW`: diff-centered correctness/risk analysis.
+- `AUDIT`: broad repository search for a property/risk/invariant.
+- `RUNTIME`: convenience preset emphasizing static/runtime reconciliation.
 
-Runtime is also a cross-cutting evidence source usable in every mode. \`RUNTIME\` is therefore a preset, not a separate storage model.
+Runtime is also a cross-cutting evidence source usable in every mode. `RUNTIME` is therefore a preset, not a separate storage model.
 
 ### 7.2 Policy
 
-- \`precision\`: prefer fewer, strongly proven findings; default for REVIEW.
-- \`balanced\`: balance precision and recall; default for TRACE/DIAGNOSE/UNDERSTAND/IMPACT.
-- \`exhaustive\`: maximize search closure and explicit accounting; default for AUDIT.
+- `precision`: prefer fewer, strongly proven findings; default for REVIEW.
+- `balanced`: balance precision and recall; default for TRACE/DIAGNOSE/UNDERSTAND/IMPACT.
+- `exhaustive`: maximize search closure and explicit accounting; default for AUDIT.
 
 The caller may override defaults.
 
@@ -320,23 +320,23 @@ Persistent keys use a cryptographic digest of the canonical identity.
 
 Snapshot kinds:
 
-- \`COMMIT\`
-- \`WORKSPACE\`
-- \`ARCHIVE\`
-- \`MULTI_REPO\`
+- `COMMIT`
+- `WORKSPACE`
+- `ARCHIVE`
+- `MULTI_REPO`
 
-For \`COMMIT\`, commit SHA is mandatory.
+For `COMMIT`, commit SHA is mandatory.
 
-For \`WORKSPACE\`, commit SHA alone is insufficient. CORE freezes:
+For `WORKSPACE`, commit SHA alone is insufficient. CORE freezes:
 
 - base/HEAD commit;
 - index identity where relevant;
 - a content-digest manifest for analyzed workspace files;
 - deletion/untracked state.
 
-For \`MULTI_REPO\`, every constituent repository has its own SnapshotIdentity. The workspace snapshot is the digest of the ordered constituent identities.
+For `MULTI_REPO`, every constituent repository has its own SnapshotIdentity. The workspace snapshot is the digest of the ordered constituent identities.
 
-If a file changes after freeze, CORE either continues using the frozen bytes or returns \`SNAPSHOT_CHANGED\`. Mixing old and new file contents in one claim is forbidden.
+If a file changes after freeze, CORE either continues using the frozen bytes or returns `SNAPSHOT_CHANGED`. Mixing old and new file contents in one claim is forbidden.
 
 ## 10. Core data model
 
@@ -380,12 +380,12 @@ ClaimRecord {
 
 Rules:
 
-- \`OBSERVED\`: must be backed by acquired evidence that directly establishes the proposition.
-- \`DERIVED\`: produced by a named deterministic rule over existing verified claims/evidence.
-- \`INFERRED\`: reasoning-derived; must pass verification before final rendering as a conclusion.
-- \`HYPOTHESIS\`: candidate explanation; never rendered as fact.
-- \`NEGATIVE\`: verified absence/non-occurrence, subject to §13.
-- \`UNKNOWN\`: explicitly unresolved proposition.
+- `OBSERVED`: must be backed by acquired evidence that directly establishes the proposition.
+- `DERIVED`: produced by a named deterministic rule over existing verified claims/evidence.
+- `INFERRED`: reasoning-derived; must pass verification before final rendering as a conclusion.
+- `HYPOTHESIS`: candidate explanation; never rendered as fact.
+- `NEGATIVE`: verified absence/non-occurrence, subject to §13.
+- `UNKNOWN`: explicitly unresolved proposition.
 
 ### 10.2 EvidenceRecord
 
@@ -478,80 +478,80 @@ Claims and evidence may appear as graph nodes for navigation, but the graph does
 
 ### 12.1 Base node kinds
 
-- \`repository\`
-- \`snapshot\`
-- \`file\`
-- \`symbol\`
-- \`class\`
-- \`method\`
-- \`field\`
-- \`semantic_contract\`
-- \`resource\`
-- \`packet\`
-- \`event\`
-- \`command\`
-- \`runtime_object\`
-- \`variable\`
-- \`test\`
-- \`issue\`
-- \`pull_request\`
-- \`commit\`
-- \`artifact\`
-- \`external_document\`
-- \`claim\`
-- \`evidence\`
+- `repository`
+- `snapshot`
+- `file`
+- `symbol`
+- `class`
+- `method`
+- `field`
+- `semantic_contract`
+- `resource`
+- `packet`
+- `event`
+- `command`
+- `runtime_object`
+- `variable`
+- `test`
+- `issue`
+- `pull_request`
+- `commit`
+- `artifact`
+- `external_document`
+- `claim`
+- `evidence`
 
-Existing KNEEKURA shared Molang/animation/bone-name nodes map naturally to \`semantic_contract\` subtypes.
+Existing KNEEKURA shared Molang/animation/bone-name nodes map naturally to `semantic_contract` subtypes.
 
 ### 12.2 Base edge types
 
-- \`CONTAINS\`
-- \`DEFINES\`
-- \`CALLS\`
-- \`READS\`
-- \`WRITES\`
-- \`IMPLEMENTS\`
-- \`EXTENDS\`
-- \`IMPORTS\`
-- \`REFERENCES\`
-- \`DEPENDS_ON\`
-- \`SENDS\`
-- \`RECEIVES\`
-- \`DISPATCHES\`
-- \`HANDLES\`
-- \`TESTS\`
-- \`CHANGED_BY\`
-- \`OBSERVED_AT_RUNTIME\`
-- \`SUPPORTED_BY\`
-- \`CONTRADICTED_BY\`
-- \`DERIVED_FROM\`
-- \`CORRELATES_WITH\`
+- `CONTAINS`
+- `DEFINES`
+- `CALLS`
+- `READS`
+- `WRITES`
+- `IMPLEMENTS`
+- `EXTENDS`
+- `IMPORTS`
+- `REFERENCES`
+- `DEPENDS_ON`
+- `SENDS`
+- `RECEIVES`
+- `DISPATCHES`
+- `HANDLES`
+- `TESTS`
+- `CHANGED_BY`
+- `OBSERVED_AT_RUNTIME`
+- `SUPPORTED_BY`
+- `CONTRADICTED_BY`
+- `DERIVED_FROM`
+- `CORRELATES_WITH`
 
-Domain edges are allowed, but must be namespaced/versioned, for example \`forge:REGISTERS_PACKET\` or \`ysm:READS_MOLANG\`.
+Domain edges are allowed, but must be namespaced/versioned, for example `forge:REGISTERS_PACKET` or `ysm:READS_MOLANG`.
 
-Every material edge carries origin/provenance/evidence references. Existing numeric \`confidence\` can remain for \`kneekura.graph/v1\` compatibility, but CORE v1 should prefer explicit resolution/strength semantics over false numeric precision.
+Every material edge carries origin/provenance/evidence references. Existing numeric `confidence` can remain for `kneekura.graph/v1` compatibility, but CORE v1 should prefer explicit resolution/strength semantics over false numeric precision.
 
 ## 13. Scope and Coverage Manifest
 
 ### 13.1 Scope item role
 
-- \`PRIMARY\`
-- \`DEPENDENCY\`
-- \`SUPPORTING_CONTEXT\`
-- \`RUNTIME_ARTIFACT\`
+- `PRIMARY`
+- `DEPENDENCY`
+- `SUPPORTING_CONTEXT`
+- `RUNTIME_ARTIFACT`
 
 ### 13.2 Scope item status
 
-- \`PENDING\`
-- \`ANALYZED\`
-- \`REUSED\`
-- \`SKIPPED\`
-- \`FAILED\`
-- \`UNEXPLORED\`
+- `PENDING`
+- `ANALYZED`
+- `REUSED`
+- `SKIPPED`
+- `FAILED`
+- `UNEXPLORED`
 
 Role and status are separate. A supporting-context file is still ANALYZED or REUSED if CORE actually inspected it.
 
-Every include/exclude/expand decision produces a \`ScopeDecision\` with:
+Every include/exclude/expand decision produces a `ScopeDecision` with:
 
 - originating seed;
 - causal graph edge or rule;
@@ -561,16 +561,16 @@ Every include/exclude/expand decision produces a \`ScopeDecision\` with:
 
 ### 13.3 Completeness
 
-- \`COMPLETE\`: candidate universe is enumerable and every relevant item is terminally accounted under the selected closure policy.
-- \`BOUNDED\`: complete inside an explicitly declared horizon; potential relevant material may exist outside it.
-- \`PARTIAL\`: known relevant FAILED/UNEXPLORED items remain.
-- \`UNKNOWN\`: CORE cannot reliably enumerate the candidate universe.
+- `COMPLETE`: candidate universe is enumerable and every relevant item is terminally accounted under the selected closure policy.
+- `BOUNDED`: complete inside an explicitly declared horizon; potential relevant material may exist outside it.
+- `PARTIAL`: known relevant FAILED/UNEXPLORED items remain.
+- `UNKNOWN`: CORE cannot reliably enumerate the candidate universe.
 
 A percentage may be shown for convenience but is never the authority for a negative claim.
 
 ### 13.4 Negative-claim gate
 
-A strong \`NEGATIVE\` claim is permitted only when all are true:
+A strong `NEGATIVE` claim is permitted only when all are true:
 
 1. the searched predicate/property is supported by the active analyzer/provider;
 2. the search universe is explicit;
@@ -641,7 +641,7 @@ An LLM may suggest a grouping only as an optimization hint. CORE validates every
 
 Rules are versioned objects with:
 
-- \`rule_id\`;
+- `rule_id`;
 - version/hash;
 - selectors;
 - content/reference;
@@ -684,7 +684,7 @@ Provider categories:
 - external-analysis adapter;
 - external-document provider.
 
-Existing \`src/analyzers/\` and \`src/adapters/\` move toward this contract without losing domain semantics.
+Existing `src/analyzers/` and `src/adapters/` move toward this contract without losing domain semantics.
 
 A provider declares:
 
@@ -715,10 +715,10 @@ Rules:
 
 - identity mismatch cannot be silently joined;
 - time proximity alone is insufficient identity;
-- \`send != receive\`;
-- \`dispatch != execution\`;
+- `send != receive`;
+- `dispatch != execution`;
 - M5 does not imply M6;
-- weak state correlation stays \`CORRELATED\`;
+- weak state correlation stays `CORRELATED`;
 - formal runtime application requires the designated direct evidence gate.
 
 Static nodes and runtime observations may meet in the same graph while retaining distinct evidence IDs and origins.
@@ -758,10 +758,10 @@ Verifier passes:
 
 Verification status:
 
-- \`VERIFIED\`
-- \`VERIFIED_WITH_LIMITS\`
-- \`REJECTED\`
-- \`UNRESOLVED\`
+- `VERIFIED`
+- `VERIFIED_WITH_LIMITS`
+- `REJECTED`
+- `UNRESOLVED`
 
 Verification may request bounded deterministic expansion. It may not quietly expand forever; budget/closure changes are recorded in Coverage.
 
@@ -875,13 +875,13 @@ Evidence itself is immutable and never lossily summarized. Old conversational na
 
 AI output profiles:
 
-- \`compact\`
-- \`standard\`
-- \`forensic\`
+- `compact`
+- `standard`
+- `forensic`
 
 Compact output may omit tutorial prose, but never the coverage/unknown qualifiers required to interpret a conclusion.
 
-If required exploration cannot fit the budget, CORE returns \`PARTIAL / BUDGET_EXHAUSTED\`.
+If required exploration cannot fit the budget, CORE returns `PARTIAL / BUDGET_EXHAUSTED`.
 
 CORE may estimate tokens for packing/telemetry. It does not own provider pricing.
 
@@ -895,7 +895,7 @@ The stable API is deliberately small.
 core.analyze(AnalysisRequest) -> AnalysisResult
 ~~~
 
-Mode is a request field. Convenience plugin aliases such as \`core.trace\` or \`core.diagnose\` are thin wrappers around \`core.analyze\`, not separate engines.
+Mode is a request field. Convenience plugin aliases such as `core.trace` or `core.diagnose` are thin wrappers around `core.analyze`, not separate engines.
 
 ### 23.2 Supporting operations
 
@@ -962,10 +962,10 @@ Canonical result includes:
 
 Terminal run status:
 
-- \`COMPLETE\`
-- \`PARTIAL\`
-- \`FAILED\`
-- \`SKIPPED\`
+- `COMPLETE`
+- `PARTIAL`
+- `FAILED`
+- `SKIPPED`
 
 Run status and individual claim verification status are separate.
 
@@ -1017,11 +1017,11 @@ The renderer may never omit a limitation that changes the epistemic meaning of a
 
 Trust classes include at least:
 
-- \`ENGINE_TRUSTED\`
-- \`REPOSITORY_UNTRUSTED\`
-- \`RUNTIME_MEASURED\`
-- \`EXTERNAL_UNTRUSTED\`
-- \`USER_ASSERTED\`
+- `ENGINE_TRUSTED`
+- `REPOSITORY_UNTRUSTED`
+- `RUNTIME_MEASURED`
+- `EXTERNAL_UNTRUSTED`
+- `USER_ASSERTED`
 
 Rules:
 
@@ -1038,32 +1038,32 @@ Rules:
 
 Typed failures include:
 
-- \`INVALID_REQUEST\`
-- \`SNAPSHOT_CHANGED\`
-- \`SCOPE_UNRESOLVABLE\`
-- \`ANALYZER_UNSUPPORTED\`
-- \`ANALYZER_UNAVAILABLE\`
-- \`PARSE_FAILED\`
-- \`RULE_RESOLUTION_FAILED\`
-- \`RUNTIME_IDENTITY_MISMATCH\`
-- \`BUDGET_EXHAUSTED\`
-- \`VERIFICATION_FAILED\`
-- \`STALE_EVIDENCE\`
-- \`TRUST_BOUNDARY_VIOLATION\`
-- \`INTERNAL_INVARIANT\`
+- `INVALID_REQUEST`
+- `SNAPSHOT_CHANGED`
+- `SCOPE_UNRESOLVABLE`
+- `ANALYZER_UNSUPPORTED`
+- `ANALYZER_UNAVAILABLE`
+- `PARSE_FAILED`
+- `RULE_RESOLUTION_FAILED`
+- `RUNTIME_IDENTITY_MISMATCH`
+- `BUDGET_EXHAUSTED`
+- `VERIFICATION_FAILED`
+- `STALE_EVIDENCE`
+- `TRUST_BOUNDARY_VIOLATION`
+- `INTERNAL_INVARIANT`
 
 Partial evidence remains available when safe. A run failure does not erase already valid observations.
 
-\`UNKNOWN\`, \`UNEXPLORED\`, \`UNOBSERVED\`, \`FAILED\`, and \`ABSENT\` are different states and must never be rendered as synonyms.
+`UNKNOWN`, `UNEXPLORED`, `UNOBSERVED`, `FAILED`, and `ABSENT` are different states and must never be rendered as synonyms.
 
 ## 29. YSM/KNEEKURA acceptance suite
 
 Design baseline snapshots:
 
-- KNEEKURA-CODE-LAB: \`7a20ed6c4fdcb3ec39b072d5bb0d4c158820cb12\`
-- YSM decoded repo: \`cdd903691c129ce565d4680ba83c00f2d04993d6\`
-- KNEEKURA-LAB: \`15c270377d27fc06976d29fd285152a368ff9b58\`
-- reimu-mod: \`ff4e3e03c3d1f44da4e1b722bb35b80209d4b8e2\`
+- KNEEKURA-CODE-LAB: `7a20ed6c4fdcb3ec39b072d5bb0d4c158820cb12`
+- YSM decoded repo: `cdd903691c129ce565d4680ba83c00f2d04993d6`
+- KNEEKURA-LAB: `15c270377d27fc06976d29fd285152a368ff9b58`
+- reimu-mod: `ff4e3e03c3d1f44da4e1b722bb35b80209d4b8e2`
 
 ### AT-01 — final bone-matrix trace
 
@@ -1154,7 +1154,7 @@ Migration is additive.
 
 ### Phase 0 — freeze the current substrate
 
-- pin current \`kneekura.graph/v1\` fixtures;
+- pin current `kneekura.graph/v1` fixtures;
 - freeze runtime M0-M6 regressions;
 - preserve current Viewer behavior.
 
@@ -1162,9 +1162,9 @@ Migration is additive.
 
 - RepositoryIdentity;
 - SnapshotIdentity;
-- \`core.evidence/v1\`;
-- \`core.analysis-request/v1\`;
-- \`core.analysis-result/v1\`;
+- `core.evidence/v1`;
+- `core.analysis-request/v1`;
+- `core.analysis-result/v1`;
 - compatibility adapter to/from current graph where meaningful.
 
 ### Phase 2 — Evidence Provider interface
@@ -1199,9 +1199,9 @@ Migration is additive.
 
 ### Phase 6 — API and AI integration
 
-- \`core.analyze\`;
-- \`core.expand\`;
-- \`core.get\`;
+- `core.analyze`;
+- `core.expand`;
+- `core.get`;
 - session resume;
 - ReasoningBridge;
 - AI renderer;
@@ -1276,7 +1276,7 @@ The following are **frozen v1 decisions**:
 - deterministic SAU authority;
 - provider-independent ReasoningBridge;
 - independent verifier;
-- small API centered on \`core.analyze\`;
+- small API centered on `core.analyze`;
 - separate canonical result and renderers;
 - content-addressed incremental reuse;
 - runtime identity gating;
