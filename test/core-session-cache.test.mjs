@@ -111,6 +111,10 @@ test('C0 blobs are immutable content-addressed artifacts', async () => {
     const first = await store.putBlob(Buffer.from('hello'));
     const second = await store.putBlob(Buffer.from('hello'));
     assert.equal(first.artifact.key, second.artifact.key);
+    assert.equal(first.hit, false);
+    assert.equal(first.reused, false);
+    assert.equal(second.hit, true);
+    assert.equal(second.reused, true);
 
     const loaded = await store.getBlob(first.artifact.key);
     assert.equal(loaded.hit, true);
@@ -334,6 +338,7 @@ test('higher fidelity request does not reuse insufficient exploration acquisitio
     fidelity: 1,
     result: {
       provider: { id: 'fixture-provider', version: 'v1' },
+      dependency_fingerprint: 'sha256:' + '1'.repeat(64),
       evidence: [{ id: 'evidence:low' }]
     }
   });
@@ -654,6 +659,7 @@ test('cross-snapshot provider-result reuse is rejected even when caller opts in'
     fidelity: 2,
     result: {
       provider: { id: 'fixture-provider', version: 'v1' },
+      dependency_fingerprint: 'sha256:' + '1'.repeat(64),
       evidence: [{ id: 'evidence:old-snapshot' }]
     },
     snapshotId: 'snapshot:old'
