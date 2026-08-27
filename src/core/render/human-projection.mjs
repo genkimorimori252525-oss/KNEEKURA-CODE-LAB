@@ -95,6 +95,17 @@ export function buildHumanDiagramProjection(
 ) {
   validateAnalysisResultV1(result);
   assertGraph(graph);
+  const graphSnapshotId = graph.meta?.snapshot?.snapshot_id ?? null;
+  if (
+    graphSnapshotId &&
+    graphSnapshotId !== result.snapshot.snapshot_id
+  ) {
+    throw new Error(
+      'viewer graph snapshot mismatch: result=' +
+      result.snapshot.snapshot_id +
+      ' graph=' + graphSnapshotId
+    );
+  }
 
   const requestedType = normalizeDiagramType(diagramType);
   if (!DETAIL_LEVELS.has(detailLevel)) {
