@@ -27,8 +27,10 @@ export function planScope(graph, request = {}, options = {}) {
     options.maxItems ?? request.budget?.scope_items,
     Number.POSITIVE_INFINITY
   );
-  const universeEnumerable = options.universeEnumerable !== false;
+  const requestedUniverseEnumerable = options.universeEnumerable !== false;
   const seeds = normalizeSeeds(request, graph);
+  const deterministicSeedAvailable = seeds.length > 0;
+  const universeEnumerable = requestedUniverseEnumerable && deterministicSeedAvailable;
   const index = buildIndex(graph);
   const decisions = [];
   const selected = new Map();
@@ -36,6 +38,26 @@ export function planScope(graph, request = {}, options = {}) {
   const seedResults = [];
   let budgetExhausted = false;
   let depthBoundaryReached = false;
+
+  if (!deterministicSeedAvailable) {
+    const itemId = 'unresolved-seed:no-deterministic-seed';
+    boundary.set(itemId, {
+      id: itemId,
+      role: 'PRIMARY',
+      status: 'UNEXPLORED',
+      reason: 'no deterministic seed is available for the requested analysis mode',
+      reason_code: 'SCOPE_UNRESOLVABLE',
+      label: 'unresolved analysis intent',
+      selected: false
+    });
+    decisions.push(decision({
+      action: 'EXCLUDE',
+      itemId,
+      seedId: null,
+      reason: 'no deterministic seed is available for the requested analysis mode',
+      cause: 'SCOPE_UNRESOLVABLE'
+    }));
+  }
 
   for (let i = 0; i < seeds.length; i++) {
     const seed = { ...seeds[i], id: seeds[i].id ?? 'seed:' + (i + 1) };

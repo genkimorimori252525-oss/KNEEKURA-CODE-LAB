@@ -495,3 +495,18 @@ test('Molang source aliases resolve deterministically without fuzzy symbol match
   assert.deepEqual(seed.candidate_ids, ['node:' + canonical.id]);
   assert.equal(seed.candidate_ids.includes('node:' + unrelated.id), false);
 });
+
+
+test('analysis mode without a deterministic seed is UNKNOWN instead of vacuously COMPLETE', () => {
+  const { graph } = fixtureGraph();
+  const result = planDeterministicAnalysis(graph, { mode: 'TRACE' });
+
+  assert.equal(result.scope.seeds.length, 0);
+  assert.equal(result.scope.universe_enumerable, false);
+  assert.equal(result.coverage.completeness, 'UNKNOWN');
+  const unresolved = result.coverage.entries.find(entry =>
+    entry.reason_code === 'SCOPE_UNRESOLVABLE'
+  );
+  assert.ok(unresolved);
+  assert.equal(unresolved.status, 'UNEXPLORED');
+});
