@@ -113,21 +113,19 @@ export function findReusableAcquisition(ledger, {
   targetSnapshotId = ledger.snapshot_id
 }) {
   assertLedger(ledger);
+  if (allowCrossSnapshot) {
+    throw new Error(
+      'cross-snapshot provider-result reuse is forbidden; reuse content-addressed cache artifacts and revalidate evidence instead'
+    );
+  }
   const candidates = ledger.acquisitions.filter(entry => {
     if (entry.stale) return false;
     if (entry.provider_id !== providerId || entry.provider_version !== providerVersion) return false;
     if (entry.fidelity < requiredFidelity) return false;
 
-    const sameSnapshotDependency =
-      entry.dependency_fingerprint === dependencyFingerprint &&
-      (!targetSnapshotId || !entry.snapshot_id || entry.snapshot_id === targetSnapshotId);
-    if (sameSnapshotDependency) return true;
-
     return Boolean(
-      allowCrossSnapshot &&
-      entry.cache_scope === 'CONTENT' &&
-      cacheFingerprint &&
-      entry.cache_fingerprint === cacheFingerprint
+      entry.dependency_fingerprint === dependencyFingerprint &&
+      (!targetSnapshotId || !entry.snapshot_id || entry.snapshot_id === targetSnapshotId)
     );
   });
 
@@ -276,39 +274,6 @@ export function evaluateClaimReuse(claim, {
     reusable: reasons.length === 0,
     reasons
   };
-}
-
-export function createChildExplorationLedger(parent, {
-  targetSnapshotId,
-  reusedEvidenceIds = [],
-  invalidatedEvidenceIds = []
-}) {
-  assertLedger(parent);
-  requireString(targetSnapshotId, 'targetSnapshotId');
-  const child = createExplorationLedger({
-    snapshotId: targetSnapshotId,
-    parentSnapshotId: parent.snapshot_id
-  });
-  const reused = new Set(reusedEvidenceIds.map(String));
-  const invalidated = new Set(invalidatedEvidenceIds.map(String));
-
-  child.acquisitions = parent.acquisitions
-    .filter(entry =>
-      entry.cache_scope === 'CONTENT' &&
-      !entry.stale &&
-      entry.evidence_ids.some(id => reused.has(id)) &&
-      !entry.evidence_ids.some(id => invalidated.has(id))
-    )
-    .map(entry => ({
-      ...structuredClone(entry),
-      snapshot_id: targetSnapshotId
-    }));
-  child.invalidations = invalidated.size ? [{
-    reason: 'CHILD_SESSION_INVALIDATION',
-    changed_refs: [],
-    evidence_ids: [...invalidated].sort()
-  }] : [];
-  return child;
 }
 
 function acquisitionIdentity(entry) {
