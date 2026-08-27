@@ -1,5 +1,4 @@
 import {
-  assertNoPathOnlyReuse,
   planSessionContinuation
 } from '../session/resume.mjs';
 
@@ -74,12 +73,6 @@ export async function resumeAnalysisSession({
       ? parent.rule_fingerprints ?? []
       : null
   });
-
-  if (!sameSnapshot) {
-    assertNoPathOnlyReuse(continuation, {
-      evidence_records: []
-    });
-  }
 
   return {
     schema: SESSION_HANDLE_SCHEMA,
