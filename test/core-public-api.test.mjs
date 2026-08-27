@@ -685,3 +685,65 @@ test('same-snapshot session.resume requires persisted evidence rehydration state
     await fs.rm(storageRoot, { recursive: true, force: true });
   }
 });
+
+
+test('ReasoningBridge proposal count is bounded and excess proposals are surfaced', async () => {
+  const bridge = createReasoningBridge({
+    id: 'proposal-flood-host',
+    version: 'v1',
+    reason: async task => {
+      const target = task.capsule.target_scope.find(item => item.node_id);
+      const proposal = {
+        type: 'HYPOTHESIS',
+        subject: { node_id: target.node_id },
+        predicate: 'fixture.bounded_proposal',
+        object_or_value: true
+      };
+      return {
+        schema: 'core.proposed-claim-set/v1',
+        proposals: Array.from({ length: 65 }, () => structuredClone(proposal))
+      };
+    }
+  });
+
+  const result = await analyze(request({
+    budget: { scope_depth: 0 }
+  }), {
+    reasoningBridge: bridge
+  });
+
+  assert.equal(
+    result.claims.filter(item =>
+      item.predicate === 'fixture.bounded_proposal'
+    ).length,
+    1
+  );
+  assert.equal(
+    result.warnings.some(item =>
+      item.code === 'PROPOSAL_LIMIT_EXCEEDED' &&
+      /rejected 1 excess proposal/.test(item.message)
+    ),
+    true
+  );
+});
+
+test('explicit expand GRAPH_NODE target must exist in the frozen graph', async () => {
+  const engine = createCoreEngine();
+  const result = await engine.analyze(request({
+    budget: { scope_depth: 0 }
+  }));
+
+  await assert.rejects(
+    () => engine.expand(
+      result.analysis_id,
+      { kind: 'GRAPH_NODE', ref: 'node:does-not-exist' },
+      { scope_depth: 1 }
+    ),
+    /expand GraphNode not found/
+  );
+});
+
+test('public CORE entry point does not export analyzeInternal', async () => {
+  const publicApi = await import('../src/core/api.mjs');
+  assert.equal(Object.hasOwn(publicApi, 'analyzeInternal'), false);
+});
