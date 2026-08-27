@@ -31,7 +31,8 @@ export function createCacheStore({
       const blobPath = path.join(dir, digest.slice('sha256:'.length) + '.blob');
       const metaPath = path.join(dir, digest.slice('sha256:'.length) + '.json');
 
-      if (!(await exists(blobPath))) await fs.writeFile(blobPath, bytes);
+      const existed = await exists(blobPath);
+      if (!existed) await fs.writeFile(blobPath, bytes);
       if (!(await exists(metaPath))) {
         await writeJsonAtomic(metaPath, {
           schema: CACHE_ARTIFACT_SCHEMA,
@@ -40,12 +41,13 @@ export function createCacheStore({
           content_digest: digest,
           dependencies: [],
           dependency_fingerprint: dependencyFingerprint([]),
-          metadata: structuredClone(metadata)
+          metadata: jsonPersistable(metadata)
         });
       }
 
       return {
-        hit: false,
+        hit: existed,
+        reused: existed,
         artifact: {
           schema: CACHE_ARTIFACT_SCHEMA,
           tier: 'C0',
