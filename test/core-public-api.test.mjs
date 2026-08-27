@@ -1,0 +1,749 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import {
+  analyze,
+  createCoreEngine,
+  createReasoningBridge,
+  createStaticReasoningBridge,
+  packEvidenceCapsule,
+  renderAnalysisForAI
+} from '../src/core/api.mjs';
+import { analyzeInternal } from '../src/core/api/analyze.mjs';
+import { validateAnalysisResultV1 } from '../src/core/schema/v1.mjs';
+import { createSessionStore } from '../src/core/session/event-log.mjs';
+import {
+  toJollyResearchMailbox
+} from '../src/adapters/jolly-research-mailbox.mjs';
+
+const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const FORGE_FIXTURE = path.join(ROOT, 'fixtures/forge-mini');
+const TRACE = path.join(ROOT, 'fixtures/runtime/kneekura-trace.jsonl');
+const SERVER_NET = path.join(ROOT, 'fixtures/runtime/kneekura-server.net.jsonl');
+const CLIENT_NET = path.join(ROOT, 'fixtures/runtime/kneekura-client.net.jsonl');
+
+function request(overrides = {}) {
+  return {
+    schema: 'core.analysis-request/v1',
+    repository: FORGE_FIXTURE,
+    mode: 'TRACE',
+    question: 'Trace ReimuPacket through the selected code path.',
+    scope: {
+      paths: ['ReimuPacket.java']
+    },
+    policy: 'precision',
+    output_profile: 'compact',
+    ...overrides
+  };
+}
+
+test('core.analyze works deterministically without a ReasoningBridge', async () => {
+  const a = await analyze(request());
+  const b = await analyze(request());
+
+  validateAnalysisResultV1(a);
+  validateAnalysisResultV1(b);
+  assert.equal(a.analysis_id, b.analysis_id);
+  assert.equal(a.session_id, b.session_id);
+  assert.equal(a.snapshot.snapshot_id, b.snapshot.snapshot_id);
+  assert.equal(a.coverage.fingerprint, b.coverage.fingerprint);
+  assert.equal(a.failures.some(item =>
+    item.code === 'REASONING_BRIDGE_FAILED'
+  ), false);
+});
+
+test('ReasoningBridge can propose a hypothesis but CORE keeps it unresolved', async () => {
+  const bridge = createReasoningBridge({
+    id: 'fixture-host',
+    version: 'v1',
+    reason: async task => {
+      const target = task.capsule.target_scope.find(item => item.node_id);
+      return {
+        schema: 'core.proposed-claim-set/v1',
+        proposals: [{
+          type: 'HYPOTHESIS',
+          subject: { node_id: target.node_id },
+          predicate: 'fixture.host_candidate',
+          object_or_value: true
+        }]
+      };
+    }
+  });
+
+  const result = await analyze(request({
+    budget: { scope_depth: 0 }
+  }), {
+    reasoningBridge: bridge
+  });
+
+  const claim = result.claims.find(item =>
+    item.predicate === 'fixture.host_candidate'
+  );
+  assert.ok(claim);
+  assert.equal(claim.type, 'HYPOTHESIS');
+  assert.equal(claim.status, 'UNRESOLVED');
+  assert.equal(
+    result.verifier_records.filter(record =>
+      claim.verifier_results.some(item => item.id === record.id)
+    ).length,
+    claim.verifier_results.length
+  );
+});
+
+test('host cannot forge OBSERVED authority through ReasoningBridge', async () => {
+  const bridge = createStaticReasoningBridge({
+    proposals: [{
+      type: 'OBSERVED',
+      subject: 'anything',
+      predicate: 'runtime.packet_received',
+      object_or_value: true,
+      status: 'VERIFIED'
+    }]
+  });
+
+  const result = await analyze(request(), {
+    reasoningBridge: bridge
+  });
+
+  assert.equal(result.status, 'PARTIAL');
+  assert.equal(
+    result.failures.some(item =>
+      item.code === 'REASONING_BRIDGE_FAILED'
+    ),
+    true
+  );
+  assert.equal(
+    result.claims.some(item =>
+      item.predicate === 'runtime.packet_received' &&
+      item.provenance_refs?.some(ref =>
+        String(ref).startsWith('reasoning-bridge:')
+      )
+    ),
+    false
+  );
+});
+
+test('ReasoningBridge NEGATIVE proposal remains unresolved without negative-search authority', async () => {
+  const bridge = createReasoningBridge({
+    id: 'negative-host',
+    version: 'v1',
+    reason: async task => {
+      const target = task.capsule.target_scope.find(item => item.node_id);
+      return {
+        schema: 'core.proposed-claim-set/v1',
+        proposals: [{
+          type: 'NEGATIVE',
+          subject: { node_id: target.node_id },
+          predicate: 'fixture.no_handler_exists',
+          object_or_value: true
+        }]
+      };
+    }
+  });
+
+  const result = await analyze(request({
+    budget: { scope_depth: 0 }
+  }), {
+    reasoningBridge: bridge
+  });
+
+  const claim = result.claims.find(item =>
+    item.predicate === 'fixture.no_handler_exists'
+  );
+  assert.ok(claim);
+  assert.equal(claim.type, 'NEGATIVE');
+  assert.equal(claim.status, 'UNRESOLVED');
+  assert.equal(
+    claim.verifier_results.some(record =>
+      record.findings.some(finding =>
+        /UNSUPPORTED|UNIVERSE|PROVIDER|CAPABILITY/.test(finding.code)
+      )
+    ),
+    true
+  );
+});
+
+test('ReasoningBridge exact symbol outside deterministic candidate set is rejected', async () => {
+  const bridge = createStaticReasoningBridge({
+    proposals: [{
+      type: 'HYPOTHESIS',
+      subject: 'MainMod',
+      predicate: 'fixture.out_of_scope',
+      object_or_value: true
+    }]
+  });
+
+  const result = await analyze(request({
+    budget: { scope_depth: 0 }
+  }), {
+    reasoningBridge: bridge
+  });
+
+  assert.equal(
+    result.claims.some(item => item.predicate === 'fixture.out_of_scope'),
+    false
+  );
+  assert.equal(
+    result.warnings.some(item =>
+      item.code === 'PROPOSAL_SUBJECT_OUT_OF_SCOPE'
+    ),
+    true
+  );
+});
+
+test('Evidence Capsule deduplicates IDs and tiny budget forces PARTIAL/BUDGET_EXHAUSTED', async () => {
+  const execution = await analyzeInternal(request({
+    budget: {
+      scope_depth: 0,
+      capsule_bytes: 1
+    }
+  }));
+
+  const ids = execution.state.capsule.evidence.map(item => item.id);
+  assert.equal(ids.length, new Set(ids).size);
+  assert.equal(execution.state.capsule.budget.budget_exhausted, true);
+  assert.equal(
+    execution.state.capsule.budget.packed_bytes >
+      execution.state.capsule.budget.max_bytes,
+    true
+  );
+  assert.equal(execution.result.status, 'PARTIAL');
+  assert.equal(
+    execution.result.warnings.some(item =>
+      item.code === 'BUDGET_EXHAUSTED'
+    ),
+    true
+  );
+});
+
+test('Evidence Capsule includes only applied rules matched by selected SAUs', async () => {
+  const execution = await analyzeInternal(request({
+    ruleset_overrides: [{
+      rule_id: 'fixture.trace-rule',
+      version: 'v1',
+      selectors: {
+        modes: ['TRACE'],
+        paths: ['ReimuPacket.java']
+      },
+      content_reference: 'trace-only'
+    }, {
+      rule_id: 'fixture.audit-rule',
+      version: 'v1',
+      selectors: {
+        modes: ['AUDIT']
+      },
+      content_reference: 'audit-only'
+    }]
+  }));
+
+  const capsuleRules =
+    execution.state.capsule.applicable_rules.map(item => item.rule_id);
+  assert.equal(capsuleRules.includes('fixture.audit-rule'), false);
+  for (const ruleId of capsuleRules) {
+    assert.equal(
+      execution.state.planning.rules.applied.some(rule =>
+        rule.rule_id === ruleId
+      ),
+      true
+    );
+  }
+});
+
+test('public engine exposes analyze, bounded expand, and stable get', async () => {
+  const engine = createCoreEngine();
+  const result = await engine.analyze(request({
+    budget: { scope_depth: 0 }
+  }));
+
+  assert.equal(engine.hasAnalysis(result.analysis_id), true);
+  const firstSymbol = result.affected_symbols[0];
+  assert.ok(firstSymbol);
+  const node = engine.get(firstSymbol.node_id);
+  assert.ok(node);
+  assert.equal(node.id, firstSymbol.node_id);
+
+  const delta = await engine.expand(
+    result.analysis_id,
+    { kind: 'SYMBOL', ref: 'MainMod' },
+    { scope_depth: 1 }
+  );
+  assert.equal(delta.schema, 'core.analysis-delta/v1');
+  assert.equal(delta.analysis_id, result.analysis_id);
+  assert.equal(
+    delta.affected_symbols.some(item =>
+      item.key === 'demo.mod.MainMod' || item.label === 'MainMod'
+    ),
+    true
+  );
+});
+
+test('persistent core.expand records a same-snapshot child session', async () => {
+  const storageRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), 'kneekura-f-public-api-')
+  );
+  try {
+    const sessionStore = createSessionStore({
+      storageRoot,
+      targetRepositoryRoot: FORGE_FIXTURE
+    });
+    const engine = createCoreEngine({ sessionStore });
+    const result = await engine.analyze(request({
+      budget: { scope_depth: 0 }
+    }));
+    const delta = await engine.expand(
+      result.analysis_id,
+      { kind: 'SYMBOL', ref: 'MainMod' },
+      { scope_depth: 1 }
+    );
+
+    const child = await sessionStore.replay(delta.session_id);
+    assert.equal(child.parent_session_id, result.session_id);
+    assert.equal(child.target_snapshot_id, result.snapshot.snapshot_id);
+    assert.equal(child.finalized, true);
+    assert.equal(child.metrics.coverage_expansion_count, 1);
+  } finally {
+    await fs.rm(storageRoot, { recursive: true, force: true });
+  }
+});
+
+test('runtime core.analyze preserves M5 without fabricating M6', async () => {
+  const result = await analyze(request({
+    mode: 'RUNTIME',
+    question: 'Did the measured Molang path reach formal M6?',
+    runtime_artifacts: [
+      { kind: 'trace', path: TRACE },
+      { kind: 'network', path: SERVER_NET },
+      { kind: 'network', path: CLIENT_NET }
+    ]
+  }));
+
+  assert.equal(
+    result.claims.some(claim =>
+      claim.predicate === 'ysm.client_command_consumed' &&
+      ['VERIFIED','VERIFIED_WITH_LIMITS'].includes(claim.status)
+    ),
+    true
+  );
+  assert.equal(
+    result.claims.some(claim =>
+      claim.predicate === 'ysm.molang_state_applied' &&
+      ['VERIFIED','VERIFIED_WITH_LIMITS'].includes(claim.status)
+    ),
+    false
+  );
+  assert.equal(
+    result.recommended_validation.some(item =>
+      item.code === 'M6_RUNTIME_VALIDATION_RECOMMENDED'
+    ),
+    true
+  );
+
+  const rendered = renderAnalysisForAI(result, { profile: 'compact' });
+  assert.equal(rendered.includes('M6_RUNTIME_VALIDATION_RECOMMENDED'), true);
+  assert.equal(rendered.includes('ysm.client_command_consumed'), true);
+});
+
+test('AI renderer preserves semantic qualifiers across compact and forensic profiles', async () => {
+  const execution = await analyzeInternal(request({
+    budget: { scope_depth: 0 }
+  }));
+  const compact = renderAnalysisForAI(execution.result, {
+    profile: 'compact'
+  });
+  const forensic = renderAnalysisForAI(execution.result, {
+    profile: 'forensic'
+  });
+
+  for (const claim of execution.result.claims) {
+    assert.equal(compact.includes(claim.id), true);
+    assert.equal(compact.includes(claim.status), true);
+  }
+  assert.equal(
+    compact.includes(execution.result.coverage.completeness),
+    true
+  );
+  for (const unknown of execution.result.unknowns) {
+    assert.equal(compact.includes(String(unknown.ref)), true);
+  }
+  assert.ok(forensic.length >= compact.length);
+  assert.ok(
+    compact.length <
+    JSON.stringify(execution.state.graph).length
+  );
+});
+
+test('Jolly Research Mailbox is a consumer mapping, not the canonical schema', async () => {
+  const result = await analyze(request({
+    budget: { scope_depth: 0 }
+  }));
+  const mailbox = toJollyResearchMailbox(result);
+
+  assert.equal(mailbox.schema, 'jolly.research-mailbox-analysis/v1');
+  assert.equal(mailbox.source_schema, 'core.analysis-result/v1');
+  assert.equal(mailbox.analysis_id, result.analysis_id);
+  assert.equal(mailbox.coverage.completeness, result.coverage.completeness);
+  assert.deepEqual(
+    mailbox.claims.map(item => item.id),
+    result.claims.map(item => item.id)
+  );
+});
+
+test('ReasoningBridge cannot smuggle authoritative ID/status/verifier fields', async () => {
+  const bridge = createReasoningBridge({
+    id: 'forged-host',
+    version: 'v1',
+    reason: async () => ({
+      schema: 'core.proposed-claim-set/v1',
+      proposals: [{
+        type: 'INFERRED',
+        id: 'claim:forged',
+        status: 'VERIFIED',
+        verifier_results: [{ status: 'VERIFIED' }],
+        subject: 'MainMod',
+        predicate: 'fixture.forged',
+        object_or_value: true
+      }]
+    })
+  });
+
+  const result = await analyze(request(), {
+    reasoningBridge: bridge
+  });
+  assert.equal(result.status, 'PARTIAL');
+  assert.equal(
+    result.failures.some(item =>
+      item.code === 'REASONING_BRIDGE_FAILED' &&
+      /authoritative field/.test(item.message)
+    ),
+    true
+  );
+});
+
+test('Evidence Capsule never substitutes an LLM summary for canonical evidence records', async () => {
+  const execution = await analyzeInternal(request());
+  const repacked = packEvidenceCapsule({
+    request: execution.state.request,
+    graph: execution.state.graph,
+    planning: execution.state.planning,
+    ledger: execution.state.ledger,
+    profile: 'forensic',
+    budget: {}
+  });
+
+  for (const packed of repacked.evidence) {
+    const canonical = execution.state.ledger.evidence.find(item =>
+      item.id === packed.id
+    );
+    assert.deepEqual(packed.record, canonical);
+    assert.equal(Object.hasOwn(packed, 'llm_summary'), false);
+  }
+});
+
+
+test('capsule budget exhaustion prevents ReasoningBridge invocation', async () => {
+  let calls = 0;
+  const bridge = createReasoningBridge({
+    id: 'budget-host',
+    version: 'v1',
+    reason: async () => {
+      calls += 1;
+      return {
+        schema: 'core.proposed-claim-set/v1',
+        proposals: []
+      };
+    }
+  });
+
+  const result = await analyze(request({
+    budget: {
+      scope_depth: 0,
+      capsule_bytes: 1
+    }
+  }), {
+    reasoningBridge: bridge
+  });
+
+  assert.equal(calls, 0);
+  assert.equal(result.status, 'PARTIAL');
+  assert.equal(
+    result.warnings.some(item => item.code === 'BUDGET_EXHAUSTED'),
+    true
+  );
+  assert.equal(
+    result.failures.some(item => item.code === 'REASONING_BRIDGE_FAILED'),
+    false
+  );
+});
+
+test('fake host can execute DIAGNOSE through the same core.analyze path', async () => {
+  let seenMode = null;
+  const bridge = createReasoningBridge({
+    id: 'diagnose-host',
+    version: 'v1',
+    reason: async task => {
+      seenMode = task.request.mode;
+      const target = task.capsule.target_scope.find(item => item.node_id);
+      return {
+        schema: 'core.proposed-claim-set/v1',
+        proposals: [{
+          type: 'HYPOTHESIS',
+          subject: { node_id: target.node_id },
+          predicate: 'fixture.diagnosis_candidate',
+          object_or_value: 'candidate'
+        }]
+      };
+    }
+  });
+
+  const result = await analyze(request({
+    mode: 'DIAGNOSE',
+    question: 'What is the most plausible selected failure point?',
+    budget: { scope_depth: 0 }
+  }), {
+    reasoningBridge: bridge
+  });
+
+  assert.equal(seenMode, 'DIAGNOSE');
+  const claim = result.claims.find(item =>
+    item.predicate === 'fixture.diagnosis_candidate'
+  );
+  assert.ok(claim);
+  assert.equal(claim.status, 'UNRESOLVED');
+});
+
+test('public session.resume reuses same-snapshot dependencies conservatively', async () => {
+  const storageRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), 'kneekura-f-resume-same-')
+  );
+  try {
+    const sessionStore = createSessionStore({
+      storageRoot,
+      targetRepositoryRoot: FORGE_FIXTURE
+    });
+    const engine = createCoreEngine({ sessionStore });
+    const result = await engine.analyze(request({
+      mode: 'RUNTIME',
+      question: 'Resume measured runtime analysis.',
+      runtime_artifacts: [
+        { kind: 'trace', path: TRACE },
+        { kind: 'network', path: SERVER_NET },
+        { kind: 'network', path: CLIENT_NET }
+      ]
+    }));
+
+    const handle = await engine.session.resume(result.session_id);
+    assert.equal(handle.schema, 'core.session-handle/v1');
+    assert.equal(handle.mode, 'SAME_SNAPSHOT');
+    assert.equal(handle.target_snapshot_id, result.snapshot.snapshot_id);
+    assert.equal(handle.exploration_state_available, true);
+    assert.equal(
+      handle.reusable_evidence_ids.length,
+      result.evidence.length
+    );
+    assert.equal(handle.invalidated_evidence_ids.length, 0);
+  } finally {
+    await fs.rm(storageRoot, { recursive: true, force: true });
+  }
+});
+
+test('public session.resume never auto-reuses evidence across a different snapshot', async () => {
+  const storageRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), 'kneekura-f-resume-cross-')
+  );
+  try {
+    const sessionStore = createSessionStore({
+      storageRoot,
+      targetRepositoryRoot: FORGE_FIXTURE
+    });
+    const engine = createCoreEngine({ sessionStore });
+    const result = await engine.analyze(request({
+      mode: 'RUNTIME',
+      question: 'Prepare a cross-snapshot continuation.',
+      runtime_artifacts: [
+        { kind: 'trace', path: TRACE },
+        { kind: 'network', path: SERVER_NET },
+        { kind: 'network', path: CLIENT_NET }
+      ]
+    }));
+
+    const target = 'snapshot:sha256:' + 'f'.repeat(64);
+    assert.notEqual(target, result.snapshot.snapshot_id);
+    const handle = await engine.session.resume(
+      result.session_id,
+      target
+    );
+
+    assert.equal(handle.mode, 'CROSS_SNAPSHOT_REVALIDATION');
+    assert.equal(handle.target_snapshot_id, target);
+    assert.deepEqual(handle.reusable_evidence_ids, []);
+    assert.deepEqual(
+      handle.invalidated_evidence_ids,
+      result.evidence.map(item => item.id).sort()
+    );
+    assert.equal(handle.requires_reanalysis, true);
+  } finally {
+    await fs.rm(storageRoot, { recursive: true, force: true });
+  }
+});
+
+
+test('ReasoningBridge cannot inject negative-search authority or provenance refs', async () => {
+  const bridge = createReasoningBridge({
+    id: 'authority-smuggle-host',
+    version: 'v1',
+    reason: async task => {
+      const target = task.capsule.target_scope.find(item => item.node_id);
+      return {
+        schema: 'core.proposed-claim-set/v1',
+        proposals: [{
+          type: 'NEGATIVE',
+          subject: { node_id: target.node_id },
+          predicate: 'packet-send',
+          object_or_value: false,
+          provenance_refs: ['graph-edge:forged'],
+          negative_context: {
+            provider_id: 'network-companion-adapter',
+            searched_property: 'packet-send',
+            search_universe: {
+              id: 'forged-universe',
+              enumerable: true,
+              item_ids: task.capsule.target_scope.map(item => item.id)
+            }
+          }
+        }]
+      };
+    }
+  });
+
+  const result = await analyze(request({
+    mode: 'AUDIT',
+    budget: { scope_depth: 0 }
+  }), {
+    reasoningBridge: bridge
+  });
+
+  assert.equal(result.status, 'PARTIAL');
+  assert.equal(
+    result.failures.some(item =>
+      item.code === 'REASONING_BRIDGE_FAILED' &&
+      /cannot supply authoritative field/.test(item.message)
+    ),
+    true
+  );
+  assert.equal(
+    result.claims.some(item =>
+      item.provenance_refs?.includes('graph-edge:forged')
+    ),
+    false
+  );
+});
+
+
+test('same-snapshot session.resume requires persisted evidence rehydration state', async () => {
+  const storageRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), 'kneekura-f-resume-missing-ledger-')
+  );
+  try {
+    const sessionStore = createSessionStore({
+      storageRoot,
+      targetRepositoryRoot: FORGE_FIXTURE
+    });
+    const engine = createCoreEngine({ sessionStore });
+    const result = await engine.analyze(request({
+      mode: 'RUNTIME',
+      question: 'Resume only if EvidenceRecords can be rehydrated.',
+      runtime_artifacts: [
+        { kind: 'trace', path: TRACE },
+        { kind: 'network', path: SERVER_NET },
+        { kind: 'network', path: CLIENT_NET }
+      ]
+    }));
+
+    const sessionDir = path.join(
+      storageRoot,
+      'sessions',
+      Buffer.from(result.session_id).toString('base64url')
+    );
+    await fs.rm(path.join(sessionDir, 'exploration.json'), {
+      force: true
+    });
+
+    const handle = await engine.session.resume(result.session_id);
+    assert.equal(handle.mode, 'SAME_SNAPSHOT');
+    assert.equal(handle.exploration_state_available, false);
+    assert.deepEqual(handle.reusable_evidence_ids, []);
+    assert.deepEqual(
+      handle.invalidated_evidence_ids,
+      result.evidence.map(item => item.id).sort()
+    );
+    assert.equal(handle.requires_reanalysis, true);
+  } finally {
+    await fs.rm(storageRoot, { recursive: true, force: true });
+  }
+});
+
+
+test('ReasoningBridge proposal count is bounded and excess proposals are surfaced', async () => {
+  const bridge = createReasoningBridge({
+    id: 'proposal-flood-host',
+    version: 'v1',
+    reason: async task => {
+      const target = task.capsule.target_scope.find(item => item.node_id);
+      const proposal = {
+        type: 'HYPOTHESIS',
+        subject: { node_id: target.node_id },
+        predicate: 'fixture.bounded_proposal',
+        object_or_value: true
+      };
+      return {
+        schema: 'core.proposed-claim-set/v1',
+        proposals: Array.from({ length: 65 }, () => structuredClone(proposal))
+      };
+    }
+  });
+
+  const result = await analyze(request({
+    budget: { scope_depth: 0 }
+  }), {
+    reasoningBridge: bridge
+  });
+
+  assert.equal(
+    result.claims.filter(item =>
+      item.predicate === 'fixture.bounded_proposal'
+    ).length,
+    1
+  );
+  assert.equal(
+    result.warnings.some(item =>
+      item.code === 'PROPOSAL_LIMIT_EXCEEDED' &&
+      /rejected 1 excess proposal/.test(item.message)
+    ),
+    true
+  );
+});
+
+test('explicit expand GRAPH_NODE target must exist in the frozen graph', async () => {
+  const engine = createCoreEngine();
+  const result = await engine.analyze(request({
+    budget: { scope_depth: 0 }
+  }));
+
+  await assert.rejects(
+    () => engine.expand(
+      result.analysis_id,
+      { kind: 'GRAPH_NODE', ref: 'node:does-not-exist' },
+      { scope_depth: 1 }
+    ),
+    /expand GraphNode not found/
+  );
+});
+
+test('public CORE entry point does not export analyzeInternal', async () => {
+  const publicApi = await import('../src/core/api.mjs');
+  assert.equal(Object.hasOwn(publicApi, 'analyzeInternal'), false);
+});
