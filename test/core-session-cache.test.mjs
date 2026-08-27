@@ -509,3 +509,108 @@ test('persisted Exploration Ledger resumes same-snapshot provider reuse after re
     await fs.rm(coreRoot, { recursive: true, force: true });
   }
 });
+
+
+test('finalized session is sealed against later event appends', async () => {
+  const coreRoot = await tempRoot('kneekura-session-seal-');
+  try {
+    const store = createSessionStore({ storageRoot: coreRoot });
+    await store.startSession({ sessionId: 'session:sealed' });
+    await store.append('session:sealed', 'SESSION_FINALIZED', {});
+    await assert.rejects(
+      () => store.append('session:sealed', 'SCOPE_DECISION', {
+        decision: { id: 'too-late' }
+      }),
+      /cannot append events after SESSION_FINALIZED/
+    );
+  } finally {
+    await fs.rm(coreRoot, { recursive: true, force: true });
+  }
+});
+
+test('child session state persists reused and invalidated evidence IDs', async () => {
+  const coreRoot = await tempRoot('kneekura-child-session-');
+  try {
+    const store = createSessionStore({ storageRoot: coreRoot });
+    await store.startSession({
+      sessionId: 'session:child',
+      parentSessionId: 'session:parent',
+      targetSnapshotId: 'snapshot:new',
+      reusedEvidenceIds: ['evidence:b', 'evidence:a', 'evidence:a'],
+      invalidatedEvidenceIds: ['evidence:old']
+    });
+
+    const state = await store.replay('session:child');
+    assert.equal(state.parent_session_id, 'session:parent');
+    assert.equal(state.target_snapshot_id, 'snapshot:new');
+    assert.deepEqual(state.reused_evidence_ids, ['evidence:a', 'evidence:b']);
+    assert.deepEqual(state.evidence_ids, ['evidence:a', 'evidence:b']);
+    assert.deepEqual(state.invalidated_evidence_ids, ['evidence:old']);
+  } finally {
+    await fs.rm(coreRoot, { recursive: true, force: true });
+  }
+});
+
+test('provider acquisition and reuse metrics replay from session events', async () => {
+  const coreRoot = await tempRoot('kneekura-session-metrics-');
+  try {
+    const sessionId = 'session:metrics';
+    const store = createSessionStore({
+      storageRoot: coreRoot,
+      targetRepositoryRoot: FORGE_FIXTURE
+    });
+    await store.startSession({ sessionId });
+    const exploration = createExplorationLedger();
+    const onSessionEvent = (type, payload) =>
+      store.append(sessionId, type, payload);
+
+    const first = await scanRepository(FORGE_FIXTURE, {
+      explorationLedger: exploration,
+      onSessionEvent
+    });
+    await store.append(sessionId, 'SNAPSHOT_FROZEN', {
+      snapshot: first.meta.snapshot
+    });
+
+    await scanRepository(FORGE_FIXTURE, {
+      explorationLedger: exploration,
+      onSessionEvent
+    });
+
+    const state = await store.replay(sessionId);
+    assert.ok(state.metrics.provider_acquisitions > 0);
+    assert.equal(
+      state.metrics.provider_acquisitions,
+      exploration.metrics.provider_acquisitions
+    );
+    assert.ok(state.metrics.provider_reuse_count > 0);
+    assert.equal(
+      state.metrics.provider_reuse_count,
+      exploration.metrics.provider_reuse_count
+    );
+    assert.equal(state.metrics.cache_hits, exploration.metrics.cache_hits);
+    assert.equal(state.metrics.cache_misses, exploration.metrics.cache_misses);
+  } finally {
+    await fs.rm(coreRoot, { recursive: true, force: true });
+  }
+});
+
+test('duplicate dependency declarations do not perturb cache identity', () => {
+  const digest = contentDigest('class Stable {}');
+  const once = c1ArtifactKey({
+    content_digest: digest,
+    provider_id: 'builtin-java',
+    provider_version: 'lexical-v1',
+    dependencies: [{ kind: 'config', id: 'java:v1' }]
+  });
+  const duplicated = c1ArtifactKey({
+    content_digest: digest,
+    provider_id: 'builtin-java',
+    provider_version: 'lexical-v1',
+    dependencies: [
+      { kind: 'config', id: 'java:v1' },
+      { id: 'java:v1', kind: 'config' }
+    ]
+  });
+  assert.equal(once, duplicated);
+});
