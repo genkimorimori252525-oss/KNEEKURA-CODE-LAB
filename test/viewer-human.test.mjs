@@ -547,3 +547,63 @@ test('viewer-bundle CLI writes a loadable lazy bundle', async () => {
     await fs.rm(root, { recursive: true, force: true });
   }
 });
+
+
+test('human responsibility prose never becomes AI renderer context', async () => {
+  const run = await execution();
+  const graph = structuredClone(run.state.graph);
+  const affected = run.result.affected_symbols.find(symbol =>
+    graph.nodes.some(node => node.id === symbol.node_id)
+  );
+  assert.ok(affected);
+
+  const node = graph.nodes.find(item => item.id === affected.node_id);
+  node.summary = 'HUMAN_ONLY_RESPONSIBILITY_MARKER';
+
+  const human = createViewerModel({
+    graph,
+    result: run.result
+  });
+  const panel = human.node(node.id);
+  assert.equal(
+    panel.responsibility.text,
+    'HUMAN_ONLY_RESPONSIBILITY_MARKER'
+  );
+
+  const ai = renderAnalysisForAI(run.result, {
+    profile: 'forensic'
+  });
+  assert.equal(
+    ai.includes('HUMAN_ONLY_RESPONSIBILITY_MARKER'),
+    false
+  );
+});
+
+test('Human Viewer source preserves KNEEKURA filters fidelity and raw evidence access', async () => {
+  const [html, js] = await Promise.all([
+    fs.readFile(path.join(ROOT, 'viewer/index.html'), 'utf8'),
+    fs.readFile(path.join(ROOT, 'viewer/viewer.js'), 'utf8')
+  ]);
+
+  for (const id of [
+    'id="q"',
+    'id="kind"',
+    'id="edgeType"',
+    'id="boundaryOnly"',
+    'id="runtimeOnly"'
+  ]) {
+    assert.equal(html.includes(id), true);
+  }
+
+  for (const marker of [
+    'Forge network runtime',
+    'Molang transport',
+    'YSM fidelity',
+    'Raw node data',
+    'edge evidence'
+  ]) {
+    assert.equal(js.includes(marker), true);
+  }
+
+  assert.equal(js.includes('Math.random'), false);
+});
