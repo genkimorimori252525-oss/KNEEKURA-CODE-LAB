@@ -991,3 +991,48 @@ test('counterexample verifier searches graph candidates even when host omitted c
     record.findings.some(item => item.code === 'PLAUSIBLE_COUNTEREXAMPLE_FOUND')
   ), true);
 });
+
+
+test('Evidence Ledger rejects tampered integrity digests and non-content-derived evidence IDs', () => {
+  const { repository, snapshot } = syntheticContext();
+  const coverage = completeCoverage(snapshot.snapshot_id);
+  const ledger = createEvidenceLedger({
+    repositoryIds: [repository.repository_id],
+    snapshotIds: [snapshot.snapshot_id],
+    coverage
+  });
+  const record = runtimeEvidence({
+    repository,
+    snapshot,
+    edgeTypes: { OBSERVED_PACKET_SEND: 1 }
+  });
+
+  const badDigest = {
+    ...structuredClone(record),
+    integrity_digest: 'sha256:' + 'f'.repeat(64)
+  };
+  assert.throws(
+    () => storeEvidence(ledger, badDigest),
+    /integrity digest mismatch/
+  );
+
+  const badId = {
+    ...structuredClone(record),
+    id: 'evidence:sha256:' + 'e'.repeat(64)
+  };
+  assert.throws(
+    () => storeEvidence(ledger, badId),
+    /content-derived identity/
+  );
+});
+
+test('Claim constructor rejects caller-supplied IDs that do not match the semantic proposition', () => {
+  assert.throws(() => createClaimRecord({
+    id: 'claim:host-chosen',
+    type: 'INFERRED',
+    subject: 'A',
+    predicate: 'uses',
+    objectOrValue: 'B',
+    coverageRef: 'coverage:test'
+  }), /canonical semantic proposition identity/);
+});
