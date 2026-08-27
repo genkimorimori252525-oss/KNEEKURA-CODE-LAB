@@ -1,7 +1,7 @@
 # CORE Implementation Plan v1
 
 Status: **implementation-ready**  
-Architecture authority: \`docs/CORE_ARCHITECTURE.md\`  
+Architecture authority: `docs/CORE_ARCHITECTURE.md`  
 Target substrate: current Node.js 20+ KNEEKURA-CODE-LAB  
 Recommended delivery: focused PRs; never one giant rewrite.
 
@@ -28,7 +28,7 @@ These are gates for every PR.
 
 - Keep the target repository read-only.
 - Preserve all existing tests and runtime semantics unless an explicit compatibility migration test replaces them.
-- Do not silently reinterpret \`kneekura.graph/v1\`.
+- Do not silently reinterpret `kneekura.graph/v1`.
 - Do not make an LLM mandatory for deterministic analysis.
 - Do not make a provider/API key part of CORE configuration.
 - Do not infer missing runtime stages.
@@ -241,7 +241,7 @@ Prefer explicit small validators consistent with the repository's dependency-lig
 
 ### A4. Compatibility metadata
 
-Current \`kneekura.graph/v1\` output remains accepted.
+Current `kneekura.graph/v1` output remains accepted.
 
 Add snapshot/repository metadata without changing the meaning of existing graph nodes/edges.
 
@@ -269,7 +269,7 @@ EvidenceProvider {
 }
 ~~~
 
-\`ProviderResult\` contains:
+`ProviderResult` contains:
 
 - EvidenceRecords;
 - graph fragments;
@@ -306,7 +306,7 @@ Every evidence-producing path should eventually emit:
 - symbol/range when known;
 - artifact/run ID when runtime.
 
-Existing graph \`evidence\` strings may remain for compatibility, but canonical EvidenceRecord becomes the authority.
+Existing graph `evidence` strings may remain for compatibility, but canonical EvidenceRecord becomes the authority.
 
 ### B4. Unresolved handling
 
@@ -808,8 +808,8 @@ Force low budget and verify PARTIAL/BUDGET_EXHAUSTED.
 
 Only after AT-01..AT-12 pass:
 
-- freeze \`core.analysis-request/v1\`;
-- freeze \`core.analysis-result/v1\`;
+- freeze `core.analysis-request/v1`;
+- freeze `core.analysis-result/v1`;
 - publish plugin adapter contract;
 - write a minimal host integration guide.
 
@@ -853,7 +853,7 @@ Do not copy directly:
 
 ### 14.2 No-Minecraft default
 
-Normal \`npm test\` must not require Minecraft.
+Normal `npm test` must not require Minecraft.
 
 Live acceptance should be a separate command/profile and consume captured artifacts where possible.
 
@@ -895,12 +895,12 @@ Do not set a hard token-reduction percentage until baseline measurements exist.
 
 During migration:
 
-- \`kneekura.graph/v1\` remains readable;
+- `kneekura.graph/v1` remains readable;
 - current CLI scan/workspace commands keep working;
 - current Viewer remains usable;
 - existing domain edge types remain available through compatibility;
 - existing M0-M6 semantics are not renamed without adapter coverage;
-- \`unobserved != failed\` behavior is permanent;
+- `unobserved != failed` behavior is permanent;
 - runtime run-identity gates may only become stricter, never silently weaker.
 
 ## 17. Failure and rollback policy
