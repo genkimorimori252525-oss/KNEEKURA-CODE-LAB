@@ -371,6 +371,23 @@ async function describeFile(context, file, artifact) {
   }
 
   try {
+    const stat = await fs.stat(absolute);
+    if (stat.isDirectory()) {
+      const manifest = await directoryManifest(absolute);
+      const digest = digestObject(manifest);
+      return {
+        unit_ref: 'artifact-directory:' + digest,
+        provenance: {
+          artifact_id: 'artifact-directory:' + digest,
+          artifact_digest: digest
+        },
+        fingerprint: {
+          kind: 'artifact-directory',
+          digest
+        }
+      };
+    }
+
     const bytes = await fs.readFile(absolute);
     const digest = 'sha256:' + sha256(bytes);
     return {
@@ -438,6 +455,44 @@ async function describeRepositoryPath(context, relativePath) {
       }
     };
   }
+}
+
+async function directoryManifest(root) {
+  const rows = [];
+
+  async function visit(dir) {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    entries.sort((a, b) => a.name.localeCompare(b.name));
+
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      const relative = normalizeSlashes(path.relative(root, full));
+
+      if (entry.isDirectory()) {
+        await visit(full);
+        continue;
+      }
+      if (entry.isFile()) {
+        const bytes = await fs.readFile(full);
+        rows.push({
+          path: relative,
+          type: 'file',
+          digest: 'sha256:' + sha256(bytes)
+        });
+        continue;
+      }
+      if (entry.isSymbolicLink()) {
+        rows.push({
+          path: relative,
+          type: 'symlink',
+          target_digest: 'sha256:' + sha256(await fs.readlink(full))
+        });
+      }
+    }
+  }
+
+  await visit(root);
+  return rows;
 }
 
 function normalizeUnresolved(items) {

@@ -185,3 +185,50 @@ test('workspace scan preserves constituent canonical evidence and provenance', a
     true
   );
 });
+
+
+test('directory artifact fingerprint and provenance change when Understand Anything content changes', async t => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'kneekura-provider-ua-'));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const uaDir = path.join(dir, '.ua');
+  await fs.mkdir(uaDir, { recursive: true });
+  const graphFile = path.join(uaDir, 'knowledge-graph.json');
+
+  const writeGraph = async description => {
+    await fs.writeFile(graphFile, JSON.stringify({
+      version: 1,
+      project: { name: 'ua-fixture', description },
+      nodes: [],
+      edges: [],
+      layers: [],
+      tour: []
+    }));
+  };
+
+  await writeGraph('first');
+  const first = await scanRepository(FIXTURE, { understand: dir });
+  const firstResult = first.meta.providerResults.find(item =>
+    item.provider_id === 'understand-anything-adapter'
+  );
+  const firstEvidence = first.meta.evidence.find(item =>
+    item.provider_id === 'understand-anything-adapter'
+  );
+
+  await writeGraph('second');
+  const second = await scanRepository(FIXTURE, { understand: dir });
+  const secondResult = second.meta.providerResults.find(item =>
+    item.provider_id === 'understand-anything-adapter'
+  );
+  const secondEvidence = second.meta.evidence.find(item =>
+    item.provider_id === 'understand-anything-adapter'
+  );
+
+  assert.ok(firstResult);
+  assert.ok(secondResult);
+  assert.ok(firstEvidence);
+  assert.ok(secondEvidence);
+  assert.match(firstEvidence.provenance.artifact_digest, /^sha256:[0-9a-f]{64}$/);
+  assert.match(secondEvidence.provenance.artifact_digest, /^sha256:[0-9a-f]{64}$/);
+  assert.notEqual(firstResult.dependency_fingerprint, secondResult.dependency_fingerprint);
+  assert.notEqual(firstEvidence.provenance.artifact_digest, secondEvidence.provenance.artifact_digest);
+});
