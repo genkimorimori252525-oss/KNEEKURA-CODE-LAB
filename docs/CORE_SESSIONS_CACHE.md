@@ -155,6 +155,8 @@ Examples:
 
 A cache hit requires the stored dependency fingerprint to match the caller's expected dependencies.
 
+Persisted non-C0 cache artifacts also carry a content digest over the exact JSON-persisted identity (tier/key/dependencies/payload). Payload tampering is rejected before reuse. Informational metadata is deliberately outside this identity so metadata-only differences do not invalidate semantically identical artifacts.
+
 A provider-version or dependency change must invalidate only dependent artifacts, not unrelated C0/C1 content.
 
 ## Exploration Ledger
@@ -196,6 +198,8 @@ The ordinary scan path is unchanged unless an Exploration Ledger is explicitly s
 ## Persistent resume
 
 An Exploration Ledger can be serialized into CORE-owned session storage and restored later.
+
+The persisted Exploration Ledger is wrapped by `core.exploration-snapshot/v1` with a digest over the exact JSON-persisted ledger. Tampering is rejected before restoration. Restored acquisition entries are revalidated against provider ID/version, dependency fingerprint, fidelity, and snapshot compatibility.
 
 A reload followed by the same frozen snapshot can reuse deterministic provider results without provider reacquisition.
 
@@ -282,6 +286,9 @@ Milestone E is implementation-complete only when regressions demonstrate:
 - cross-snapshot provider-result replay is rejected
 - continuation invalidation reasons are machine-counted
 - session event-chain tampering is detected
+- persisted cache payload tampering is detected before reuse
+- persisted Exploration Ledger tampering is detected before restore
+- provider-result identity/dependency mismatches are rejected before acquisition reuse
 - session replay reproduces terminal coverage and claims
 - CORE cache/session storage cannot be placed inside the target repository
 - all existing scan/workspace/runtime/pose/network/palette regressions remain green
