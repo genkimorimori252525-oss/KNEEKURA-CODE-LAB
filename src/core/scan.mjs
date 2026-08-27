@@ -7,6 +7,7 @@ import {
   captureWorkspaceSnapshot
 } from './identity/snapshot.mjs';
 import { acquireAndRecord } from './evidence/provider.mjs';
+import { acquireWithExploration } from './session/provider-reuse.mjs';
 import {
   javaLexicalProvider,
   forgeJavaProvider,
@@ -46,6 +47,18 @@ export async function scanRepository(root, opts={}) {
     repository: repositoryIdentity,
     snapshot: snapshotIdentity
   };
+  const acquireProvider = opts.explorationLedger
+    ? (provider, context, unit) => acquireWithExploration(
+        provider,
+        context,
+        unit,
+        {
+          explorationLedger: opts.explorationLedger,
+          requiredFidelity: opts.requiredEvidenceFidelity ?? 0,
+          onEvent: opts.onSessionEvent ?? null
+        }
+      )
+    : acquireAndRecord;
 
   await detectPlatformProfile(b, root, files);
   b.addAnalyzer('forge-1.20.1-network','v1');
@@ -53,7 +66,7 @@ export async function scanRepository(root, opts={}) {
   for (const file of files) {
     try {
       if (file.endsWith('.java')) {
-        const javaResult = await acquireAndRecord(
+        const javaResult = await acquireProvider(
           javaLexicalProvider,
           providerContext,
           { file }
@@ -61,13 +74,13 @@ export async function scanRepository(root, opts={}) {
         const java = javaResult.value;
         if (!java) continue;
 
-        await acquireAndRecord(forgeJavaProvider, providerContext, { file, java });
-        await acquireAndRecord(forgeNetworkProvider, providerContext, { file, java });
-        await acquireAndRecord(minecraftJavaProvider, providerContext, { file, java });
+        await acquireProvider(forgeJavaProvider, providerContext, { file, java });
+        await acquireProvider(forgeNetworkProvider, providerContext, { file, java });
+        await acquireProvider(minecraftJavaProvider, providerContext, { file, java });
       } else if (file.endsWith('mods.toml')) {
-        await acquireAndRecord(forgeModsTomlProvider, providerContext, { file });
+        await acquireProvider(forgeModsTomlProvider, providerContext, { file });
       } else if (file.endsWith('.json')) {
-        await acquireAndRecord(minecraftJsonProvider, providerContext, { file });
+        await acquireProvider(minecraftJsonProvider, providerContext, { file });
       }
     } catch (e) {
       b.diagnostic('error','provider orchestration failed',{
@@ -79,25 +92,25 @@ export async function scanRepository(root, opts={}) {
   }
 
   if (opts.codegraph) {
-    await acquireAndRecord(codeGraphProvider, providerContext, {
+    await acquireProvider(codeGraphProvider, providerContext, {
       file: opts.codegraph,
       artifact: true
     });
   }
   if (opts.understand) {
-    await acquireAndRecord(understandAnythingProvider, providerContext, {
+    await acquireProvider(understandAnythingProvider, providerContext, {
       file: opts.understand,
       artifact: true
     });
   }
   if (opts.trace) {
-    await acquireAndRecord(runtimeTraceProvider, providerContext, {
+    await acquireProvider(runtimeTraceProvider, providerContext, {
       file: opts.trace,
       artifact: true
     });
   }
   if (opts.pose) {
-    await acquireAndRecord(poseCompanionProvider, providerContext, {
+    await acquireProvider(poseCompanionProvider, providerContext, {
       file: opts.pose,
       artifact: true,
       dependencyFiles: opts.trace ? [opts.trace] : [],
@@ -105,7 +118,7 @@ export async function scanRepository(root, opts={}) {
     });
   }
   if (opts.palette) {
-    await acquireAndRecord(paletteCompanionProvider, providerContext, {
+    await acquireProvider(paletteCompanionProvider, providerContext, {
       file: opts.palette,
       artifact: true,
       dependencyFiles: opts.trace ? [opts.trace] : [],
@@ -113,7 +126,7 @@ export async function scanRepository(root, opts={}) {
     });
   }
   for (const net of opts.network ?? []) {
-    await acquireAndRecord(networkCompanionProvider, providerContext, {
+    await acquireProvider(networkCompanionProvider, providerContext, {
       file: net,
       artifact: true,
       dependencyFiles: opts.trace ? [opts.trace] : [],
