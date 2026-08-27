@@ -143,6 +143,9 @@ export function packEvidenceCapsule({
   ]);
   const envelopeBytes = byteLength(base);
   let usedBytes = envelopeBytes;
+  if (envelopeBytes > maxBytes) {
+    base.budget.budget_exhausted = true;
+  }
 
   for (const item of rankedEvidence) {
     const packed = {
