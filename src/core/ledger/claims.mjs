@@ -41,7 +41,9 @@ export function createClaimRecord({
   unresolvedReason = null
 }) {
   if (!CLAIM_TYPES.has(type)) throw new TypeError('unsupported claim type: ' + type);
+  if (subject == null) throw new TypeError('claim subject is required');
   if (typeof predicate !== 'string' || !predicate.trim()) throw new TypeError('claim predicate is required');
+  if (objectOrValue === undefined) throw new TypeError('claim objectOrValue is required');
   if (coverageRef == null || String(coverageRef).trim() === '') throw new TypeError('coverageRef is required');
 
   const initialStatus = initialStatusFor(type, status);
