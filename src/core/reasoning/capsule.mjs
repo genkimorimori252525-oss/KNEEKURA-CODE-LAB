@@ -142,8 +142,9 @@ export function packEvidenceCapsule({
     ...linkedCounter
   ]);
   const envelopeBytes = byteLength(base);
+  const finalMetadataReserve = 2_048;
   let usedBytes = envelopeBytes;
-  if (envelopeBytes > maxBytes) {
+  if (envelopeBytes + finalMetadataReserve > maxBytes) {
     base.budget.budget_exhausted = true;
   }
 
@@ -153,8 +154,15 @@ export function packEvidenceCapsule({
       priority: rankName(item.rank),
       record: structuredClone(item.record)
     };
-    const packedBytes = byteLength(packed);
-    if (usedBytes + packedBytes > maxBytes) {
+    const anchor = sourceAnchor(item.record);
+    const incrementalBytes =
+      byteLength(packed) +
+      (anchor ? byteLength(anchor) : 0) +
+      32;
+    if (
+      usedBytes + incrementalBytes + finalMetadataReserve >
+      maxBytes
+    ) {
       base.omitted_evidence_ids.push(item.record.id);
       if (requiredEvidenceIds.has(item.record.id) || item.rank <= 1) {
         base.budget.budget_exhausted = true;
@@ -162,9 +170,7 @@ export function packEvidenceCapsule({
       continue;
     }
     base.evidence.push(packed);
-    usedBytes += packedBytes;
-
-    const anchor = sourceAnchor(item.record);
+    usedBytes += incrementalBytes;
     if (anchor) base.source_anchors.push(anchor);
   }
 
