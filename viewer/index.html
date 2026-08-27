@@ -1,4 +1,86 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KNEEKURA CODE LAB</title><link rel="stylesheet" href="style.css"></head><body>
-<header><h1>KNEEKURA CODE LAB</h1><input id="q" placeholder="class / mod / registry / resource を検索"><select id="kind"><option value="">all kinds</option></select><select id="edgeType"><option value="">all edges</option></select><label class="toggle"><input id="boundaryOnly" type="checkbox"> TLM↔YSM boundary</label><label class="toggle"><input id="runtimeOnly" type="checkbox"> runtime observed</label></header>
-<main><section id="stage"><svg id="graph"></svg></section><aside><div id="summary"></div><pre id="detail">ノードを選択</pre></aside></main>
-<script type="module" src="viewer.js"></script></body></html>
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>KNEEKURA CODE LAB</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>KNEEKURA CODE LAB</h1>
+    <span id="modeBadge" class="mode-badge">loading</span>
+    <input id="q" placeholder="symbol / path / claim / evidence を検索">
+    <select id="viewMode">
+      <option value="focused">focused analysis</option>
+      <option value="graph">full graph</option>
+    </select>
+    <select id="diagramType" title="human diagram type">
+      <option value="AUTO">auto diagram</option>
+      <option value="ARCHITECTURE">architecture</option>
+      <option value="CALL_FLOW">call flow</option>
+      <option value="DATA_FLOW">data flow</option>
+      <option value="NETWORK_FLOW">network flow</option>
+      <option value="RESOURCE_FLOW">resource flow</option>
+      <option value="DIAGNOSIS">diagnosis</option>
+    </select>
+    <select id="detailLevel" title="diagram detail">
+      <option value="overview">overview</option>
+      <option value="focused" selected>focused</option>
+      <option value="deep">deep</option>
+    </select>
+  </header>
+
+  <div id="compatControls">
+    <select id="kind"><option value="">all kinds</option></select>
+    <select id="edgeType"><option value="">all edges</option></select>
+    <label class="toggle">
+      <input id="boundaryOnly" type="checkbox"> TLM↔YSM boundary
+    </label>
+    <label class="toggle">
+      <input id="runtimeOnly" type="checkbox"> runtime observed
+    </label>
+    <span class="hint">full graph compatibility filters</span>
+  </div>
+
+  <main>
+    <section id="stage">
+      <div id="diagramTitle"></div>
+      <svg id="graph" aria-label="KNEEKURA analysis graph"></svg>
+      <div id="legend">
+        <span class="status VERIFIED">VERIFIED</span>
+        <span class="status VERIFIED_WITH_LIMITS">LIMITED</span>
+        <span class="status OBSERVED">OBSERVED</span>
+        <span class="status UNKNOWN">UNKNOWN</span>
+        <span class="status CONTRADICTED">CONTRADICTED</span>
+        <span class="status UNEXPLORED">UNEXPLORED</span>
+      </div>
+    </section>
+
+    <aside>
+      <section class="panel">
+        <h2>Analysis</h2>
+        <div id="summary"></div>
+      </section>
+
+      <section class="panel" id="coveragePanel">
+        <h2>Coverage / Unknown</h2>
+        <div id="coverage"></div>
+      </section>
+
+      <section class="panel" id="claimsPanel">
+        <h2>Claims</h2>
+        <div id="claims"></div>
+      </section>
+
+      <section class="panel">
+        <h2>Selected / Ref drill-down</h2>
+        <div id="refLinks"></div>
+        <pre id="detail">ノード・Claim・Evidenceを選択</pre>
+      </section>
+    </aside>
+  </main>
+
+  <script type="module" src="viewer.js"></script>
+</body>
+</html>
