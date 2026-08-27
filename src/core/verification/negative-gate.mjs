@@ -130,6 +130,22 @@ export function evaluateNegativeGate({
     );
   }
 
+  const graphSearch = searchGraphForPositiveProperty(graph, property, activeProviderIds);
+  if (!graphSearch.supported) {
+    return denied(
+      'COUNTEREVIDENCE_SEARCH_UNAVAILABLE',
+      'CORE has no deterministic positive-property detector for this negative claim',
+      { searched_property: property, provider_ids: [...activeProviderIds].sort() }
+    );
+  }
+  if (graphSearch.refs.length) {
+    return denied(
+      'COUNTEREVIDENCE_FOUND',
+      'positive evidence for the searched property exists in the analyzed graph',
+      { refs: graphSearch.refs }
+    );
+  }
+
   return {
     allowed: true,
     outcome: 'VERIFIED',
@@ -137,6 +153,139 @@ export function evaluateNegativeGate({
     message: 'explicit enumerable universe is fully accounted with supported current-snapshot analysis and no counterevidence',
     provider_ids: [...activeProviderIds].sort(),
     search_universe_id: searchUniverse.id
+  };
+}
+
+function searchGraphForPositiveProperty(graph, property, activeProviderIds) {
+  const providerIds = new Set(activeProviderIds);
+  const nodeKinds = new Set();
+  const edgeTypes = new Set();
+
+  const add = ({ nodes = [], edges = [] }) => {
+    for (const kind of nodes) nodeKinds.add(kind);
+    for (const type of edges) edgeTypes.add(type);
+  };
+
+  if (providerIds.has('network-companion-adapter')) {
+    const map = {
+      'packet-send': { edges: ['OBSERVED_PACKET_SEND'] },
+      'packet-receive': { edges: ['OBSERVED_PACKET_RECEIVE'] },
+      'runtime-molang-payload': { edges: ['OBSERVED_PACKET_PAYLOAD_MOLANG'] },
+      'network-semantic': {
+        nodes: ['runtime_network_semantic_observation'],
+        edges: [
+          'OBSERVED_MOLANG_HANDLER_EXECUTION',
+          'OBSERVED_YSM_MOLANG_COMMAND_PRE_DISPATCH',
+          'OBSERVED_YSM_MOLANG_COMMAND_DISPATCH',
+          'OBSERVED_YSM_MOLANG_COMMAND_FAILURE',
+          'OBSERVED_YSM_CLIENT_COMMAND_HANDLED',
+          'OBSERVED_YSM_CLIENT_COMMAND_FALLBACK',
+          'OBSERVED_YSM_MOLANG_STATE_APPLIED',
+          'OBSERVED_YSM_STATE_CORRELATED'
+        ]
+      }
+    };
+    if (map[property]) add(map[property]);
+  }
+
+  if (providerIds.has('runtime-trace-adapter')) {
+    const map = {
+      'runtime-entity': { nodes: ['runtime_entity'] },
+      'runtime-animation': {
+        edges: ['OBSERVED_RUNTIME_ANIMATION','OBSERVED_RUNTIME_PENDING_ANIMATION']
+      },
+      'runtime-molang': {
+        edges: ['OBSERVED_RUNTIME_MOLANG_SEND','OBSERVED_RUNTIME_FACE_STATE']
+      }
+    };
+    if (map[property]) add(map[property]);
+  }
+
+  if (providerIds.has('pose-companion-adapter') && property === 'runtime-pose') {
+    add({ nodes: ['runtime_pose_companion','runtime_rendered_pose'] });
+  }
+  if (providerIds.has('palette-companion-adapter') && property === 'runtime-bone-palette') {
+    add({ nodes: ['runtime_bone_palette','runtime_bone_transform'] });
+  }
+
+  if (providerIds.has('forge-1.20.1-network')) {
+    const map = {
+      'packet-registration': { edges: ['REGISTERS_PACKET'] },
+      'packet-send': { edges: ['SENDS_PACKET','DECLARES_NETWORK_SEND'] },
+      'packet-handler': { edges: ['HANDLED_BY','DISPATCHES_NETWORK_HANDLER'] },
+      'network-channel': { nodes: ['network_channel'] }
+    };
+    if (map[property]) add(map[property]);
+  }
+
+  if (providerIds.has('builtin-java')) {
+    const map = {
+      package: { nodes: ['package'] },
+      import: { edges: ['IMPORTS'] },
+      class: { nodes: ['class'] },
+      interface: { nodes: ['interface'] },
+      enum: { nodes: ['enum'] },
+      record: { nodes: ['record'] },
+      method: { nodes: ['method'] }
+    };
+    if (map[property]) add(map[property]);
+  }
+
+  if (providerIds.has('forge-semantics')) {
+    const map = {
+      'forge-registration': { edges: ['ACCESSES_REGISTRY','CREATES_DEFERRED_REGISTER'] },
+      'forge-event': { edges: ['SUBSCRIBES_EVENT'] },
+      'forge-mixin': { edges: ['MIXES_INTO','INJECTS_AT'] }
+    };
+    if (map[property]) add(map[property]);
+  }
+
+  if (
+    providerIds.has('minecraft-ysm-semantics') ||
+    providerIds.has('minecraft-ysm-json')
+  ) {
+    const map = {
+      molang: { nodes: ['molang_variable'], edges: ['READS_MOLANG','WRITES_MOLANG'] },
+      animation: { nodes: ['animation_name'], edges: ['DECLARES_ANIMATION','PROVIDES_ANIMATION_NAME'] },
+      bone: { nodes: ['bone_name'], edges: ['HAS_BONE','ANIMATES_BONE','PROVIDES_BONE_NAME'] },
+      resource: { nodes: ['resource'], edges: ['REFERENCES_RESOURCE'] },
+      'ysm-bridge': {
+        edges: [
+          'BOUNDARY_PRODUCES_MOLANG',
+          'BOUNDARY_CONSUMES_MOLANG',
+          'BOUNDARY_DISPATCHES_ANIMATION',
+          'BOUNDARY_PROVIDES_ANIMATION'
+        ]
+      }
+    };
+    if (map[property]) add(map[property]);
+  }
+
+  if (providerIds.has('forge-mods-toml') && property === 'forge-mod-metadata') {
+    add({ nodes: ['forge_mod'] });
+  }
+  if (providerIds.has('codegraph-adapter') && property === 'external-codegraph') {
+    add({ nodes: ['codegraph_project'] });
+  }
+  if (providerIds.has('understand-anything-adapter') && property === 'external-understanding') {
+    add({ nodes: ['ua_project'] });
+  }
+
+  if (!nodeKinds.size && !edgeTypes.size) {
+    return { supported: false, refs: [] };
+  }
+
+  const refs = [];
+  for (const node of graph?.nodes ?? []) {
+    if (nodeKinds.has(node.kind)) refs.push('node:' + node.id);
+  }
+  for (const edge of graph?.edges ?? []) {
+    if (edgeTypes.has(edge.type)) refs.push('edge:' + edge.id);
+  }
+
+  return {
+    supported: true,
+    refs: [...new Set(refs)].sort()
   };
 }
 
