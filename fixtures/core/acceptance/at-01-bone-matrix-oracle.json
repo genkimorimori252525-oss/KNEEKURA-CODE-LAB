@@ -1,0 +1,170 @@
+{
+  "schema": "core.acceptance-oracle/v1",
+  "acceptance_id": "AT-01",
+  "title": "final YSM bone-matrix trace",
+  "question": "Where is the final YSM bone matrix generated?",
+  "source": {
+    "repository": "genkimorimori252525-oss/ysm-2.6.2-forge-mc1.20.1-releaseKaidoku",
+    "snapshot_sha": "cdd903691c129ce565d4680ba83c00f2d04993d6",
+    "source_format": "mapped-jvm-bytecode",
+    "validation_note": "The pinned repository contains mapped JVM .class files rather than reconstructed Java source. Anchors below were manually validated from class-file constant pools, method descriptors, access flags, and bytecode references."
+  },
+  "conclusion": {
+    "status": "UNKNOWN_NATIVE",
+    "statement": "The Java-visible rendering path can be followed to mapped/Class878.method3662, which is a static native method. The exact final per-bone/skinning matrix generation point inside the native ysm-core implementation is not recoverable from the pinned mapped JVM classes and must remain UNKNOWN rather than being assigned to a Java method.",
+    "confidence": {
+      "java_to_native_boundary": "HIGH",
+      "exact_native_internal_generation": "UNKNOWN"
+    }
+  },
+  "anchors": [
+    {
+      "path": "mapped/Class408.class",
+      "blob_sha": "65e449330e1633bf4194c2b860ed09b412138f",
+      "role": "living-entity renderer / baseline pose capture",
+      "accepted": [
+        {
+          "symbol": "mapped/Class408.method1330",
+          "descriptor": "(Lmapped/Class324;Lcom/mojang/blaze3d/vertex/PoseStack;FLnet/minecraft/client/renderer/MultiBufferSource;Lcom/mojang/blaze3d/vertex/VertexConsumer;IIFFFF)V",
+          "bytecode_offsets": [
+            6,
+            9,
+            12,
+            15
+          ],
+          "evidence": "PoseStack.last() -> PoseStack.Pose.pose() -> new Matrix4f(Matrix4fc) -> field1126"
+        },
+        {
+          "symbol": "mapped/Class408.method1332",
+          "descriptor": "(Lmapped/Class324;Lnet/minecraft/resources/ResourceLocation;FFLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;I)V",
+          "bytecode_offsets": [
+            84,
+            87,
+            90,
+            93
+          ],
+          "evidence": "PoseStack.last() -> PoseStack.Pose.pose() -> new Matrix4f(Matrix4fc) -> field1125 before subsequent model transforms/render dispatch"
+        }
+      ],
+      "ambiguity": "field1125/field1126 are validated pose-matrix snapshots but are not proven to be the final per-bone matrices."
+    },
+    {
+      "path": "mapped/Class410.class",
+      "blob_sha": "c291a30f60645b967038c80f97e597561a119653",
+      "role": "model render contract / pre-native handoff",
+      "accepted": [
+        {
+          "symbol": "mapped/Class410.method1353",
+          "descriptor": "(Lmapped/Class768;Lmapped/Class320;FLnet/minecraft/client/renderer/RenderType;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;ILcom/mojang/blaze3d/vertex/VertexConsumer;IIFFFF)V",
+          "bytecode_offsets": [
+            24,
+            28,
+            32,
+            36,
+            54
+          ],
+          "evidence": "Obtains PoseStack.last(), Class768 model object/float arrays, then calls mapped/Class878.method3661."
+        }
+      ]
+    },
+    {
+      "path": "mapped/Class768.class",
+      "blob_sha": "0ced83ab6521a3f48a35aef963790aa1c93c8edc",
+      "role": "model/mesh render data holder",
+      "accepted": [
+        {
+          "symbol": "mapped/Class768.method3134",
+          "descriptor": "()[F",
+          "evidence": "returns field2299 float array"
+        },
+        {
+          "symbol": "mapped/Class768.method3135",
+          "descriptor": "()[F",
+          "evidence": "returns field2300 float array"
+        },
+        {
+          "symbol": "mapped/Class768.method3137",
+          "descriptor": "()Lmapped/Class209;",
+          "evidence": "returns Class209 model/mesh object"
+        }
+      ]
+    },
+    {
+      "path": "mapped/Class878.class",
+      "blob_sha": "1eee5f6f3475dafec9096cdfdcfd01d8458d8079",
+      "role": "final Java-visible vertex-render/native boundary",
+      "accepted": [
+        {
+          "symbol": "mapped/Class878.method3661",
+          "descriptor": "(Lcom/mojang/blaze3d/vertex/VertexConsumer;Lcom/mojang/blaze3d/vertex/PoseStack$Pose;Lmapped/Class209;[F[FIIIIFFFF)V",
+          "bytecode_offsets": [
+            31,
+            34,
+            37,
+            40,
+            92
+          ],
+          "evidence": "Reads RenderSystem projection/model-view Matrix4f values, combines them through Matrix4f.mul(..., field2850), then calls method3662."
+        },
+        {
+          "symbol": "mapped/Class878.method3662",
+          "descriptor": "(Lcom/mojang/blaze3d/vertex/VertexConsumer;Lcom/mojang/blaze3d/vertex/PoseStack$Pose;Lorg/joml/Matrix4f;ZLmapped/Class209;[F[FIIIIFFFFZ)V",
+          "access_flags": 266,
+          "access": [
+            "private",
+            "static",
+            "native"
+          ],
+          "evidence": "No Code attribute; JVM ACC_NATIVE is set. This is the validated Java-to-native boundary."
+        }
+      ],
+      "ambiguity": "field2850 is a projection/model-view Matrix4f used at the handoff, but it is not proven to be a per-bone final matrix."
+    }
+  ],
+  "accepted_path": [
+    "mapped/Class408.method1332",
+    "mapped/Class408.method1352/method1353 render dispatch",
+    "mapped/Class410.method1353",
+    "mapped/Class878.method3661",
+    "mapped/Class878.method3662 [native]",
+    "native ysm-core implementation [UNKNOWN internal generation point]"
+  ],
+  "runtime_hook_candidates": [
+    {
+      "symbol": "mapped/Class408.method1330/method1332",
+      "purpose": "capture entity/baseline PoseStack matrix around renderer entry"
+    },
+    {
+      "symbol": "mapped/Class878.method3661",
+      "purpose": "last Java hook immediately before the native skinning/render boundary"
+    },
+    {
+      "symbol": "mapped/Class878.method3662",
+      "purpose": "native boundary; instrumentation requires JNI/native-aware hook rather than ordinary Java source tracing"
+    }
+  ],
+  "intentionally_ambiguous_alternatives": [
+    {
+      "candidate": "mapped/Class408.field1125/field1126",
+      "treatment": "POSE_BASELINE_ONLY",
+      "reason": "validated Matrix4f snapshots, but no evidence they are the final per-bone matrices"
+    },
+    {
+      "candidate": "mapped/Class878.field2850",
+      "treatment": "PROJECTION_MODELVIEW_ONLY",
+      "reason": "validated projection/model-view product, not proven as a per-bone final matrix"
+    },
+    {
+      "candidate": "native ysm-core internal routine",
+      "treatment": "UNKNOWN_EXACT_SYMBOL",
+      "reason": "method3662 is native and the pinned JVM classes contain no implementation body"
+    }
+  ],
+  "forbidden_overclaims": [
+    "mapped/Class408.method1332 is the exact final YSM bone matrix generator",
+    "mapped/Class408.field1125 is the final per-bone matrix",
+    "mapped/Class408.field1126 is the final per-bone matrix",
+    "mapped/Class878.field2850 is the final per-bone matrix",
+    "mapped/Class878.method3661 itself proves the exact native per-bone matrix construction algorithm"
+  ]
+}
