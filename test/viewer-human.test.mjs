@@ -694,3 +694,42 @@ test('Viewer lazy loader refuses external or escaping manifest refs', async () =
     /may not escape its bundle/
   );
 });
+
+
+test('Viewer lazy Evidence loader requires canonical core.evidence/v1 schema', async () => {
+  const run = await execution();
+  const bundle = createHumanViewerManifest(run.result);
+  const evidence = structuredClone(run.result.evidence[0]);
+  assert.ok(evidence);
+
+  const ref = '/' + bundle.manifest.evidence_index[evidence.id].ref;
+  evidence.schema = 'fixture.evidence/v1';
+
+  const resources = new Map([
+    ['/viewer-manifest.json', bundle.manifest],
+    ['/analysis-result.json', bundle.result],
+    ['/graph.json', run.state.graph],
+    [ref, evidence]
+  ]);
+  const fetchImpl = async url => {
+    const value = resources.get(String(url));
+    if (value == null) {
+      return {
+        status: 404,
+        ok: false,
+        async json() { return null; }
+      };
+    }
+    return {
+      status: 200,
+      ok: true,
+      async json() { return structuredClone(value); }
+    };
+  };
+
+  const loaded = await loadViewerSources({ fetchImpl });
+  await assert.rejects(
+    () => loaded.loadEvidence(evidence.id),
+    /must use core\.evidence\/v1/
+  );
+});
