@@ -192,18 +192,20 @@ test('KNEEKURA network companions overlay real send and receive separately onto 
   const wuqiMatrix=g.nodes.find(n=>n.kind==='molang_transport_matrix'&&n.variable==='variable.wuqi');
   assert(wuqiMatrix);
   assert.equal(wuqiMatrix.observedThroughStage,'M5');
-  assert.equal(wuqiMatrix.firstUnobservedStage,null);
+  assert.equal(wuqiMatrix.firstUnobservedStage,'M6');
+  assert.equal(wuqiMatrix.m6StateAppliedObserved,false);
+  assert.equal(wuqiMatrix.stateCorrelationObserved,false);
   assert.equal(wuqiMatrix.commandFailureObserved,false);
   assert.equal(wuqiMatrix.clientCommandFallbackObserved,false);
   assert.deepEqual(wuqiMatrix.stageSummary.map(s=>s.status),
-    ['observed','observed','observed','observed','observed','observed']);
+    ['observed','observed','observed','observed','observed','observed','unobserved']);
 
   const zuiMatrix=g.nodes.find(n=>n.kind==='molang_transport_matrix'&&n.variable==='variable.roaming.zui');
   assert(zuiMatrix);
   assert.equal(zuiMatrix.observedThroughStage,null);
   assert.equal(zuiMatrix.firstUnobservedStage,'M0');
   assert.deepEqual(zuiMatrix.stageSummary.map(s=>s.status),
-    ['unobserved','observed','observed','observed','observed','observed']);
+    ['unobserved','observed','observed','observed','observed','observed','unobserved']);
 });
 
 test('KNEEKURA network send does not invent a receive observation', async()=>{
@@ -242,7 +244,7 @@ test('KNEEKURA Molang command failure is evidence, not an invented successful di
   assert.equal(matrix.commandFailureObservationCount,1);
   assert.equal(matrix.clientCommandFallbackObserved,false);
   assert.deepEqual(matrix.stageSummary.map(s=>s.status),
-    ['observed','observed','observed','observed','unobserved','unobserved']);
+    ['observed','observed','observed','observed','unobserved','unobserved','unobserved']);
 });
 
 test('KNEEKURA Forge client-command fallback is evidence and does not become M5', async()=>{
@@ -273,7 +275,70 @@ test('KNEEKURA Forge client-command fallback is evidence and does not become M5'
   assert.equal(matrix.clientCommandFallbackObserved,true);
   assert.equal(matrix.clientCommandFallbackObservationCount,1);
   assert.deepEqual(matrix.stageSummary.map(s=>s.status),
-    ['observed','observed','observed','observed','observed','unobserved']);
+    ['observed','observed','observed','observed','observed','unobserved','unobserved']);
+});
+
+test('KNEEKURA formal M6 imports only explicit applied-state evidence', async()=>{
+  const g=await scanRepository(path.join(ROOT,'fixtures/forge-mini'), {
+    trace:path.join(ROOT,'fixtures/runtime/kneekura-trace.jsonl'),
+    network:[
+      path.join(ROOT,'fixtures/runtime/kneekura-server.net.jsonl'),
+      path.join(ROOT,'fixtures/runtime/kneekura-client-m6-applied.net.jsonl')
+    ]
+  });
+
+  const wuqi=g.nodes.find(n=>n.kind==='molang_variable'&&n.key==='variable.wuqi');
+  assert(wuqi);
+
+  const pre=g.edges.find(e=>e.type==='OBSERVED_YSM_MOLANG_COMMAND_PRE_DISPATCH'&&e.to===wuqi.id);
+  const applied=g.edges.find(e=>e.type==='OBSERVED_YSM_MOLANG_STATE_APPLIED'&&e.to===wuqi.id);
+  assert(pre);
+  assert(applied);
+  assert.equal(applied.before,0);
+  assert.equal(applied.after,1);
+  assert.equal(applied.expectedValue,1);
+  assert.equal(applied.observedValue,1);
+  assert.equal(applied.packetHandlerOrigin,true);
+  assert.equal(applied.controlledE2Qualified,true);
+  assert.equal(applied.exactVariableIdentity,true);
+  assert.equal(applied.evidenceLevel,'E2_ACTUAL_PRE_POST_TRANSITION');
+  assert.equal(applied.candidatePathHash,'abcdef0123456789');
+
+  const matrix=g.nodes.find(n=>n.kind==='molang_transport_matrix'&&n.variable==='variable.wuqi');
+  assert(matrix);
+  assert.equal(matrix.observedThroughStage,'M6');
+  assert.equal(matrix.firstUnobservedStage,null);
+  assert.equal(matrix.m6StateAppliedObserved,true);
+  assert.equal(matrix.m6StateAppliedObservationCount,1);
+  assert.equal(matrix.stateCorrelationObserved,false);
+  assert.deepEqual(matrix.stageSummary.map(s=>s.status),
+    ['observed','observed','observed','observed','observed','observed','observed']);
+});
+
+test('KNEEKURA weak state correlation never becomes M6', async()=>{
+  const g=await scanRepository(path.join(ROOT,'fixtures/forge-mini'), {
+    trace:path.join(ROOT,'fixtures/runtime/kneekura-trace.jsonl'),
+    network:[
+      path.join(ROOT,'fixtures/runtime/kneekura-server.net.jsonl'),
+      path.join(ROOT,'fixtures/runtime/kneekura-client-state-correlated.net.jsonl')
+    ]
+  });
+
+  const wuqi=g.nodes.find(n=>n.kind==='molang_variable'&&n.key==='variable.wuqi');
+  assert(wuqi);
+  const correlated=g.edges.find(e=>e.type==='OBSERVED_YSM_STATE_CORRELATED'&&e.to===wuqi.id);
+  assert(correlated);
+  assert.equal(correlated.controlledE2Qualified,false);
+  assert.equal(correlated.evidenceLevel,'E2_ACTUAL_PRE_POST_TRANSITION_UNQUALIFIED');
+  assert(!g.edges.some(e=>e.type==='OBSERVED_YSM_MOLANG_STATE_APPLIED'&&e.to===wuqi.id));
+
+  const matrix=g.nodes.find(n=>n.kind==='molang_transport_matrix'&&n.variable==='variable.wuqi');
+  assert(matrix);
+  assert.equal(matrix.observedThroughStage,'M5');
+  assert.equal(matrix.firstUnobservedStage,'M6');
+  assert.equal(matrix.m6StateAppliedObserved,false);
+  assert.equal(matrix.stateCorrelationObserved,true);
+  assert.equal(matrix.stateCorrelationObservationCount,1);
 });
 
 test('KNEEKURA network companion run mismatch, unbound identity and nested payload are rejected', async()=>{
