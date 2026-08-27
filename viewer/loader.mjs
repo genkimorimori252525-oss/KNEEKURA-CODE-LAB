@@ -64,6 +64,11 @@ export async function loadViewerSources({
       if (!entry?.ref) return null;
       const target = resolveRef(entry.ref, manifestUrl);
       const value = await requireFetchJson(fetchImpl, target);
+      if (value?.schema !== 'core.evidence/v1') {
+        throw new Error(
+          'evidence ref must use core.evidence/v1'
+        );
+      }
       if (value?.id !== id) {
         throw new Error(
           'evidence ref identity mismatch: expected ' +
