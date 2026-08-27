@@ -98,6 +98,8 @@ export function mergeWorkspaceGraphs(entries) {
     snapshot: graph.meta?.snapshot ?? null
   }));
 
+  mergeProviderMetadata(result, entries);
+
   const constituents = result.meta.repositories
     .map(entry => entry.snapshot)
     .filter(Boolean);
@@ -106,6 +108,48 @@ export function mergeWorkspaceGraphs(entries) {
     result.meta.snapshot = createMultiRepoSnapshot(constituents);
   }
   return result;
+}
+
+function mergeProviderMetadata(result, entries) {
+  const providers = new Map();
+  const evidence = new Map();
+  const providerResults = [];
+  const providerFailures = [];
+  const unresolvedReferences = [];
+
+  for (const { name, graph } of entries) {
+    for (const provider of graph.meta?.providers ?? []) {
+      const key = String(provider.id) + '\0' + String(provider.version);
+      if (!providers.has(key)) providers.set(key, structuredClone(provider));
+    }
+    for (const record of graph.meta?.evidence ?? []) {
+      if (!evidence.has(record.id)) evidence.set(record.id, structuredClone(record));
+    }
+    for (const providerResult of graph.meta?.providerResults ?? []) {
+      providerResults.push({
+        workspace_repository: name,
+        ...structuredClone(providerResult)
+      });
+    }
+    for (const failure of graph.meta?.providerFailures ?? []) {
+      providerFailures.push({
+        workspace_repository: name,
+        ...structuredClone(failure)
+      });
+    }
+    for (const unresolved of graph.meta?.unresolvedReferences ?? []) {
+      unresolvedReferences.push({
+        workspace_repository: name,
+        ...structuredClone(unresolved)
+      });
+    }
+  }
+
+  if (providers.size) result.meta.providers = [...providers.values()];
+  if (evidence.size) result.meta.evidence = [...evidence.values()];
+  if (providerResults.length) result.meta.providerResults = providerResults;
+  if (providerFailures.length) result.meta.providerFailures = providerFailures;
+  if (unresolvedReferences.length) result.meta.unresolvedReferences = unresolvedReferences;
 }
 
 function materializeBoundaryEdges(builder, repoNodes) {
