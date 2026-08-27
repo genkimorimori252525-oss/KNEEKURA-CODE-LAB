@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -21,7 +22,7 @@ export function createCacheStore({
     root,
 
     async putBlob(value, metadata = {}) {
-      const bytes = Buffer.isBuffer(value) ? value : Buffer.from(value);
+      const bytes = cacheBytes(value);
       const digest = contentDigest(bytes);
       const key = 'c0:' + digest;
       const dir = path.join(root, 'cache', 'C0');
@@ -251,9 +252,16 @@ async function exists(file) {
 }
 
 async function writeJsonAtomic(file, value) {
-  const temp = file + '.tmp-' + process.pid;
+  const temp = file + '.tmp-' + process.pid + '-' + crypto.randomUUID();
   await fs.writeFile(temp, JSON.stringify(value, null, 2) + '\n', 'utf8');
   await fs.rename(temp, file);
+}
+
+function cacheBytes(value) {
+  if (Buffer.isBuffer(value)) return value;
+  if (typeof value === 'string') return Buffer.from(value, 'utf8');
+  if (value instanceof Uint8Array) return Buffer.from(value);
+  throw new TypeError('C0 blob input must be a string, Buffer, or Uint8Array');
 }
 
 function stableJson(value) {
