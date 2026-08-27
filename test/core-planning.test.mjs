@@ -92,6 +92,9 @@ test('scope planner resolves exact paths, graph nodes, runtime refs and explicit
   assert.equal(symbolSeed.status, 'AMBIGUOUS');
   assert.equal(symbolSeed.candidate_ids.length, 2);
   assert.equal(plan.selected_ids.includes('node:' + nodes.fileA.id), true);
+  const pathSeed = plan.seeds.find(item => item.seed.kind === 'PATH');
+  assert.equal(pathSeed.status, 'RESOLVED');
+  assert.deepEqual(pathSeed.candidate_ids, ['node:' + nodes.fileA.id]);
   assert.equal(plan.selected_ids.includes('node:' + nodes.repo.id), true);
   assert.equal(plan.selected_ids.includes('node:' + nodes.runtime.id), true);
   assert.equal(plan.selected_ids.includes('evidence:evidence:runtime-42'), true);
@@ -235,9 +238,36 @@ test('SAUs group strong semantic relationships but do not group correlated unrel
   assert.ok(serviceUnit);
   assert.ok(unrelatedUnit);
   assert.notEqual(serviceUnit.id, unrelatedUnit.id);
+  const serviceMembers = [
+    ...serviceUnit.primary_targets,
+    ...serviceUnit.dependency_items,
+    ...serviceUnit.supporting_items
+  ];
+  assert.equal(serviceMembers.includes('node:' + nodes.repo.id), true);
+  assert.equal(serviceMembers.includes('node:' + nodes.config.id), true);
+});
+
+test('ambiguous exact symbol candidates remain separate deterministic units when no strong edge joins them', () => {
+  const { graph, nodes } = fixtureGraph();
+  const scope = planScope(graph, {
+    mode: 'TRACE',
+    seeds: [{ kind: 'SYMBOL', value: 'Foo' }]
+  }, { maxDepth: 0 });
+  const rules = resolveRules({ graph, request: { mode: 'TRACE' }, scope });
+  const result = buildSemanticAnalysisUnits(graph, scope, rules);
+
+  const candidateIds = new Set(['node:' + nodes.service.id, 'node:' + nodes.otherFoo.id]);
+  const unitsWithCandidates = result.units.filter(unit =>
+    [...unit.primary_targets, ...unit.dependency_items, ...unit.supporting_items]
+      .some(id => candidateIds.has(id))
+  );
+
+  assert.equal(unitsWithCandidates.length, 2);
   assert.equal(
-    [...serviceUnit.primary_targets, ...serviceUnit.dependency_items, ...serviceUnit.supporting_items]
-      .includes('node:' + nodes.repo.id),
+    unitsWithCandidates.every(unit =>
+      [...unit.primary_targets, ...unit.dependency_items, ...unit.supporting_items]
+        .filter(id => candidateIds.has(id)).length === 1
+    ),
     true
   );
 });

@@ -289,8 +289,10 @@ export function resolveSeed(seed, graph, index = buildIndex(graph)) {
 
   if (kind === 'PATH' || kind === 'DIFF_FILE') {
     const normalized = normalizePath(value);
-    const nodes = index.byPath.get(normalized) ?? [];
-    items = nodes.map(node => nodeScopeItem(node, 'PRIMARY', 0, seed.id));
+    const pathCandidates = index.byPath.get(normalized) ?? [];
+    const fileNodes = pathCandidates.filter(node => node.kind === 'file');
+    const nodes = fileNodes.length ? fileNodes : pathCandidates;
+    items = uniqueNodes(nodes).map(node => nodeScopeItem(node, 'PRIMARY', 0, seed.id));
   } else if (kind === 'GRAPH_NODE') {
     const node = index.byId.get(value);
     if (node) items = [nodeScopeItem(node, 'PRIMARY', 0, seed.id)];
