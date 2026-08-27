@@ -21,7 +21,7 @@ export function createExplorationLedger({
 
 export function serializeExplorationLedger(ledger) {
   assertLedger(ledger);
-  return structuredClone(ledger);
+  return jsonPersistable(ledger);
 }
 
 export function restoreExplorationLedger(value, {
@@ -319,6 +319,10 @@ function validateProviderResultIdentity(result, {
     throw new Error('provider result dependency fingerprint mismatch');
   }
   return true;
+}
+
+function jsonPersistable(value) {
+  return JSON.parse(JSON.stringify(value));
 }
 
 function acquisitionIdentity(entry) {
