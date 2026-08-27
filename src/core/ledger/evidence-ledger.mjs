@@ -140,10 +140,15 @@ export function addVerificationRecord(ledger, record) {
 export function finalizeEvidenceLedger(ledger) {
   assertLedger(ledger);
   if (ledger.coverage) validateCoverageManifestV1(ledger.coverage);
-  ledger.evidence.forEach(record => validateEvidenceRecordV1(record));
+  ledger.evidence.forEach(record => {
+    validateEvidenceRecordV1(record);
+    assertEvidenceIntegrity(record);
+  });
+  ledger.verification_records.forEach(record => validateVerificationRecord(record));
   ledger.claims.forEach(claim => {
     validateClaimRecordV1(claim);
     assertClaimEvidenceRefsExist(ledger, claim);
+    assertVerifiedStateHasMachineRecords(ledger, claim);
   });
 
   const snapshot = {
@@ -170,8 +175,14 @@ export function finalizeEvidenceLedger(ledger) {
 
 export function reconstructConclusions(ledger) {
   assertLedger(ledger);
-  return ledger.claims
-    .filter(claim => ['VERIFIED','VERIFIED_WITH_LIMITS'].includes(claim.status))
+  const conclusions = ledger.claims
+    .filter(claim => ['VERIFIED','VERIFIED_WITH_LIMITS'].includes(claim.status));
+  for (const claim of conclusions) {
+    validateClaimRecordV1(claim);
+    assertClaimEvidenceRefsExist(ledger, claim);
+    assertVerifiedStateHasMachineRecords(ledger, claim);
+  }
+  return conclusions
     .map(item => structuredClone(item))
     .sort((a, b) => a.id.localeCompare(b.id));
 }
@@ -236,11 +247,6 @@ function assertEvidenceIntegrity(record) {
   if (record.id !== expectedId) {
     throw new Error('evidence id does not match content-derived identity: ' + record.id);
   }
-}
-
-function findEquivalentEvidence(ledger, record) {
-  const key = evidenceDedupKey(record);
-  return ledger.evidence.find(existing => evidenceDedupKey(existing) === key) ?? null;
 }
 
 function assertClaimIngressState(claim) {
