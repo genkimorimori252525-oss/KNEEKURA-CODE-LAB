@@ -360,6 +360,12 @@ function mergeMetrics(base, update) {
 async function appendEventFile(eventPath, { type, payload }) {
   const events = await readEventFile(eventPath);
   verifyEventChain(events);
+  if (events.length === 0 && type !== 'SESSION_STARTED') {
+    throw new Error('first session event must be SESSION_STARTED');
+  }
+  if (events.length > 0 && type === 'SESSION_STARTED') {
+    throw new Error('SESSION_STARTED may only be appended as the first event');
+  }
   if (events.at(-1)?.type === 'SESSION_FINALIZED') {
     throw new Error('cannot append events after SESSION_FINALIZED');
   }
@@ -407,8 +413,12 @@ function requireString(value, name) {
 
 function digestObject(value) {
   return 'sha256:' + crypto.createHash('sha256')
-    .update(stableStringify(value))
+    .update(stableStringify(jsonPersistable(value)))
     .digest('hex');
+}
+
+function jsonPersistable(value) {
+  return JSON.parse(JSON.stringify(value));
 }
 
 function stableStringify(value) {
