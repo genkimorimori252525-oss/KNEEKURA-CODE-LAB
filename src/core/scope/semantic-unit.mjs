@@ -101,7 +101,15 @@ export function buildSemanticAnalysisUnits(graph, scope, ruleResolution, {
       purpose,
       members: members.map(item => [item.id, item.role]),
       internal_edges: internalEdges.map(edge => [edge.id, edge.type, edge.from, edge.to]),
+      boundary_edges: boundaryEdges.map(edge => [
+        edge.edge_id,
+        edge.edge_type,
+        edge.from,
+        edge.to,
+        edge.workspace_boundary ?? false
+      ]),
       matched_rule_ids: matchedRules,
+      budget: { max_items: maxUnitItems, item_count: members.length },
       snapshot_id: graph.meta?.snapshot?.snapshot_id ?? null
     });
 

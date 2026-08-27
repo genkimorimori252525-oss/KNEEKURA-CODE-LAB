@@ -163,6 +163,7 @@ export function finalizeCoverage(manifest) {
 export function coverageFingerprint(manifest) {
   const basis = {
     schema: manifest.schema,
+    snapshot_id: manifest.snapshot_id ?? null,
     completeness: manifest.completeness,
     universe_enumerable: manifest.universe_enumerable,
     closure: manifest.closure,

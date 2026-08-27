@@ -370,6 +370,14 @@ export function scopeFingerprint(scope) {
       candidate_ids: seed.candidate_ids
     })),
     decisions: scope.decisions,
+    items: scope.items.map(item => ({
+      id: item.id,
+      role: item.role,
+      depth: item.depth ?? null,
+      selected: item.selected !== false,
+      status: item.status ?? null,
+      reason_code: item.reason_code ?? null
+    })),
     selected_ids: scope.selected_ids,
     boundary_ids: scope.boundary_ids,
     universe_enumerable: scope.universe_enumerable,

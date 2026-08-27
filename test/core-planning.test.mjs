@@ -510,3 +510,42 @@ test('analysis mode without a deterministic seed is UNKNOWN instead of vacuously
   assert.ok(unresolved);
   assert.equal(unresolved.status, 'UNEXPLORED');
 });
+
+
+test('coverage fingerprint is snapshot-bound for safe future cache invalidation', () => {
+  const make = snapshotId => {
+    const manifest = createCoverageManifest([
+      { id: 'same-node', role: 'PRIMARY' }
+    ], { snapshotId });
+    updateCoverageEntry(manifest, 'same-node', 'ANALYZED');
+    return finalizeCoverage(manifest);
+  };
+
+  const a = make('snapshot:sha256:' + 'a'.repeat(64));
+  const b = make('snapshot:sha256:' + 'b'.repeat(64));
+  assert.notEqual(a.fingerprint, b.fingerprint);
+});
+
+test('SAU fingerprint changes when its deterministic budget contract changes', () => {
+  const { graph, nodes } = fixtureGraph();
+  const scope = planScope(graph, {
+    mode: 'TRACE',
+    seeds: [{ kind: 'GRAPH_NODE', value: nodes.service.id }]
+  }, { maxDepth: 2 });
+  const rules = resolveRules({ graph, request: { mode: 'TRACE' }, scope });
+
+  const a = buildSemanticAnalysisUnits(graph, scope, rules, { maxUnitItems: 20 });
+  const b = buildSemanticAnalysisUnits(graph, scope, rules, { maxUnitItems: 21 });
+
+  const unitA = a.units.find(unit =>
+    [...unit.primary_targets, ...unit.dependency_items, ...unit.supporting_items]
+      .includes('node:' + nodes.service.id)
+  );
+  const unitB = b.units.find(unit =>
+    [...unit.primary_targets, ...unit.dependency_items, ...unit.supporting_items]
+      .includes('node:' + nodes.service.id)
+  );
+  assert.ok(unitA);
+  assert.ok(unitB);
+  assert.notEqual(unitA.deterministic_fingerprint, unitB.deterministic_fingerprint);
+});
