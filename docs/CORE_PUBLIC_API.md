@@ -66,13 +66,18 @@ Allowed host proposal types:
 - `NEGATIVE`
 - `UNKNOWN`
 
-A host cannot manufacture observed authority or deterministic derivation.
-In particular, proposals cannot supply:
+A host cannot manufacture observed authority, deterministic derivation, search
+authority, or canonical provenance. In particular, proposals cannot supply:
 
 - canonical Claim ID;
 - verification status;
 - verifier results;
-- verification records.
+- verification records;
+- canonical provenance refs;
+- negative-search context/search universe.
+
+Negative-search universe and provenance authority are constructed only by CORE
+from deterministic scope/evidence state.
 
 Proposal subjects must resolve to one exact node in the deterministic selected
 candidate set. A symbol/node that exists elsewhere in the graph but is outside
