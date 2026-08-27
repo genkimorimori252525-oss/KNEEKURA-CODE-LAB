@@ -702,3 +702,104 @@ test('final Ledger reconstructs conclusions without renderer prose', () => {
   assert.equal(conclusions[0].predicate, 'runtime.packet_received');
   assert.equal(Object.hasOwn(final, 'renderer_prose'), false);
 });
+
+
+test('Claim ID is stable across evidence ordering, evidence expansion, and verification state', () => {
+  const subject = { node_id: 'node:stable', key: 'StableSubject' };
+  const linkA = createClaimEvidenceLink({
+    evidenceId: 'evidence:alpha',
+    role: 'SUPPORT',
+    strength: 'DIRECT'
+  });
+  const linkB = createClaimEvidenceLink({
+    evidenceId: 'evidence:beta',
+    role: 'SUPPORT',
+    strength: 'DIRECT'
+  });
+
+  const first = createClaimRecord({
+    type: 'OBSERVED',
+    subject,
+    predicate: 'exists',
+    objectOrValue: true,
+    evidenceLinks: [linkB, linkA],
+    coverageRef: 'coverage:first',
+    provenanceRefs: ['graph-edge:z', 'graph-edge:a']
+  });
+  const reordered = createClaimRecord({
+    type: 'OBSERVED',
+    subject,
+    predicate: 'exists',
+    objectOrValue: true,
+    evidenceLinks: [linkA, linkB],
+    coverageRef: 'coverage:second',
+    provenanceRefs: ['graph-edge:a']
+  });
+  const expanded = createClaimRecord({
+    type: 'OBSERVED',
+    subject,
+    predicate: 'exists',
+    objectOrValue: true,
+    evidenceLinks: [linkA],
+    coverageRef: 'coverage:third'
+  });
+
+  assert.equal(first.id, reordered.id);
+  assert.equal(first.id, expanded.id);
+  assert.deepEqual(
+    first.evidence_links.map(link => link.evidence_id),
+    ['evidence:alpha', 'evidence:beta']
+  );
+  assert.deepEqual(first.provenance_refs, ['graph-edge:a', 'graph-edge:z']);
+
+  const verified = {
+    ...first,
+    status: 'VERIFIED',
+    verifier_results: []
+  };
+  assert.equal(verified.id, first.id);
+});
+
+test('DERIVED Claim ID includes deterministic derivation lineage rather than evidence ordering', () => {
+  const base = {
+    type: 'DERIVED',
+    subject: { node_id: 'node:stable', key: 'StableSubject' },
+    predicate: 'derived.fact',
+    objectOrValue: true,
+    evidenceLinks: [createClaimEvidenceLink({
+      evidenceId: 'evidence:alpha',
+      role: 'SUPPORT',
+      strength: 'INDIRECT'
+    })],
+    dependencyClaimIds: ['claim:z', 'claim:a'],
+    coverageRef: 'coverage:first',
+    derivation: {
+      rule_id: 'core.derive.fixture',
+      rule_version: 'v1'
+    }
+  };
+
+  const first = createClaimRecord(base);
+  const reordered = createClaimRecord({
+    ...base,
+    dependencyClaimIds: ['claim:a', 'claim:z'],
+    evidenceLinks: [createClaimEvidenceLink({
+      evidenceId: 'evidence:beta',
+      role: 'SUPPORT',
+      strength: 'INDIRECT'
+    })],
+    coverageRef: 'coverage:second'
+  });
+  const differentLineage = createClaimRecord({
+    ...base,
+    dependencyClaimIds: ['claim:a'],
+    derivation: {
+      rule_id: 'core.derive.fixture',
+      rule_version: 'v2'
+    }
+  });
+
+  assert.equal(first.id, reordered.id);
+  assert.notEqual(first.id, differentLineage.id);
+  assert.deepEqual(first.dependency_claim_ids, ['claim:a', 'claim:z']);
+});
