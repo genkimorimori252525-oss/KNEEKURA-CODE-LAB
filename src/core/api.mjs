@@ -4,7 +4,6 @@ export {
 
 export {
   analyze,
-  analyzeInternal,
   CORE_ENGINE_ID,
   CORE_ENGINE_VERSION,
   CORE_ENGINE_FINGERPRINT
