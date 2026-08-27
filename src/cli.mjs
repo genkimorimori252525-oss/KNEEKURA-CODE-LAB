@@ -1,9 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { scanRepository } from './core/scan.mjs';
 import { scanWorkspace, parseWorkspaceRepoSpec } from './core/workspace.mjs';
+import { createViewerServer } from './core/render/viewer-server.mjs';
 
 const args = process.argv.slice(2);
 const cmd = args.shift();
@@ -31,30 +31,26 @@ if (cmd === 'scan') {
   console.log(`KNEEKURA workspace: ${repos.map(r=>r.name).join(' + ')} -> ${graph.nodes.length} nodes / ${graph.edges.length} edges / ${boundary} boundary edges -> ${out}`);
 } else if (cmd === 'serve') {
   const graphFile = path.resolve(flag('--graph','dist/graph.json'));
+  const analysisArg = flag('--analysis');
+  const analysisFile = analysisArg ? path.resolve(analysisArg) : null;
   const port = Number(flag('--port','8789'));
   const here = path.dirname(fileURLToPath(import.meta.url));
   const viewer = path.resolve(here,'../viewer');
-  const server = http.createServer(async (req,res)=>{
-    try {
-      const requestPath = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname);
-      let target;
-      if (requestPath === '/graph.json') target = graphFile;
-      else {
-        const rel = requestPath === '/' ? 'index.html' : requestPath.replace(/^\/+/, '');
-        target = path.resolve(viewer, rel);
-        if (target !== viewer && !target.startsWith(viewer + path.sep)) {
-          res.statusCode = 403; res.end('forbidden'); return;
-        }
-      }
-      const data = await fs.readFile(target);
-      const ext = path.extname(target);
-      res.setHeader('content-type', ext==='.html'?'text/html; charset=utf-8':ext==='.js'?'text/javascript; charset=utf-8':ext==='.css'?'text/css; charset=utf-8':'application/json; charset=utf-8');
-      res.end(data);
-    } catch { res.statusCode=404; res.end('not found'); }
+  const server = createViewerServer({
+    viewerRoot: viewer,
+    graphFile,
+    analysisFile
   });
-  server.listen(port,'127.0.0.1',()=>console.log(`KNEEKURA-CODE-LAB viewer: http://127.0.0.1:${port}`));
+  server.listen(port,'127.0.0.1',()=>{
+    console.log(
+      `KNEEKURA-CODE-LAB viewer: http://127.0.0.1:${port}` +
+      (analysisFile
+        ? ' [AnalysisResult mode]'
+        : ' [graph compatibility mode]')
+    );
+  });
 } else {
-  console.log('usage:\n  node src/cli.mjs scan <repo> --out dist/graph.json [--codegraph file.json] [--understand project-or-graph] [--trace trace.jsonl] [--pose stamp.pose.json] [--palette stamp.pal.json] [--net process.net.jsonl ...] [--allow-v1-pose] [--allow-v1-palette] [--allow-unbound-net]\n  node src/cli.mjs workspace --repo tlm=C:\\path\\to\\tlm --repo ysm=C:\\path\\to\\ysm --out dist/workspace.json\n  node src/cli.mjs serve --graph dist/graph.json [--port 8789]');
+  console.log('usage:\n  node src/cli.mjs scan <repo> --out dist/graph.json [--codegraph file.json] [--understand project-or-graph] [--trace trace.jsonl] [--pose stamp.pose.json] [--palette stamp.pal.json] [--net process.net.jsonl ...] [--allow-v1-pose] [--allow-v1-palette] [--allow-unbound-net]\n  node src/cli.mjs workspace --repo tlm=C:\\path\\to\\tlm --repo ysm=C:\\path\\to\\ysm --out dist/workspace.json\n  node src/cli.mjs serve --graph dist/graph.json [--analysis dist/analysis.json] [--port 8789]');
 }
 
 async function writeGraph(out, graph) {
