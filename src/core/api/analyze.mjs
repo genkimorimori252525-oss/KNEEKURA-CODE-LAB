@@ -149,18 +149,24 @@ export async function analyzeInternal(request, options = {}) {
   await session.append('METRICS_UPDATED', {
     metrics: {
       evidence_ids_sent_to_reasoning_bridge:
-        options.reasoningBridge ? capsule.evidence.length : 0,
+        options.reasoningBridge && !capsule.budget.budget_exhausted
+          ? capsule.evidence.length
+          : 0,
       raw_excerpt_bytes_packed:
-        options.reasoningBridge ? capsule.metrics.raw_excerpt_bytes : 0,
+        options.reasoningBridge && !capsule.budget.budget_exhausted
+          ? capsule.metrics.raw_excerpt_bytes
+          : 0,
       raw_excerpt_tokens_packed:
-        options.reasoningBridge ? capsule.metrics.raw_excerpt_tokens : 0
+        options.reasoningBridge && !capsule.budget.budget_exhausted
+          ? capsule.metrics.raw_excerpt_tokens
+          : 0
     }
   });
 
   const proposalOutcomes = [];
   let bridgeFailure = null;
 
-  if (options.reasoningBridge) {
+  if (options.reasoningBridge && !capsule.budget.budget_exhausted) {
     try {
       const task = createReasoningTask({
         analysisId,
