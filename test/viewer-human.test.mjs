@@ -776,3 +776,12 @@ test('Viewer lazy loader rejects protocol-relative and encoded traversal refs', 
     );
   }
 });
+
+
+test('browser Viewer entry script passes JavaScript syntax check', async () => {
+  await execFile(
+    process.execPath,
+    ['--check', path.join(ROOT, 'viewer/viewer.js')],
+    { cwd: ROOT }
+  );
+});
