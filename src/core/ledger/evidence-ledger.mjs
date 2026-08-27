@@ -87,6 +87,7 @@ export function getEvidence(ledger, evidenceId) {
 export function addClaim(ledger, claim) {
   assertLedger(ledger);
   validateClaimRecordV1(claim);
+  assertClaimIngressState(claim);
   assertClaimEvidenceRefsExist(ledger, claim);
 
   if (ledger.claims.some(existing => existing.id === claim.id)) {
@@ -101,6 +102,7 @@ export function addClaim(ledger, claim) {
 export function replaceClaim(ledger, claim) {
   assertLedger(ledger);
   validateClaimRecordV1(claim);
+  assertVerifiedStateHasMachineRecords(claim);
   assertClaimEvidenceRefsExist(ledger, claim);
 
   const index = ledger.claims.findIndex(existing => existing.id === claim.id);
@@ -209,6 +211,26 @@ export function evidenceDedupKey(record) {
 function findEquivalentEvidence(ledger, record) {
   const key = evidenceDedupKey(record);
   return ledger.evidence.find(existing => evidenceDedupKey(existing) === key) ?? null;
+}
+
+function assertClaimIngressState(claim) {
+  if (claim.type === 'UNKNOWN') {
+    if (claim.status !== 'UNRESOLVED') {
+      throw new Error('UNKNOWN claim ingress must be UNRESOLVED');
+    }
+    return;
+  }
+  if (claim.status !== 'PROPOSED') {
+    throw new Error('claim ingress must be PROPOSED before deterministic verification');
+  }
+}
+
+function assertVerifiedStateHasMachineRecords(claim) {
+  if (['VERIFIED','VERIFIED_WITH_LIMITS','REJECTED'].includes(claim.status)) {
+    if (!Array.isArray(claim.verifier_results) || claim.verifier_results.length === 0) {
+      throw new Error('verified/rejected claim state requires machine verifier_results');
+    }
+  }
 }
 
 function assertClaimEvidenceRefsExist(ledger, claim) {
