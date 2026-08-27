@@ -4,6 +4,7 @@ import {
 } from './analyze.mjs';
 import { expandAnalysis } from './expand.mjs';
 import { getAnalysisRef } from './get.mjs';
+import { resumeAnalysisSession } from './resume.mjs';
 
 export function createCoreEngine(options = {}) {
   const analyses = new Map();
@@ -45,6 +46,17 @@ export function createCoreEngine(options = {}) {
       indexState(refs, state);
       return structuredClone(delta);
     },
+
+    session: Object.freeze({
+      async resume(sessionId, targetSnapshotId = null) {
+        return resumeAnalysisSession({
+          sessionStore: options.sessionStore ?? null,
+          sessionId: String(sessionId),
+          targetSnapshotId,
+          currentEngineFingerprint: CORE_ENGINE_FINGERPRINT
+        });
+      }
+    }),
 
     get(ref) {
       const key = typeof ref === 'string' ? ref : ref?.ref ?? ref?.id;
