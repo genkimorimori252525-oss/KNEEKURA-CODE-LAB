@@ -4,6 +4,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execFile as execFileCallback } from 'node:child_process';
+import { promisify } from 'node:util';
 
 import { analyzeInternal } from '../src/core/api/analyze.mjs';
 import { renderAnalysisForAI } from '../src/core/render/ai.mjs';
@@ -26,6 +28,7 @@ const FORGE_FIXTURE = path.join(ROOT, 'fixtures/forge-mini');
 const TRACE = path.join(ROOT, 'fixtures/runtime/kneekura-trace.jsonl');
 const SERVER_NET = path.join(ROOT, 'fixtures/runtime/kneekura-server.net.jsonl');
 const CLIENT_NET = path.join(ROOT, 'fixtures/runtime/kneekura-client.net.jsonl');
+const execFile = promisify(execFileCallback);
 
 let executionPromise = null;
 
@@ -421,5 +424,126 @@ test('human overview keeps runtime Molang fidelity and coverage unknown states v
 
   if (run.result.unknowns.length) {
     assert.ok(model.overview.unknowns.length > 0);
+  }
+});
+
+
+test('Viewer bundle writer rejects paths that escape the output root', async () => {
+  const run = await execution();
+  const root = await fs.mkdtemp(
+    path.join(os.tmpdir(), 'kneekura-viewer-containment-')
+  );
+  try {
+    await assert.rejects(
+      () => writeHumanViewerBundle({
+        result: run.result,
+        graph: run.state.graph,
+        outDir: root,
+        resultFile: '../escape.json'
+      }),
+      /must stay inside the Viewer bundle/
+    );
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test('Viewer lazy Evidence loader rejects ref identity mismatch', async () => {
+  const run = await execution();
+  const bundle = createHumanViewerManifest(run.result);
+  const evidence = run.result.evidence[0];
+  assert.ok(evidence);
+
+  const ref = '/' + bundle.manifest.evidence_index[evidence.id].ref;
+  const wrong = structuredClone(evidence);
+  wrong.id = 'evidence:wrong-id';
+
+  const resources = new Map([
+    ['/viewer-manifest.json', bundle.manifest],
+    ['/analysis-result.json', bundle.result],
+    ['/graph.json', run.state.graph],
+    [ref, wrong]
+  ]);
+
+  const fetchImpl = async url => {
+    const value = resources.get(String(url));
+    if (value == null) {
+      return {
+        status: 404,
+        ok: false,
+        async json() { return null; }
+      };
+    }
+    return {
+      status: 200,
+      ok: true,
+      async json() { return structuredClone(value); }
+    };
+  };
+
+  const loaded = await loadViewerSources({ fetchImpl });
+  await assert.rejects(
+    () => loaded.loadEvidence(evidence.id),
+    /evidence ref identity mismatch/
+  );
+});
+
+test('viewer-bundle CLI writes a loadable lazy bundle', async () => {
+  const run = await execution();
+  const root = await fs.mkdtemp(
+    path.join(os.tmpdir(), 'kneekura-viewer-cli-')
+  );
+  try {
+    const resultFile = path.join(root, 'result.json');
+    const graphFile = path.join(root, 'graph-input.json');
+    const outDir = path.join(root, 'bundle');
+    await fs.writeFile(
+      resultFile,
+      JSON.stringify(run.result, null, 2),
+      'utf8'
+    );
+    await fs.writeFile(
+      graphFile,
+      JSON.stringify(run.state.graph, null, 2),
+      'utf8'
+    );
+
+    const { stdout } = await execFile(
+      process.execPath,
+      [
+        path.join(ROOT, 'src/cli.mjs'),
+        'viewer-bundle',
+        '--result',
+        resultFile,
+        '--graph',
+        graphFile,
+        '--out',
+        outDir
+      ],
+      { cwd: ROOT }
+    );
+
+    assert.equal(stdout.includes('KNEEKURA viewer bundle:'), true);
+
+    const manifest = JSON.parse(
+      await fs.readFile(
+        path.join(outDir, 'viewer-manifest.json'),
+        'utf8'
+      )
+    );
+    const result = JSON.parse(
+      await fs.readFile(
+        path.join(outDir, 'analysis-result.json'),
+        'utf8'
+      )
+    );
+    assert.equal(
+      manifest.schema,
+      'core.human-viewer-manifest/v1'
+    );
+    validateAnalysisResultV1(result);
+    assert.equal(Object.hasOwn(result, 'evidence'), false);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
   }
 });
