@@ -116,14 +116,25 @@ export function createSessionStore({
     async writeExplorationLedger(sessionId, ledger) {
       const file = path.join(sessionDirectory(root, sessionId), 'exploration.json');
       const serialized = serializeExplorationLedger(ledger);
-      await writeJsonAtomic(file, serialized);
+      const envelope = {
+        schema: 'core.exploration-snapshot/v1',
+        ledger_digest: digestObject(serialized),
+        ledger: serialized
+      };
+      await writeJsonAtomic(file, envelope);
       return serialized;
     },
 
     async readExplorationLedger(sessionId, options = {}) {
       const file = path.join(sessionDirectory(root, sessionId), 'exploration.json');
       const value = JSON.parse(await fs.readFile(file, 'utf8'));
-      return restoreExplorationLedger(value, options);
+      if (value?.schema !== 'core.exploration-snapshot/v1') {
+        throw new Error('invalid exploration snapshot schema');
+      }
+      if (value.ledger_digest !== digestObject(value.ledger)) {
+        throw new Error('exploration snapshot digest mismatch');
+      }
+      return restoreExplorationLedger(value.ledger, options);
     }
   });
 }
@@ -157,12 +168,26 @@ export function createSessionEvent({
 
 export function verifyEventChain(events) {
   if (!Array.isArray(events)) throw new TypeError('events must be an array');
+  if (events.length && events[0]?.type !== 'SESSION_STARTED') {
+    throw new Error('session event chain must begin with SESSION_STARTED');
+  }
   let previous = null;
+  let finalized = false;
   for (let index = 0; index < events.length; index++) {
     const event = events[index];
     if (event?.schema !== SESSION_EVENT_SCHEMA) {
       throw new Error('invalid session event schema at index ' + index);
     }
+    if (!EVENT_TYPE_SET.has(event.type)) {
+      throw new Error('unsupported session event type at sequence ' + event.sequence);
+    }
+    if (index > 0 && event.type === 'SESSION_STARTED') {
+      throw new Error('SESSION_STARTED may only appear as the first event');
+    }
+    if (finalized) {
+      throw new Error('SESSION_FINALIZED must be the final event');
+    }
+    if (event.type === 'SESSION_FINALIZED') finalized = true;
     if (event.sequence !== index + 1) {
       throw new Error('session event sequence mismatch at index ' + index);
     }
