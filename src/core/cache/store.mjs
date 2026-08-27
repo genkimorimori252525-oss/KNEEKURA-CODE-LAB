@@ -112,7 +112,23 @@ export function createCacheStore({
 
       if (await exists(file)) {
         const existing = JSON.parse(await fs.readFile(file, 'utf8'));
-        if (stableJson(existing) !== stableJson(record)) {
+        const existingIdentity = {
+          schema: existing.schema,
+          tier: existing.tier,
+          key: existing.key,
+          dependencies: existing.dependencies,
+          dependency_fingerprint: existing.dependency_fingerprint,
+          payload: existing.payload
+        };
+        const incomingIdentity = {
+          schema: record.schema,
+          tier: record.tier,
+          key: record.key,
+          dependencies: record.dependencies,
+          dependency_fingerprint: record.dependency_fingerprint,
+          payload: record.payload
+        };
+        if (stableJson(existingIdentity) !== stableJson(incomingIdentity)) {
           throw new Error('cache key collision with different content: ' + key);
         }
         return { hit: true, reused: true, artifact: existing };
