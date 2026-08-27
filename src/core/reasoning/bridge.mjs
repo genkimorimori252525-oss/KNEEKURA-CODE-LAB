@@ -12,7 +12,9 @@ const FORBIDDEN_PROPOSAL_FIELDS = Object.freeze([
   'id',
   'status',
   'verifier_results',
-  'verification_records'
+  'verification_records',
+  'provenance_refs',
+  'negative_context'
 ]);
 
 export function createReasoningBridge(spec) {
@@ -181,15 +183,11 @@ function normalizeProposal(proposal, index) {
     dependency_claim_ids: canonicalStrings(
       proposal.dependency_claim_ids ?? []
     ),
-    provenance_refs: canonicalStrings(proposal.provenance_refs ?? []),
     ...(proposal.confidence ? {
       confidence: structuredClone(proposal.confidence)
     } : {}),
     ...(type === 'UNKNOWN' ? {
       unresolved_reason: String(proposal.unresolved_reason)
-    } : {}),
-    ...(type === 'NEGATIVE' && proposal.negative_context ? {
-      negative_context: structuredClone(proposal.negative_context)
     } : {})
   };
 }
