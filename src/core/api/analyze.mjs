@@ -192,6 +192,17 @@ export async function analyzeInternal(request, options = {}) {
         });
         proposalOutcomes.push(outcome);
       }
+      if (proposalSet.rejected_excess_count > 0) {
+        proposalOutcomes.push({
+          proposal_index: null,
+          status: 'REJECTED',
+          code: 'PROPOSAL_LIMIT_EXCEEDED',
+          message:
+            'ReasoningBridge proposal limit exceeded; rejected ' +
+            proposalSet.rejected_excess_count +
+            ' excess proposal(s)'
+        });
+      }
     } catch (error) {
       bridgeFailure = {
         code: 'REASONING_BRIDGE_FAILED',
