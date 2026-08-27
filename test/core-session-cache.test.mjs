@@ -19,7 +19,9 @@ import {
 } from '../src/core/cache/store.mjs';
 import {
   createExplorationLedger,
-  evaluateClaimReuse
+  evaluateClaimReuse,
+  findReusableAcquisition,
+  recordProviderAcquisition
 } from '../src/core/session/exploration-ledger.mjs';
 import {
   createSessionEvent,
@@ -323,21 +325,36 @@ test('same snapshot rerun reuses deterministic provider results without re-acqui
   );
 });
 
-test('higher fidelity request does not reuse insufficient exploration evidence', () => {
-  const claim = {
-    id: 'claim:fidelity',
-    coverage_ref: 'coverage:sha256:' + 'a'.repeat(64),
-    evidence_links: [{ evidence_id: 'evidence:1' }],
-    counterevidence_links: [],
-    verifier_results: []
-  };
-  assert.equal(
-    evaluateClaimReuse(claim, {
-      availableEvidenceIds: ['evidence:1'],
-      currentCoverageFingerprint: 'sha256:' + 'a'.repeat(64)
-    }).reusable,
-    true
-  );
+test('higher fidelity request does not reuse insufficient exploration acquisition', () => {
+  const exploration = createExplorationLedger({ snapshotId: 'snapshot:1' });
+  recordProviderAcquisition(exploration, {
+    providerId: 'fixture-provider',
+    providerVersion: 'v1',
+    dependencyFingerprint: 'sha256:' + '1'.repeat(64),
+    fidelity: 1,
+    result: {
+      provider: { id: 'fixture-provider', version: 'v1' },
+      evidence: [{ id: 'evidence:low' }]
+    }
+  });
+
+  const low = findReusableAcquisition(exploration, {
+    providerId: 'fixture-provider',
+    providerVersion: 'v1',
+    dependencyFingerprint: 'sha256:' + '1'.repeat(64),
+    requiredFidelity: 1,
+    targetSnapshotId: 'snapshot:1'
+  });
+  assert.ok(low);
+
+  const high = findReusableAcquisition(exploration, {
+    providerId: 'fixture-provider',
+    providerVersion: 'v1',
+    dependencyFingerprint: 'sha256:' + '1'.repeat(64),
+    requiredFidelity: 2,
+    targetSnapshotId: 'snapshot:1'
+  });
+  assert.equal(high, null);
 });
 
 test('cross-snapshot continuation invalidates stale dependent claims', () => {
@@ -398,4 +415,55 @@ test('cross-snapshot reuse rejects path-only evidence identity', () => {
     () => assertNoPathOnlyReuse(continuation, parent),
     /cannot rely on path alone/
   );
+});
+
+
+test('cross-snapshot continuation invalidates claims when engine or rules are not proven compatible', () => {
+  const coverageFingerprint = 'sha256:' + 'd'.repeat(64);
+  const parent = {
+    session_id: 'session:engine-parent',
+    target_snapshot_id: 'snapshot:old',
+    engine_fingerprint: 'engine:v1',
+    rule_fingerprints: ['rules:v1'],
+    evidence_ids: ['evidence:stable'],
+    claims: {
+      'claim:stable': {
+        id: 'claim:stable',
+        coverage_ref: 'coverage:' + coverageFingerprint,
+        evidence_links: [{ evidence_id: 'evidence:stable' }],
+        counterevidence_links: [],
+        verifier_results: []
+      }
+    }
+  };
+
+  const missingCompatibility = planSessionContinuation({
+    parentSession: parent,
+    targetSnapshotId: 'snapshot:new',
+    availableEvidenceIds: ['evidence:stable'],
+    currentCoverageFingerprint: coverageFingerprint
+  });
+  assert.deepEqual(missingCompatibility.reusable_claim_ids, []);
+  assert.equal(
+    missingCompatibility.invalidated_claims[0].reasons.some(reason =>
+      reason.code === 'ENGINE_DEPENDENCY_UNVERIFIED'
+    ),
+    true
+  );
+  assert.equal(
+    missingCompatibility.invalidated_claims[0].reasons.some(reason =>
+      reason.code === 'RULESET_DEPENDENCIES_UNVERIFIED'
+    ),
+    true
+  );
+
+  const compatible = planSessionContinuation({
+    parentSession: parent,
+    targetSnapshotId: 'snapshot:new',
+    availableEvidenceIds: ['evidence:stable'],
+    currentCoverageFingerprint: coverageFingerprint,
+    currentEngineFingerprint: 'engine:v1',
+    currentRuleFingerprints: ['rules:v1']
+  });
+  assert.deepEqual(compatible.reusable_claim_ids, ['claim:stable']);
 });
