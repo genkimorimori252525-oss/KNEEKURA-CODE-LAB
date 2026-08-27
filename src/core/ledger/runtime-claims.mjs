@@ -7,6 +7,7 @@ import {
   createClaimRecord
 } from './claims.mjs';
 import { verifyAndRecordClaim } from '../verification/pipeline.mjs';
+import { deriveClientCommandConsumed } from '../verification/derivations.mjs';
 
 const OBSERVED_EDGE_CLAIMS = Object.freeze({
   OBSERVED_PACKET_SEND: 'runtime.packet_sent',
@@ -99,29 +100,9 @@ export function deriveSafeClaims(ledger) {
     .sort((a, b) => a.id.localeCompare(b.id));
 
   for (const dependency of handledClaims) {
-    const evidenceLinks = dependency.evidence_links.map(link =>
-      createClaimEvidenceLink({
-        evidenceId: link.evidence_id,
-        role: 'SUPPORT',
-        strength: 'INDIRECT',
-        rationale: 'safe derivation depends on verified client-command handled evidence'
-      })
-    );
-
-    const claim = createClaimRecord({
-      type: 'DERIVED',
-      subject: dependency.subject,
-      predicate: 'ysm.client_command_consumed',
-      objectOrValue: true,
-      evidenceLinks,
-      counterevidenceLinks: [],
-      dependencyClaimIds: [dependency.id],
+    const claim = deriveClientCommandConsumed(dependency, {
       coverageRef: dependency.coverage_ref,
-      provenanceRefs: [dependency.id],
-      derivation: {
-        rule_id: 'core.derive.ysm-client-command-consumed',
-        rule_version: 'v1'
-      }
+      provenanceRefs: dependency.provenance_refs
     });
 
     if (!ledger.claims.some(existing => existing.id === claim.id)) {
