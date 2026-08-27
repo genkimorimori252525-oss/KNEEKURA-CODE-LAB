@@ -344,7 +344,7 @@ function acquisitionDigest(entry) {
     provider_result: entry.provider_result
   };
   return 'sha256:' + crypto.createHash('sha256')
-    .update(stableStringify(basis))
+    .update(stableStringify(jsonPersistable(basis)))
     .digest('hex');
 }
 
