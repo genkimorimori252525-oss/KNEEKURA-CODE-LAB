@@ -596,3 +596,67 @@ test('SAU purpose is semantic and does not encode a pre-sort ordinal', () => {
   assert.equal(saus.units.every(unit => /^Semantic unit: /.test(unit.purpose)), true);
   assert.equal(saus.units.every(unit => !/^Semantic unit \d+:/.test(unit.purpose)), true);
 });
+
+
+test('rule evidence selectors are scoped and ignore unrelated runtime evidence', () => {
+  const { graph, nodes } = fixtureGraph();
+
+  const staticScope = planScope(graph, {
+    mode: 'TRACE',
+    seeds: [{ kind: 'GRAPH_NODE', value: nodes.service.id }]
+  }, { maxDepth: 0 });
+  const staticRules = resolveRules({
+    graph,
+    request: { mode: 'TRACE' },
+    scope: staticScope
+  });
+  assert.equal(
+    staticRules.applied.some(rule => rule.rule_id === 'core.runtime.static-separation'),
+    false
+  );
+
+  const runtimeScope = planScope(graph, {
+    mode: 'RUNTIME',
+    seeds: [{ kind: 'RUNTIME_REF', value: 'run-42' }]
+  }, { maxDepth: 0 });
+  const runtimeRules = resolveRules({
+    graph,
+    request: { mode: 'RUNTIME' },
+    scope: runtimeScope
+  });
+  assert.equal(
+    runtimeRules.applied.some(rule => rule.rule_id === 'core.runtime.static-separation'),
+    true
+  );
+});
+
+test('an explicitly supplied invalid analysis-request schema cannot bypass validation', () => {
+  const { graph } = fixtureGraph();
+  assert.throws(
+    () => planDeterministicAnalysis(graph, {
+      schema: 'core.analysis-request/v999',
+      mode: 'TRACE'
+    }),
+    error =>
+      error?.code === 'INVALID_REQUEST' &&
+      /must equal core\.analysis-request\/v1/.test(error.message)
+  );
+});
+
+test('IMPACT traversal keeps reverse-only semantics with indexed adjacency', () => {
+  const b = new GraphBuilder('/impact-index');
+  const source = b.node('class', 'Source');
+  const changed = b.node('class', 'Changed');
+  const downstream = b.node('class', 'Downstream');
+  b.edge(source, changed, 'CALLS', { confidence: 1 });
+  b.edge(changed, downstream, 'CALLS', { confidence: 1 });
+  const graph = b.finish();
+
+  const scope = planScope(graph, {
+    mode: 'IMPACT',
+    seeds: [{ kind: 'GRAPH_NODE', value: changed.id }]
+  }, { maxDepth: 2 });
+
+  assert.equal(scope.selected_ids.includes('node:' + source.id), true);
+  assert.equal(scope.selected_ids.includes('node:' + downstream.id), false);
+});
