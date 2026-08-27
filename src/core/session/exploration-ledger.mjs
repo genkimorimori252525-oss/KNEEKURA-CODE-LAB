@@ -132,6 +132,7 @@ export function findReusableAcquisition(ledger, {
     if (entry.stale) return false;
     if (entry.provider_id !== providerId || entry.provider_version !== providerVersion) return false;
     if (entry.fidelity < requiredFidelity) return false;
+    if (cacheFingerprint != null && entry.cache_fingerprint !== cacheFingerprint) return false;
 
     return Boolean(
       entry.dependency_fingerprint === dependencyFingerprint &&
