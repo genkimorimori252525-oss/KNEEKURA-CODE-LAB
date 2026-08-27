@@ -19,6 +19,37 @@ export function createExplorationLedger({
   };
 }
 
+export function serializeExplorationLedger(ledger) {
+  assertLedger(ledger);
+  return structuredClone(ledger);
+}
+
+export function restoreExplorationLedger(value, {
+  targetSnapshotId = null
+} = {}) {
+  if (!value || value.schema !== EXPLORATION_LEDGER_SCHEMA) {
+    throw new TypeError(EXPLORATION_LEDGER_SCHEMA + ' is required');
+  }
+  const ledger = structuredClone(value);
+  ledger.acquisitions ??= [];
+  ledger.invalidations ??= [];
+  ledger.metrics ??= {
+    provider_acquisitions: 0,
+    provider_reuse_count: 0,
+    cache_hits: 0,
+    cache_misses: 0
+  };
+  if (targetSnapshotId != null) ledger.snapshot_id = targetSnapshotId;
+  for (const entry of ledger.acquisitions) {
+    entry.stale = Boolean(entry.stale);
+    entry.stale_reasons ??= [];
+    entry.dependencies = canonicalRefs(entry.dependencies ?? []);
+    entry.evidence_ids = canonicalRefs(entry.evidence_ids ?? []);
+  }
+  ledger.acquisitions.sort(compareAcquisition);
+  return ledger;
+}
+
 export function recordProviderAcquisition(ledger, {
   providerId,
   providerVersion,
