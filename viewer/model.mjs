@@ -14,6 +14,25 @@ export function createViewerModel({
     manifest,
     projection
   });
+  const nodeCache = new Map();
+  const claimNodeIds = new Set();
+  const claimSearchByNode = new Map();
+
+  for (const claim of result?.claims ?? []) {
+    const nodeId = claim?.subject?.node_id;
+    if (!nodeId) continue;
+    const id = String(nodeId);
+    claimNodeIds.add(id);
+    const previous = claimSearchByNode.get(id) ?? '';
+    claimSearchByNode.set(
+      id,
+      (
+        previous + ' ' +
+        String(claim.predicate ?? '') + ' ' +
+        JSON.stringify(claim.object_or_value ?? null)
+      ).trim()
+    );
+  }
 
   return {
     mode: result ? 'ANALYSIS_RESULT' : 'GRAPH_ONLY',
@@ -21,8 +40,17 @@ export function createViewerModel({
     graph: projection,
     overview,
     evidence_index: buildEvidenceIndex(result, manifest),
+    claim_node_ids: claimNodeIds,
+    claim_search_by_node: claimSearchByNode,
     node(nodeId) {
-      return buildNodePanel(graph, result, nodeId);
+      const id = String(nodeId);
+      if (!nodeCache.has(id)) {
+        nodeCache.set(
+          id,
+          buildNodePanel(graph, result, id)
+        );
+      }
+      return nodeCache.get(id);
     }
   };
 }
