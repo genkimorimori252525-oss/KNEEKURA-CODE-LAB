@@ -312,10 +312,7 @@ function validateProviderResultIdentity(result, {
   if (result.provider?.id !== providerId || result.provider?.version !== providerVersion) {
     throw new Error('provider result identity mismatch');
   }
-  if (
-    result.dependency_fingerprint != null &&
-    result.dependency_fingerprint !== dependencyFingerprint
-  ) {
+  if (result.dependency_fingerprint !== dependencyFingerprint) {
     throw new Error('provider result dependency fingerprint mismatch');
   }
   return true;
