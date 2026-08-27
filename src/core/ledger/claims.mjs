@@ -46,36 +46,39 @@ export function createClaimRecord({
 
   const initialStatus = initialStatusFor(type, status);
   const normalizedConfidence = confidence ?? defaultConfidence(type);
+  const normalizedEvidenceLinks = canonicalizeLinks(evidenceLinks);
+  const normalizedCounterevidenceLinks = canonicalizeLinks(counterevidenceLinks);
+  const normalizedDependencyClaimIds = canonicalizeStrings(dependencyClaimIds);
+  const normalizedProvenanceRefs = canonicalizeStrings(provenanceRefs);
+  const normalizedDerivation = derivation ? structuredClone(derivation) : null;
+
+  const claimIdentity = {
+    type,
+    subject: structuredClone(subject),
+    predicate,
+    object_or_value: structuredClone(objectOrValue),
+    dependency_claim_ids: normalizedDependencyClaimIds,
+    derivation: normalizedDerivation
+  };
 
   const claim = {
     schema: CLAIM_RECORD_SCHEMA,
-    id: id ?? stableClaimId({
-      type,
-      subject,
-      predicate,
-      object_or_value: objectOrValue,
-      evidence_links: evidenceLinks,
-      counterevidence_links: counterevidenceLinks,
-      dependency_claim_ids: dependencyClaimIds,
-      coverage_ref: coverageRef,
-      provenance_refs: provenanceRefs,
-      derivation
-    }),
+    id: id ?? stableClaimId(claimIdentity),
     type,
     status: initialStatus,
     subject: structuredClone(subject),
     predicate,
     object_or_value: structuredClone(objectOrValue),
-    evidence_links: evidenceLinks.map(item => structuredClone(item)),
-    counterevidence_links: counterevidenceLinks.map(item => structuredClone(item)),
-    dependency_claim_ids: [...dependencyClaimIds],
+    evidence_links: normalizedEvidenceLinks,
+    counterevidence_links: normalizedCounterevidenceLinks,
+    dependency_claim_ids: normalizedDependencyClaimIds,
     coverage_ref: String(coverageRef),
-    provenance_refs: [...provenanceRefs],
+    provenance_refs: normalizedProvenanceRefs,
     confidence: structuredClone(normalizedConfidence),
     verifier_results: []
   };
 
-  if (derivation) claim.derivation = structuredClone(derivation);
+  if (normalizedDerivation) claim.derivation = normalizedDerivation;
   if (type === 'UNKNOWN') claim.unresolved_reason = String(unresolvedReason ?? '').trim();
 
   validateConstructionRules(claim);
@@ -143,6 +146,21 @@ function validateConstructionRules(claim) {
   if (claim.type === 'UNKNOWN' && !claim.unresolved_reason) {
     throw new TypeError('UNKNOWN claim construction requires unresolvedReason');
   }
+}
+
+function canonicalizeLinks(links) {
+  return links
+    .map(item => structuredClone(item))
+    .sort((a, b) =>
+      String(a.evidence_id).localeCompare(String(b.evidence_id)) ||
+      String(a.role).localeCompare(String(b.role)) ||
+      String(a.strength).localeCompare(String(b.strength)) ||
+      String(a.rationale ?? '').localeCompare(String(b.rationale ?? ''))
+    );
+}
+
+function canonicalizeStrings(values) {
+  return [...new Set(values.map(String))].sort();
 }
 
 function defaultConfidence(type) {
