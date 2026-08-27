@@ -96,15 +96,24 @@ async function requireFetchJson(fetchImpl, url) {
 }
 
 function resolveRef(ref, base) {
-  const value = String(ref);
-  if (/^[a-z]+:\/\//i.test(value) || value.startsWith('/')) {
+  const value = String(ref).replaceAll('\\\\', '/');
+  if (/^[a-z]+:\/\//i.test(value)) {
+    throw new Error('external Viewer refs are forbidden');
+  }
+  if (value.split('/').includes('..')) {
+    throw new Error('Viewer ref may not escape its bundle');
+  }
+  if (value.startsWith('/')) {
     return value;
   }
 
-  const baseValue = String(base);
+  const baseValue = String(base).replaceAll('\\\\', '/');
   const slash = baseValue.lastIndexOf('/');
-  if (slash < 0) return value;
-  return baseValue.slice(0, slash + 1) + value;
+  if (slash < 0) return value.replace(/^\.\//, '');
+  return (
+    baseValue.slice(0, slash + 1) +
+    value.replace(/^\.\//, '')
+  );
 }
 
 function assertAnalysisResult(result) {
