@@ -417,8 +417,10 @@ function runtimeStaticVerifier(claim, context) {
   }
 
   if (claim.predicate === 'ysm.molang_state_applied') {
-    const applied = incoming.find(edge => edge.type === 'OBSERVED_YSM_MOLANG_STATE_APPLIED');
-    if (!applied) {
+    const appliedEdges = incoming.filter(edge =>
+      edge.type === 'OBSERVED_YSM_MOLANG_STATE_APPLIED'
+    );
+    if (!appliedEdges.length) {
       const m5 = incoming.some(edge => edge.type === 'OBSERVED_YSM_CLIENT_COMMAND_HANDLED');
       const weak = incoming.some(edge => edge.type === 'OBSERVED_YSM_STATE_CORRELATED');
       return record('runtime-static', 'REJECTED', nodeId ? [nodeId] : [], [
@@ -434,14 +436,16 @@ function runtimeStaticVerifier(claim, context) {
       ]);
     }
 
-    const qualified =
-      applied.controlledE2Qualified === true &&
-      applied.exactVariableIdentity === true &&
-      applied.evidenceLevel === 'E2_ACTUAL_PRE_POST_TRANSITION';
+    const qualified = appliedEdges.find(edge =>
+      edge.controlledE2Qualified === true &&
+      edge.exactVariableIdentity === true &&
+      edge.evidenceLevel === 'E2_ACTUAL_PRE_POST_TRANSITION'
+    );
     if (!qualified) {
-      return record('runtime-static', 'REJECTED', [applied.id], [
-        finding('M6_EVIDENCE_NOT_FORMALLY_QUALIFIED', 'M6 edge lacks the required controlled E2 exact-variable transition evidence', {
-          severity: 'ERROR', refs: [applied.id]
+      const refs = appliedEdges.map(edge => edge.id).sort();
+      return record('runtime-static', 'REJECTED', refs, [
+        finding('M6_EVIDENCE_NOT_FORMALLY_QUALIFIED', 'no M6 edge has the required controlled E2 exact-variable transition evidence', {
+          severity: 'ERROR', refs
         })
       ]);
     }
