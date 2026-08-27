@@ -10,7 +10,7 @@ import { resolveRules } from './rules/resolver.mjs';
 import { buildSemanticAnalysisUnits } from './scope/semantic-unit.mjs';
 
 export function planDeterministicAnalysis(graph, request, options = {}) {
-  if (request?.schema === 'core.analysis-request/v1') validateAnalysisRequestV1(request);
+  if (request?.schema != null) validateAnalysisRequestV1(request);
 
   const scope = planScope(graph, request ?? {}, options.scope ?? {});
   const coverageInitial = structuredClone(scope.coverage);
