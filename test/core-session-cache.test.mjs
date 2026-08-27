@@ -614,3 +614,148 @@ test('duplicate dependency declarations do not perturb cache identity', () => {
   });
   assert.equal(once, duplicated);
 });
+
+
+test('concurrent session appends are serialized into a valid hash chain', async () => {
+  const coreRoot = await tempRoot('kneekura-session-concurrent-');
+  try {
+    const store = createSessionStore({ storageRoot: coreRoot });
+    const sessionId = 'session:concurrent';
+    await store.startSession({ sessionId });
+
+    await Promise.all(
+      Array.from({ length: 24 }, (_, index) =>
+        store.append(sessionId, 'SCOPE_DECISION', {
+          decision: { id: 'scope:' + index }
+        })
+      )
+    );
+
+    const events = await store.readEvents(sessionId);
+    assert.equal(events.length, 25);
+    assert.equal(verifyEventChain(events), true);
+    assert.deepEqual(
+      new Set(events.slice(1).map(event => event.payload.decision.id)),
+      new Set(Array.from({ length: 24 }, (_, index) => 'scope:' + index))
+    );
+  } finally {
+    await fs.rm(coreRoot, { recursive: true, force: true });
+  }
+});
+
+test('cross-snapshot provider-result reuse is rejected even when caller opts in', () => {
+  const exploration = createExplorationLedger({ snapshotId: 'snapshot:old' });
+  recordProviderAcquisition(exploration, {
+    providerId: 'fixture-provider',
+    providerVersion: 'v1',
+    dependencyFingerprint: 'sha256:' + '1'.repeat(64),
+    cacheFingerprint: 'sha256:' + '2'.repeat(64),
+    cacheScope: 'CONTENT',
+    fidelity: 2,
+    result: {
+      provider: { id: 'fixture-provider', version: 'v1' },
+      evidence: [{ id: 'evidence:old-snapshot' }]
+    },
+    snapshotId: 'snapshot:old'
+  });
+
+  assert.throws(
+    () => findReusableAcquisition(exploration, {
+      providerId: 'fixture-provider',
+      providerVersion: 'v1',
+      dependencyFingerprint: 'sha256:' + '3'.repeat(64),
+      cacheFingerprint: 'sha256:' + '2'.repeat(64),
+      requiredFidelity: 1,
+      allowCrossSnapshot: true,
+      targetSnapshotId: 'snapshot:new'
+    }),
+    /cross-snapshot provider-result reuse is forbidden/
+  );
+});
+
+test('continuation exposes machine-counted invalidation reasons for session metrics', () => {
+  const coverageFingerprint = 'sha256:' + 'e'.repeat(64);
+  const parent = {
+    session_id: 'session:metric-parent',
+    target_snapshot_id: 'snapshot:old',
+    evidence_ids: ['evidence:gone'],
+    claims: {
+      'claim:gone': {
+        id: 'claim:gone',
+        coverage_ref: 'coverage:' + coverageFingerprint,
+        evidence_links: [{ evidence_id: 'evidence:gone' }],
+        counterevidence_links: [],
+        verifier_results: []
+      }
+    }
+  };
+
+  const continuation = planSessionContinuation({
+    parentSession: parent,
+    targetSnapshotId: 'snapshot:new',
+    availableEvidenceIds: [],
+    currentCoverageFingerprint: coverageFingerprint
+  });
+
+  assert.equal(
+    continuation.metrics_delta.invalidation_reasons.EVIDENCE_INVALIDATED,
+    1
+  );
+  assert.equal(
+    continuation.metrics_delta.invalidation_reasons.EVIDENCE_NOT_AVAILABLE,
+    1
+  );
+});
+
+test('cache content identity rejects ambiguous object coercion', async () => {
+  assert.throws(
+    () => contentDigest({ source: 'class A {}' }),
+    /content digest input must be a string, Buffer, or Uint8Array/
+  );
+
+  const root = await tempRoot('kneekura-cache-bytes-');
+  try {
+    const store = createCacheStore({ storageRoot: root });
+    await assert.rejects(
+      () => store.putBlob({ source: 'class A {}' }),
+      /C0 blob input must be a string, Buffer, or Uint8Array/
+    );
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
+test('cache reuse ignores informational metadata differences for identical artifact identity', async () => {
+  const root = await tempRoot('kneekura-cache-metadata-');
+  try {
+    const store = createCacheStore({ storageRoot: root });
+    const digest = contentDigest('class MetadataStable {}');
+    const key = c1ArtifactKey({
+      content_digest: digest,
+      provider_id: 'builtin-java',
+      provider_version: 'lexical-v1'
+    });
+    const dependencies = [{ kind: 'content', id: digest }];
+
+    const first = await store.putArtifact({
+      tier: 'C1',
+      key,
+      dependencies,
+      payload: { facts: ['stable'] },
+      metadata: { note: 'first writer' }
+    });
+    const second = await store.putArtifact({
+      tier: 'C1',
+      key,
+      dependencies,
+      payload: { facts: ['stable'] },
+      metadata: { note: 'later observer' }
+    });
+
+    assert.equal(first.reused, false);
+    assert.equal(second.reused, true);
+    assert.deepEqual(second.artifact.payload, { facts: ['stable'] });
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
