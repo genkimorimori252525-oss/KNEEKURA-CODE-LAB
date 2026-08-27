@@ -46,7 +46,9 @@ export function createSessionStore({
       targetSnapshotId = null,
       normalizedRequest = null,
       engineFingerprint = null,
-      ruleFingerprints = []
+      ruleFingerprints = [],
+      reusedEvidenceIds = [],
+      invalidatedEvidenceIds = []
     } = {}) {
       requireString(sessionId, 'sessionId');
       const dir = sessionDirectory(root, sessionId);
@@ -62,7 +64,9 @@ export function createSessionStore({
           target_snapshot_id: targetSnapshotId,
           normalized_request: structuredClone(normalizedRequest),
           engine_fingerprint: engineFingerprint,
-          rule_fingerprints: [...new Set(ruleFingerprints.map(String))].sort()
+          rule_fingerprints: [...new Set(ruleFingerprints.map(String))].sort(),
+          reused_evidence_ids: [...new Set(reusedEvidenceIds.map(String))].sort(),
+          invalidated_evidence_ids: [...new Set(invalidatedEvidenceIds.map(String))].sort()
         }
       });
       return { session_id: sessionId, directory: dir };
@@ -231,6 +235,14 @@ function applyEvent(state, event) {
       state.normalized_request = structuredClone(payload.normalized_request ?? null);
       state.engine_fingerprint = payload.engine_fingerprint ?? null;
       state.rule_fingerprints = [...(payload.rule_fingerprints ?? [])];
+      {
+        const reused = normalizeIds(payload.reused_evidence_ids);
+        state.evidence_ids.push(...reused);
+        state.reused_evidence_ids.push(...reused);
+        state.invalidated_evidence_ids.push(
+          ...normalizeIds(payload.invalidated_evidence_ids)
+        );
+      }
       break;
     case 'SNAPSHOT_FROZEN':
       state.snapshot = structuredClone(payload.snapshot ?? payload);
@@ -305,6 +317,9 @@ function mergeMetrics(base, update) {
 async function appendEventFile(eventPath, { type, payload }) {
   const events = await readEventFile(eventPath);
   verifyEventChain(events);
+  if (events.at(-1)?.type === 'SESSION_FINALIZED') {
+    throw new Error('cannot append events after SESSION_FINALIZED');
+  }
   const event = createSessionEvent({
     sequence: events.length + 1,
     type,
