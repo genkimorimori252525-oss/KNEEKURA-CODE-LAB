@@ -26,3 +26,9 @@ export {
 export {
   renderAnalysisForAI
 } from './render/ai.mjs';
+
+
+export {
+  resumeAnalysisSession,
+  SESSION_HANDLE_SCHEMA
+} from './api/resume.mjs';
