@@ -774,12 +774,17 @@ function createSessionRecorder({ store, sessionId }) {
 }
 
 async function appendVerificationEvent(session, claim) {
-  const type = claim.status === 'REJECTED'
-    ? 'CLAIM_REJECTED'
-    : 'CLAIM_VERIFIED';
-  await session.append(type, {
-    claim: structuredClone(claim)
-  });
+  if (claim.status === 'REJECTED') {
+    await session.append('CLAIM_REJECTED', {
+      claim: structuredClone(claim)
+    });
+    return;
+  }
+  if (['VERIFIED','VERIFIED_WITH_LIMITS'].includes(claim.status)) {
+    await session.append('CLAIM_VERIFIED', {
+      claim: structuredClone(claim)
+    });
+  }
 }
 
 function proposalErrorCode(error) {
