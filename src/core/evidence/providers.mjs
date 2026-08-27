@@ -10,6 +10,7 @@ import { importRuntimeTrace } from '../../adapters/runtime-trace.mjs';
 import { importPoseCompanion } from '../../adapters/pose-companion.mjs';
 import { importPaletteCompanion } from '../../adapters/palette-companion.mjs';
 import { importNetworkCompanion } from '../../adapters/network-companion.mjs';
+import { readTraceIdentity } from '../../adapters/kneekura-run-identity.mjs';
 
 export const javaLexicalProvider = createEvidenceProvider({
   id: 'builtin-java',
@@ -120,10 +121,7 @@ export const runtimeTraceProvider = createEvidenceProvider({
   extractionMethod: 'kneekura-runtime-trace-jsonl-v2',
   failureClass: 'PARSE_FAILED',
   acquire: ({ builder }, unit) => importRuntimeTrace(builder, unit.file),
-  provenance: (_context, _unit, fragment) => {
-    const runtime = fragment.nodes.find(node => node.kind === 'runtime' && node.key === 'kneekura:trace');
-    return runtime?.run ? { runtime_run_id: String(runtime.run) } : {};
-  }
+  provenance: (_context, unit) => runtimeRunProvenance(unit.file)
 });
 
 export const poseCompanionProvider = createEvidenceProvider({
@@ -136,6 +134,7 @@ export const poseCompanionProvider = createEvidenceProvider({
   extractionMethod: 'kneekura-pose-companion-v1',
   failureClass: 'PARSE_FAILED',
   acquire: ({ builder }, unit) => importPoseCompanion(builder, unit.file, unit.options ?? {}),
+  provenance: (_context, unit) => runtimeRunProvenance(unit.options?.trace),
   classifyDiagnostic: classifyCompanionDiagnostic
 });
 
@@ -149,6 +148,7 @@ export const paletteCompanionProvider = createEvidenceProvider({
   extractionMethod: 'kneekura-palette-companion-v1',
   failureClass: 'PARSE_FAILED',
   acquire: ({ builder }, unit) => importPaletteCompanion(builder, unit.file, unit.options ?? {}),
+  provenance: (_context, unit) => runtimeRunProvenance(unit.options?.trace),
   classifyDiagnostic: classifyCompanionDiagnostic
 });
 
@@ -243,6 +243,12 @@ function classifyCompanionDiagnostic(diagnostic) {
     return { code: 'RUNTIME_IDENTITY_MISMATCH' };
   }
   return { code: 'ANALYZER_UNSUPPORTED' };
+}
+
+async function runtimeRunProvenance(traceFile) {
+  if (!traceFile) return {};
+  const identity = await readTraceIdentity(traceFile);
+  return identity?.run ? { runtime_run_id: String(identity.run) } : {};
 }
 
 function summarizeFragment(fragment) {

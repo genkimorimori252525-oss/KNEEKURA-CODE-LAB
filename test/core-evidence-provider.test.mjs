@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scanRepository } from '../src/core/scan.mjs';
+import { scanWorkspace } from '../src/core/workspace.mjs';
 import { validateEvidenceRecordV1 } from '../src/core/schema/v1.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -62,6 +63,10 @@ test('runtime network provider emits canonical measured evidence with artifact a
     trace: TRACE,
     network: [CLIENT_NET]
   });
+
+  const traceRecord = graph.meta.evidence?.find(item => item.provider_id === 'runtime-trace-adapter');
+  assert.ok(traceRecord);
+  assert.equal(traceRecord.provenance.runtime_run_id, 'run-42');
 
   const record = graph.meta.evidence?.find(item => item.provider_id === 'network-companion-adapter');
   assert.ok(record);
@@ -147,5 +152,36 @@ test('runtime companion rejection becomes a typed provider failure rather than n
       node.run !== 'run-42'
     ),
     false
+  );
+});
+
+
+test('workspace scan preserves constituent canonical evidence and provenance', async () => {
+  const graph = await scanWorkspace([
+    { name: 'tlm', root: path.join(ROOT, 'fixtures/workspace/tlm') },
+    { name: 'ysm', root: path.join(ROOT, 'fixtures/workspace/ysm') }
+  ]);
+
+  assert.equal(graph.schema, 'kneekura.graph/v1');
+  assert.ok((graph.meta.evidence?.length ?? 0) > 0);
+  assert.ok((graph.meta.providers?.length ?? 0) > 0);
+  assert.ok((graph.meta.providerResults?.length ?? 0) > 0);
+
+  const snapshotIds = new Set(
+    graph.meta.repositories
+      .map(entry => entry.snapshot?.snapshot_id)
+      .filter(Boolean)
+  );
+
+  for (const record of graph.meta.evidence) {
+    assert.equal(validateEvidenceRecordV1(record), record);
+    assert.equal(snapshotIds.has(record.provenance.snapshot_id), true);
+  }
+
+  assert.equal(
+    graph.meta.providerResults.every(item =>
+      item.workspace_repository === 'tlm' || item.workspace_repository === 'ysm'
+    ),
+    true
   );
 });
