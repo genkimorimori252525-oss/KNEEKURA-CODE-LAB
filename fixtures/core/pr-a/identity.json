@@ -1,0 +1,11 @@
+{
+  "equivalentRemotes": [
+    "git@github.com:GenkiMoriMori252525-OSS/KNEEKURA-CODE-LAB.git",
+    "https://github.com/genkimorimori252525-oss/kneekura-code-lab.git",
+    "ssh://git@github.com/genkimorimori252525-oss/KNEEKURA-CODE-LAB.git"
+  ],
+  "localCollisionRoots": [
+    "repo/a_b/c",
+    "repo/a/b_c"
+  ]
+}
