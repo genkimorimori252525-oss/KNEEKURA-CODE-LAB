@@ -10,6 +10,7 @@ import { scanRepository } from '../src/core/scan.mjs';
 import { createEvidenceRecord } from '../src/core/evidence/provider.mjs';
 import {
   addClaim,
+  addVerificationRecord,
   createEvidenceLedger,
   createEvidenceLedgerFromGraph,
   finalizeEvidenceLedger,
@@ -27,6 +28,9 @@ import {
 import {
   verifyAndRecordClaim
 } from '../src/core/verification/pipeline.mjs';
+import {
+  createVerificationRecord
+} from '../src/core/verification/record.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const FORGE_FIXTURE = path.join(ROOT, 'fixtures/forge-mini');
@@ -1035,4 +1039,126 @@ test('Claim constructor rejects caller-supplied IDs that do not match the semant
     objectOrValue: 'B',
     coverageRef: 'coverage:test'
   }), /canonical semantic proposition identity/);
+});
+
+
+test('terminal Claim cannot cite a valid-looking but unregistered VerificationRecord', () => {
+  const { graph, node, snapshot } = syntheticGraph({
+    key: 'VerifierRegistryTarget',
+    kind: 'class'
+  });
+  const coverage = completeCoverage(snapshot.snapshot_id);
+  const ledger = createEvidenceLedgerFromGraph(graph, coverage);
+  const proposed = createClaimRecord({
+    type: 'INFERRED',
+    subject: { node_id: node.id, key: node.key },
+    predicate: 'fixture.verifier_registry',
+    objectOrValue: true,
+    coverageRef: ledger.coverage_ref
+  });
+  addClaim(ledger, proposed);
+
+  const fakeMachineRecord = createVerificationRecord({
+    verifierId: 'core.verifier.fixture',
+    status: 'VERIFIED',
+    checkedRefs: [proposed.id],
+    findings: []
+  });
+  const forged = {
+    ...structuredClone(proposed),
+    status: 'VERIFIED',
+    verifier_results: [fakeMachineRecord]
+  };
+
+  assert.throws(
+    () => replaceClaim(ledger, forged),
+    /unregistered machine verifier result/
+  );
+});
+
+test('VerificationRecord storage rejects tampered canonical IDs', () => {
+  const { graph, snapshot } = syntheticGraph();
+  const coverage = completeCoverage(snapshot.snapshot_id);
+  const ledger = createEvidenceLedgerFromGraph(graph, coverage);
+  const valid = createVerificationRecord({
+    verifierId: 'core.verifier.fixture',
+    status: 'VERIFIED',
+    checkedRefs: ['fixture:ref'],
+    findings: []
+  });
+  const tampered = {
+    ...structuredClone(valid),
+    id: 'verification:sha256:' + '0'.repeat(64)
+  };
+
+  assert.throws(
+    () => addVerificationRecord(ledger, tampered),
+    /id does not match canonical content/
+  );
+});
+
+test('negative gate refuses Coverage that is not bound to an explicit current snapshot', () => {
+  const f = negativeFixture();
+  const coverageWithoutSnapshot = {
+    ...structuredClone(f.coverage)
+  };
+  delete coverageWithoutSnapshot.snapshot_id;
+  f.ledger.coverage = coverageWithoutSnapshot;
+
+  const result = verifyAndRecordClaim(f.ledger, f.claim.id, {
+    graph: f.graph,
+    coverage: coverageWithoutSnapshot,
+    negativeContext: negativeContext()
+  });
+
+  assert.equal(result.status, 'UNRESOLVED');
+  assert.equal(result.records.some(record =>
+    record.findings.some(item => item.code === 'COVERAGE_SNAPSHOT_UNSPECIFIED')
+  ), true);
+});
+
+test('M6 verifier accepts a formally qualified edge even when an unqualified M6 edge is also present', () => {
+  const { graph, node, repository, snapshot } = syntheticGraph({
+    edgeType: 'OBSERVED_YSM_MOLANG_STATE_APPLIED',
+    edgeAttrs: {
+      controlledE2Qualified: false,
+      exactVariableIdentity: false,
+      evidenceLevel: 'E2_UNQUALIFIED'
+    }
+  });
+  graph.edges.push({
+    id: 'edge:qualified-m6',
+    from: 'runtime:qualified-m6',
+    to: node.id,
+    type: 'OBSERVED_YSM_MOLANG_STATE_APPLIED',
+    controlledE2Qualified: true,
+    exactVariableIdentity: true,
+    evidenceLevel: 'E2_ACTUAL_PRE_POST_TRANSITION',
+    runtimeObservation: true,
+    confidence: 1
+  });
+
+  const coverage = completeCoverage(snapshot.snapshot_id);
+  const evidence = runtimeEvidence({
+    repository,
+    snapshot,
+    edgeTypes: { OBSERVED_YSM_MOLANG_STATE_APPLIED: 2 }
+  });
+  const ledger = ledgerWithEvidence(graph, coverage, evidence);
+  const claim = createClaimRecord({
+    type: 'OBSERVED',
+    subject: { node_id: node.id, key: node.key },
+    predicate: 'ysm.molang_state_applied',
+    objectOrValue: true,
+    evidenceLinks: [createClaimEvidenceLink({
+      evidenceId: evidence.id,
+      role: 'SUPPORT',
+      strength: 'DIRECT'
+    })],
+    coverageRef: ledger.coverage_ref
+  });
+  addClaim(ledger, claim);
+
+  const result = verifyAndRecordClaim(ledger, claim.id, { graph, coverage });
+  assert.equal(result.status, 'VERIFIED');
 });
