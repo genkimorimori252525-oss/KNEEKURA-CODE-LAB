@@ -106,12 +106,12 @@ export function createCacheStore({
         key,
         dependencies: normalizedDependencies,
         dependency_fingerprint: dependencyFingerprint(normalizedDependencies),
-        payload: structuredClone(payload)
+        payload: jsonPersistable(payload)
       };
       const record = {
         ...identity,
         artifact_digest: digestObject(identity),
-        metadata: structuredClone(metadata)
+        metadata: jsonPersistable(metadata)
       };
       const file = artifactPath(root, tier, key);
       await fs.mkdir(path.dirname(file), { recursive: true });
@@ -262,6 +262,11 @@ async function writeJsonAtomic(file, value) {
   const temp = file + '.tmp-' + process.pid + '-' + crypto.randomUUID();
   await fs.writeFile(temp, JSON.stringify(value, null, 2) + '\n', 'utf8');
   await fs.rename(temp, file);
+}
+
+function jsonPersistable(value) {
+  if (value === undefined) return null;
+  return JSON.parse(JSON.stringify(value));
 }
 
 function cacheBytes(value) {
