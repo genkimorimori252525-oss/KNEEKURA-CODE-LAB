@@ -429,6 +429,15 @@ test('real forge-mini graph plans ReimuPacket and YSM Molang scope without LLM a
 
   assert.equal(packetSeed.status, 'RESOLVED');
   assert.equal(molangSeed.status, 'RESOLVED');
+  assert.equal(molangSeed.resolution_method, 'CANONICAL_ALIAS');
+  const molangCandidate = first.scope.items.find(item =>
+    molangSeed.candidate_ids.includes(item.id)
+  );
+  assert.ok(molangCandidate);
+  assert.equal(
+    graph.nodes.find(node => node.id === molangCandidate.node_id)?.key,
+    'variable.wuqi'
+  );
   assert.equal(first.coverage_initial.entries.some(entry => entry.status === 'PENDING'), true);
   assert.equal(first.coverage.entries.some(entry => entry.status === 'PENDING'), false);
   assert.equal(
@@ -466,4 +475,23 @@ test('real forge-mini graph plans ReimuPacket and YSM Molang scope without LLM a
 
   assert.equal(first.deterministic_fingerprint, second.deterministic_fingerprint);
   assert.equal(Object.hasOwn(first, 'claims'), false);
+});
+
+
+test('Molang source aliases resolve deterministically without fuzzy symbol matching', () => {
+  const b = new GraphBuilder('/molang-alias');
+  const canonical = b.node('molang_variable', 'variable.foo', { label: 'variable.foo' });
+  const unrelated = b.node('molang_variable', 'variable.foobar', { label: 'variable.foobar' });
+  const graph = b.finish();
+
+  const alias = planScope(graph, {
+    mode: 'TRACE',
+    seeds: [{ kind: 'SYMBOL', value: 'v.foo' }]
+  }, { maxDepth: 0 });
+  const seed = alias.seeds[0];
+
+  assert.equal(seed.status, 'RESOLVED');
+  assert.equal(seed.resolution_method, 'CANONICAL_ALIAS');
+  assert.deepEqual(seed.candidate_ids, ['node:' + canonical.id]);
+  assert.equal(seed.candidate_ids.includes('node:' + unrelated.id), false);
 });

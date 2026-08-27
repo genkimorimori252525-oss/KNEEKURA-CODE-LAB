@@ -253,6 +253,7 @@ export function resolveSeed(seed, graph, index = buildIndex(graph)) {
   const kind = normalizeSeedKind(seed.kind);
   const value = String(seed.value);
   let items = [];
+  let resolutionMethod = 'EXACT';
 
   if (kind === 'PATH' || kind === 'DIFF_FILE') {
     const normalized = normalizePath(value);
@@ -266,7 +267,17 @@ export function resolveSeed(seed, graph, index = buildIndex(graph)) {
   } else if (kind === 'SYMBOL') {
     const exactKey = index.byKey.get(value) ?? [];
     const exactLabel = index.byLabel.get(value) ?? [];
-    const candidates = exactKey.length ? exactKey : exactLabel;
+    let candidates = exactKey.length ? exactKey : exactLabel;
+
+    if (!candidates.length) {
+      for (const alias of canonicalSymbolAliases(value)) {
+        const aliasKey = index.byKey.get(alias) ?? [];
+        const aliasLabel = index.byLabel.get(alias) ?? [];
+        candidates.push(...(aliasKey.length ? aliasKey : aliasLabel));
+      }
+      if (candidates.length) resolutionMethod = 'CANONICAL_ALIAS';
+    }
+
     items = uniqueNodes(candidates).map(node => nodeScopeItem(node, 'PRIMARY', 0, seed.id));
   } else if (kind === 'RUNTIME_REF') {
     const runtimeNodes = graph.nodes.filter(node =>
@@ -312,13 +323,18 @@ export function resolveSeed(seed, graph, index = buildIndex(graph)) {
   return {
     seed: { ...seed, kind },
     status: items.length > 1 ? 'AMBIGUOUS' : items.length === 1 ? 'RESOLVED' : 'UNRESOLVED',
+    resolution_method: items.length ? resolutionMethod : 'NONE',
     items,
     candidate_ids: items.map(item => item.id).sort(),
     reason: items.length > 1
-      ? 'multiple exact candidates retained'
+      ? (resolutionMethod === 'CANONICAL_ALIAS'
+          ? 'multiple deterministic canonical-alias candidates retained'
+          : 'multiple exact candidates retained')
       : items.length === 1
-        ? 'exact match'
-        : 'no exact candidate'
+        ? (resolutionMethod === 'CANONICAL_ALIAS'
+            ? 'deterministic canonical alias match'
+            : 'exact match')
+        : 'no exact or canonical-alias candidate'
   };
 }
 
@@ -452,6 +468,18 @@ function isRuntimeNode(node) {
   return String(node.kind ?? '').startsWith('runtime') ||
     node.runtimeObserved === true ||
     node.runtimeObservation === true;
+}
+
+function canonicalSymbolAliases(value) {
+  const match = String(value).match(/^(v|q|t|c)\.([A-Za-z_][A-Za-z0-9_.]*)$/);
+  if (!match) return [];
+  const prefix = {
+    v: 'variable',
+    q: 'query',
+    t: 'temp',
+    c: 'context'
+  }[match[1]];
+  return prefix ? [prefix + '.' + match[2]] : [];
 }
 
 function normalizeSeedKind(kind) {
