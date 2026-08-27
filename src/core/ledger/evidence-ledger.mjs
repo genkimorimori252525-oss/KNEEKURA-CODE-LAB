@@ -59,6 +59,7 @@ export function storeEvidence(ledger, records) {
 
   for (const record of input) {
     validateEvidenceRecordV1(record);
+    assertEvidenceIntegrity(record);
     const duplicate = findEquivalentEvidence(ledger, record);
     if (duplicate) {
       stored.push({ id: duplicate.id, reused: true });
@@ -206,6 +207,31 @@ export function evidenceDedupKey(record) {
     provider_id: record.provider_id,
     provider_version: record.provider_version
   });
+}
+
+function assertEvidenceIntegrity(record) {
+  const basis = {
+    schema: record.schema,
+    kind: record.kind,
+    observation: record.observation,
+    provenance: record.provenance,
+    trust_class: record.trust_class,
+    provider_id: record.provider_id,
+    provider_version: record.provider_version
+  };
+  const expectedIntegrity = digestObject(basis);
+  if (record.integrity_digest !== expectedIntegrity) {
+    throw new Error('evidence integrity digest mismatch: ' + record.id);
+  }
+
+  const identityDigest = digestObject({
+    ...basis,
+    integrity_digest: expectedIntegrity
+  }).slice('sha256:'.length);
+  const expectedId = 'evidence:sha256:' + identityDigest;
+  if (record.id !== expectedId) {
+    throw new Error('evidence id does not match content-derived identity: ' + record.id);
+  }
 }
 
 function findEquivalentEvidence(ledger, record) {
