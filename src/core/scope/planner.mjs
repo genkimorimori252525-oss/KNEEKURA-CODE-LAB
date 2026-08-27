@@ -117,7 +117,7 @@ export function planScope(graph, request = {}, options = {}) {
     const nodeId = current.item.node_id;
     if (!nodeId) continue;
 
-    const neighbors = adjacent(graph, nodeId, mode)
+    const neighbors = adjacent(index, nodeId, mode)
       .filter(link => allowedEdge(mode, link.edge))
       .sort(compareLinks);
 
@@ -391,6 +391,9 @@ function buildIndex(graph) {
   const byPath = new Map();
   const byKey = new Map();
   const byLabel = new Map();
+  const outgoing = new Map();
+  const incoming = new Map();
+
   for (const node of graph.nodes ?? []) {
     byId.set(node.id, node);
     addIndex(byKey, String(node.key ?? ''), node);
@@ -398,18 +401,30 @@ function buildIndex(graph) {
     if (node.path) addIndex(byPath, normalizePath(node.path), node);
     if (node.kind === 'file' && node.key) addIndex(byPath, normalizePath(node.key), node);
   }
-  return { byId, byPath, byKey, byLabel };
+
+  for (const edge of graph.edges ?? []) {
+    addIndex(outgoing, edge.from, edge);
+    addIndex(incoming, edge.to, edge);
+  }
+
+  return { byId, byPath, byKey, byLabel, outgoing, incoming };
 }
 
-function adjacent(graph, nodeId, mode) {
+function adjacent(index, nodeId, mode) {
   const links = [];
-  for (const edge of graph.edges ?? []) {
-    if (mode === 'IMPACT') {
-      if (edge.to === nodeId) links.push({ edge, otherId: edge.from, direction: 'in' });
-      continue;
+
+  if (mode === 'IMPACT') {
+    for (const edge of index.incoming.get(nodeId) ?? []) {
+      links.push({ edge, otherId: edge.from, direction: 'in' });
     }
-    if (edge.from === nodeId) links.push({ edge, otherId: edge.to, direction: 'out' });
-    if (edge.to === nodeId) links.push({ edge, otherId: edge.from, direction: 'in' });
+    return links;
+  }
+
+  for (const edge of index.outgoing.get(nodeId) ?? []) {
+    links.push({ edge, otherId: edge.to, direction: 'out' });
+  }
+  for (const edge of index.incoming.get(nodeId) ?? []) {
+    links.push({ edge, otherId: edge.from, direction: 'in' });
   }
   return links;
 }
