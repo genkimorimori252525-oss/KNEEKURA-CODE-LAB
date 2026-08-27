@@ -457,7 +457,7 @@ test('real forge-mini graph plans ReimuPacket and YSM Molang scope without LLM a
     node.kind === 'class' && node.key === 'demo.net.ReimuPacket'
   );
   const packetSemantic = graph.nodes.find(node =>
-    node.kind === 'network_packet' && node.label === 'ReimuPacket'
+    node.kind === 'network_message' && node.label === 'ReimuPacket'
   );
   assert.ok(packetNode);
   assert.ok(packetSemantic);
