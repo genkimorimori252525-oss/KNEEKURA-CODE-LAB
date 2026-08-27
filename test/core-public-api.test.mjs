@@ -641,3 +641,47 @@ test('ReasoningBridge cannot inject negative-search authority or provenance refs
     false
   );
 });
+
+
+test('same-snapshot session.resume requires persisted evidence rehydration state', async () => {
+  const storageRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), 'kneekura-f-resume-missing-ledger-')
+  );
+  try {
+    const sessionStore = createSessionStore({
+      storageRoot,
+      targetRepositoryRoot: FORGE_FIXTURE
+    });
+    const engine = createCoreEngine({ sessionStore });
+    const result = await engine.analyze(request({
+      mode: 'RUNTIME',
+      question: 'Resume only if EvidenceRecords can be rehydrated.',
+      runtime_artifacts: [
+        { kind: 'trace', path: TRACE },
+        { kind: 'network', path: SERVER_NET },
+        { kind: 'network', path: CLIENT_NET }
+      ]
+    }));
+
+    const sessionDir = path.join(
+      storageRoot,
+      'sessions',
+      Buffer.from(result.session_id).toString('base64url')
+    );
+    await fs.rm(path.join(sessionDir, 'exploration.json'), {
+      force: true
+    });
+
+    const handle = await engine.session.resume(result.session_id);
+    assert.equal(handle.mode, 'SAME_SNAPSHOT');
+    assert.equal(handle.exploration_state_available, false);
+    assert.deepEqual(handle.reusable_evidence_ids, []);
+    assert.deepEqual(
+      handle.invalidated_evidence_ids,
+      result.evidence.map(item => item.id).sort()
+    );
+    assert.equal(handle.requires_reanalysis, true);
+  } finally {
+    await fs.rm(storageRoot, { recursive: true, force: true });
+  }
+});
