@@ -5,6 +5,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scanRepository } from '../src/core/scan.mjs';
+import { GraphBuilder } from '../src/core/graph.mjs';
+import { createRepositoryIdentity } from '../src/core/identity/repository.mjs';
+import { createWorkspaceSnapshot } from '../src/core/identity/snapshot.mjs';
+import { createEvidenceProvider } from '../src/core/evidence/provider.mjs';
 import { scanWorkspace } from '../src/core/workspace.mjs';
 import { validateEvidenceRecordV1 } from '../src/core/schema/v1.mjs';
 
@@ -231,4 +235,98 @@ test('directory artifact fingerprint and provenance change when Understand Anyth
   assert.match(secondEvidence.provenance.artifact_digest, /^sha256:[0-9a-f]{64}$/);
   assert.notEqual(firstResult.dependency_fingerprint, secondResult.dependency_fingerprint);
   assert.notEqual(firstEvidence.provenance.artifact_digest, secondEvidence.provenance.artifact_digest);
+});
+
+
+test('provider hook exceptions remain typed ProviderResults instead of escaping orchestration', async () => {
+  const makeContext = () => {
+    const repository = createRepositoryIdentity({ root: FIXTURE });
+    const snapshot = createWorkspaceSnapshot(repository, { entries: [] });
+    return {
+      builder: new GraphBuilder(FIXTURE),
+      root: FIXTURE,
+      repository,
+      snapshot
+    };
+  };
+
+  const cases = [
+    {
+      phase: 'dependencyFingerprint',
+      extra: { dependencyFingerprint: () => { throw new Error('fingerprint hook exploded'); } },
+      expectEvidence: 0
+    },
+    {
+      phase: 'unresolved',
+      extra: { unresolved: () => { throw new Error('unresolved hook exploded'); } },
+      expectEvidence: 1
+    },
+    {
+      phase: 'provenance',
+      extra: { provenance: () => { throw new Error('provenance hook exploded'); } },
+      expectEvidence: 0
+    },
+    {
+      phase: 'observation',
+      extra: { observation: () => { throw new Error('observation hook exploded'); } },
+      expectEvidence: 0
+    },
+    {
+      phase: 'classifyDiagnostic',
+      extra: { classifyDiagnostic: () => { throw new Error('classifier hook exploded'); } },
+      addDiagnostic: true,
+      expectEvidence: 1
+    }
+  ];
+
+  for (const item of cases) {
+    const provider = createEvidenceProvider({
+      id: 'test-hook-' + item.phase,
+      version: 'v1',
+      evidenceKind: 'STATIC_ANALYSIS',
+      trustClass: 'ENGINE_TRUSTED',
+      acquire: ({ builder }) => {
+        builder.node('test_provider_node', item.phase);
+        if (item.addDiagnostic) builder.diagnostic('warn', 'fixture diagnostic');
+      },
+      ...item.extra
+    });
+
+    const result = await provider.acquire(makeContext(), { ref: item.phase });
+    const failure = result.failures.find(entry =>
+      entry.code === 'INTERNAL_INVARIANT' &&
+      entry.details?.phase === item.phase
+    );
+
+    assert.ok(failure, 'expected typed failure for ' + item.phase);
+    assert.equal(result.evidence.length, item.expectEvidence);
+  }
+});
+
+test('provider acquisition preserves an existing recognized typed error code', async () => {
+  const repository = createRepositoryIdentity({ root: FIXTURE });
+  const snapshot = createWorkspaceSnapshot(repository, { entries: [] });
+  const context = {
+    builder: new GraphBuilder(FIXTURE),
+    root: FIXTURE,
+    repository,
+    snapshot
+  };
+
+  const provider = createEvidenceProvider({
+    id: 'test-typed-error',
+    version: 'v1',
+    evidenceKind: 'STATIC_ANALYSIS',
+    failureClass: 'PARSE_FAILED',
+    acquire: () => {
+      const error = new Error('runtime identity mismatch fixture');
+      error.code = 'RUNTIME_IDENTITY_MISMATCH';
+      throw error;
+    }
+  });
+
+  const result = await provider.acquire(context, { ref: 'typed-error' });
+  assert.equal(result.failures[0]?.code, 'RUNTIME_IDENTITY_MISMATCH');
+  assert.equal(result.failures[0]?.details?.phase, 'acquire');
+  assert.equal(result.evidence.length, 0);
 });

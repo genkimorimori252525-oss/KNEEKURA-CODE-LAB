@@ -72,136 +72,179 @@ export function createEvidenceProvider(spec) {
     async dependencyFingerprint(context, unit = {}) {
       assertContext(context);
       const descriptor = await describeUnit(context, unit);
-      const custom = spec.dependencyFingerprint
-        ? await spec.dependencyFingerprint(context, unit, descriptor)
-        : null;
-      return digestObject({
-        provider_id: spec.id,
-        provider_version: spec.version,
-        snapshot_id: context.snapshot.snapshot_id,
-        unit: descriptor.fingerprint,
-        custom
-      });
+      try {
+        return await computeDependencyFingerprint(spec, context, unit, descriptor);
+      } catch (error) {
+        throw providerHookFailure(spec, descriptor.unit_ref, 'dependencyFingerprint', error);
+      }
     },
 
     async acquire(context, unit = {}) {
       assertContext(context);
       const descriptor = await describeUnit(context, unit);
-      const dependencyFingerprint = await provider.dependencyFingerprint(context, unit);
       const start = {
         nodes: context.builder.graph.nodes.length,
         edges: context.builder.graph.edges.length,
         diagnostics: context.builder.graph.diagnostics.length
       };
-
+      const failures = [];
+      let dependencyFingerprint = null;
       let value;
-      let thrownFailure = null;
-      try {
-        value = await spec.acquire(context, unit);
-      } catch (error) {
-        thrownFailure = new ProviderFailure(
-          spec.failureClass ?? 'PARSE_FAILED',
-          error?.message ? String(error.message) : 'provider acquisition failed',
-          {
-            providerId: spec.id,
-            providerVersion: spec.version,
-            unitRef: descriptor.unit_ref,
-            cause: error
-          }
-        );
-        context.builder.diagnostic('error', 'provider failed', {
-          providerId: spec.id,
-          providerVersion: spec.version,
-          code: thrownFailure.code,
-          unitRef: descriptor.unit_ref,
-          error: thrownFailure.message
-        });
-      }
+      let acquisitionFailed = false;
 
-      const liveFragment = {
+      const captureFragment = () => ({
         nodes: context.builder.graph.nodes.slice(start.nodes),
         edges: context.builder.graph.edges.slice(start.edges),
         diagnostics: context.builder.graph.diagnostics.slice(start.diagnostics)
+      });
+
+      const recordHookFailure = (phase, error, fallbackCode = 'INTERNAL_INVARIANT') => {
+        const failure = providerHookFailure(spec, descriptor.unit_ref, phase, error, fallbackCode);
+        pushUniqueFailure(failures, failure.toJSON());
+        context.builder.diagnostic('error', 'provider hook failed', {
+          providerId: spec.id,
+          providerVersion: spec.version,
+          code: failure.code,
+          phase,
+          unitRef: descriptor.unit_ref,
+          error: failure.message
+        });
+        return failure;
       };
 
-      const unresolved = thrownFailure
-        ? []
-        : normalizeUnresolved(
-            spec.unresolved
-              ? await spec.unresolved(context, unit, liveFragment, value)
-              : []
-          );
+      try {
+        dependencyFingerprint = await computeDependencyFingerprint(spec, context, unit, descriptor);
+      } catch (error) {
+        recordHookFailure('dependencyFingerprint', error);
+        acquisitionFailed = true;
+      }
 
-      const failures = [];
-      if (thrownFailure) failures.push(thrownFailure.toJSON());
+      if (!acquisitionFailed) {
+        try {
+          value = await spec.acquire(context, unit);
+        } catch (error) {
+          recordHookFailure('acquire', error, spec.failureClass ?? 'PARSE_FAILED');
+          acquisitionFailed = true;
+        }
+      }
+
+      let fragment = captureFragment();
+      let unresolved = [];
+
+      if (!acquisitionFailed && typeof spec.unresolved === 'function') {
+        try {
+          unresolved = normalizeUnresolved(
+            await spec.unresolved(context, unit, fragment, value)
+          );
+        } catch (error) {
+          recordHookFailure('unresolved', error);
+          unresolved = [];
+          fragment = captureFragment();
+        }
+      }
 
       if (typeof spec.classifyDiagnostic === 'function') {
-        for (const diagnostic of liveFragment.diagnostics) {
-          const classified = spec.classifyDiagnostic(diagnostic, context, unit);
-          if (!classified) continue;
-          const code = typeof classified === 'string' ? classified : classified.code;
-          const message = typeof classified === 'string'
-            ? diagnostic.reason ?? diagnostic.message ?? 'provider diagnostic failure'
-            : classified.message ?? diagnostic.reason ?? diagnostic.message ?? 'provider diagnostic failure';
-          const details = typeof classified === 'string' ? diagnostic : { ...diagnostic, ...(classified.details ?? {}) };
-          const failure = new ProviderFailure(code, String(message), {
-            providerId: spec.id,
-            providerVersion: spec.version,
-            unitRef: descriptor.unit_ref,
-            details
-          }).toJSON();
-          if (!failures.some(existing => existing.code === failure.code && existing.message === failure.message)) {
-            failures.push(failure);
+        const diagnosticsToClassify = [...fragment.diagnostics];
+        for (const diagnostic of diagnosticsToClassify) {
+          try {
+            const classified = spec.classifyDiagnostic(diagnostic, context, unit);
+            if (!classified) continue;
+            const code = typeof classified === 'string' ? classified : classified.code;
+            const message = typeof classified === 'string'
+              ? diagnostic.reason ?? diagnostic.message ?? 'provider diagnostic failure'
+              : classified.message ?? diagnostic.reason ?? diagnostic.message ?? 'provider diagnostic failure';
+            const details = typeof classified === 'string'
+              ? diagnostic
+              : { ...diagnostic, ...(classified.details ?? {}) };
+            const failure = new ProviderFailure(code, String(message), {
+              providerId: spec.id,
+              providerVersion: spec.version,
+              unitRef: descriptor.unit_ref,
+              details
+            }).toJSON();
+            pushUniqueFailure(failures, failure);
+          } catch (error) {
+            recordHookFailure('classifyDiagnostic', error);
           }
         }
       }
 
+      fragment = captureFragment();
       const shouldEmitEvidence =
-        !thrownFailure &&
+        !acquisitionFailed &&
         Boolean(spec.evidenceKind) &&
         (
-          liveFragment.nodes.length > 0 ||
-          liveFragment.edges.length > 0 ||
+          fragment.nodes.length > 0 ||
+          fragment.edges.length > 0 ||
           unresolved.length > 0 ||
           Boolean(spec.emitEmptyEvidence)
         );
 
       const evidence = [];
       if (shouldEmitEvidence) {
-        const provenance = {
-          repository_id: context.repository.repository_id,
-          snapshot_id: context.snapshot.snapshot_id,
-          provider_id: spec.id,
-          provider_version: spec.version,
-          extraction_method: spec.extractionMethod ?? 'provider-wrapper-v1',
-          ...descriptor.provenance,
-          ...(spec.provenance
-            ? await spec.provenance(context, unit, liveFragment, value, descriptor)
-            : {})
-        };
+        let evidenceBlocked = false;
+        let customProvenance = {};
 
-        const observation = spec.observation
-          ? await spec.observation(context, unit, liveFragment, value, unresolved, descriptor)
-          : {
+        if (typeof spec.provenance === 'function') {
+          try {
+            customProvenance =
+              await spec.provenance(context, unit, fragment, value, descriptor) ?? {};
+          } catch (error) {
+            recordHookFailure('provenance', error);
+            evidenceBlocked = true;
+          }
+        }
+
+        let observation;
+        if (!evidenceBlocked) {
+          if (typeof spec.observation === 'function') {
+            try {
+              observation =
+                await spec.observation(context, unit, fragment, value, unresolved, descriptor);
+            } catch (error) {
+              recordHookFailure('observation', error);
+              evidenceBlocked = true;
+            }
+          } else {
+            observation = {
               unit_ref: descriptor.unit_ref,
               graph_delta: {
-                nodes_added: liveFragment.nodes.length,
-                edges_added: liveFragment.edges.length,
-                diagnostics_added: liveFragment.diagnostics.length
+                nodes_added: fragment.nodes.length,
+                edges_added: fragment.edges.length,
+                diagnostics_added: fragment.diagnostics.length
               },
               unresolved_references: unresolved
             };
+          }
+        }
 
-        evidence.push(createEvidenceRecord({
-          kind: spec.evidenceKind,
-          observation,
-          provenance,
-          trustClass: spec.trustClass ?? 'ENGINE_TRUSTED',
-          providerId: spec.id,
-          providerVersion: spec.version
-        }));
+        if (!evidenceBlocked) {
+          const provenance = {
+            repository_id: context.repository.repository_id,
+            snapshot_id: context.snapshot.snapshot_id,
+            provider_id: spec.id,
+            provider_version: spec.version,
+            extraction_method: spec.extractionMethod ?? 'provider-wrapper-v1',
+            ...descriptor.provenance,
+            ...customProvenance
+          };
+
+          try {
+            evidence.push(createEvidenceRecord({
+              kind: spec.evidenceKind,
+              observation,
+              provenance,
+              trustClass: spec.trustClass ?? 'ENGINE_TRUSTED',
+              providerId: spec.id,
+              providerVersion: spec.version
+            }));
+          } catch (error) {
+            recordHookFailure('evidenceRecord', error);
+          }
+        }
       }
 
+      fragment = captureFragment();
       return {
         provider: {
           id: spec.id,
@@ -212,18 +255,19 @@ export function createEvidenceProvider(spec) {
         unit_ref: descriptor.unit_ref,
         evidence,
         graph_fragment: {
-          nodes: structuredClone(liveFragment.nodes),
-          edges: structuredClone(liveFragment.edges)
+          nodes: structuredClone(fragment.nodes),
+          edges: structuredClone(fragment.edges)
         },
-        diagnostics: structuredClone(liveFragment.diagnostics),
+        diagnostics: structuredClone(fragment.diagnostics),
         failures,
         unresolved_references: unresolved,
         metrics: {
-          nodes_added: liveFragment.nodes.length,
-          edges_added: liveFragment.edges.length,
-          diagnostics_added: liveFragment.diagnostics.length,
+          nodes_added: fragment.nodes.length,
+          edges_added: fragment.edges.length,
+          diagnostics_added: fragment.diagnostics.length,
           evidence_count: evidence.length,
-          unresolved_reference_count: unresolved.length
+          unresolved_reference_count: unresolved.length,
+          failure_count: failures.length
         },
         value
       };
@@ -231,6 +275,44 @@ export function createEvidenceProvider(spec) {
   };
 
   return Object.freeze(provider);
+}
+
+async function computeDependencyFingerprint(spec, context, unit, descriptor) {
+  const custom = spec.dependencyFingerprint
+    ? await spec.dependencyFingerprint(context, unit, descriptor)
+    : null;
+  return digestObject({
+    provider_id: spec.id,
+    provider_version: spec.version,
+    snapshot_id: context.snapshot.snapshot_id,
+    unit: descriptor.fingerprint,
+    custom
+  });
+}
+
+function providerHookFailure(spec, unitRef, phase, error, fallbackCode = 'INTERNAL_INVARIANT') {
+  const code = FAILURE_CODE_SET.has(error?.code) ? error.code : fallbackCode;
+  return new ProviderFailure(
+    code,
+    error?.message ? String(error.message) : 'provider hook failed',
+    {
+      providerId: spec.id,
+      providerVersion: spec.version,
+      unitRef,
+      cause: error,
+      details: { phase }
+    }
+  );
+}
+
+function pushUniqueFailure(failures, failure) {
+  if (!failures.some(existing =>
+    existing.code === failure.code &&
+    existing.message === failure.message &&
+    existing.details?.phase === failure.details?.phase
+  )) {
+    failures.push(failure);
+  }
 }
 
 export async function acquireAndRecord(provider, context, unit = {}) {
