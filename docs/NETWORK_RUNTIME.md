@@ -197,6 +197,10 @@ M5 は Forge の client command dispatcher がその command を consume した�
 M6 は `ysm_molang_state_applied` semantic が実際に存在する場合だけ observed。
 M5 から推測補完しない。既存の M5=true fixture でも M6 は unobserved のままになる。
 
+正式M6のproducerが出す `packetTraceIds` もedge evidenceとして保持する。M3側の
+`packetTraceId` とpre-dispatch/M6側のIDを辿れば、同じ式が繰り返された場合でも
+「どのpacket handler由来か」を診断できる。ただしCODE-LAB側でIDを補完・推測はしない。
+
 また `ysm_state_correlated` は、post-state が一致したが controlled E2 資格や
 pre→post の因果証明が不足した弱い証拠なので、`OBSERVED_YSM_STATE_CORRELATED` として保持するだけで
 M6 に昇格させない。
