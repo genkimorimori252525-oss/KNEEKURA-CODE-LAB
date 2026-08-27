@@ -1,5 +1,6 @@
 export const REASONING_TASK_SCHEMA = 'core.reasoning-task/v1';
 export const PROPOSED_CLAIM_SET_SCHEMA = 'core.proposed-claim-set/v1';
+export const MAX_REASONING_PROPOSALS = 64;
 
 const HOST_CLAIM_TYPES = new Set([
   'INFERRED',
@@ -121,7 +122,8 @@ export function normalizeProposedClaimSet(value, {
     throw new TypeError(PROPOSED_CLAIM_SET_SCHEMA + ' is required');
   }
 
-  const proposals = rawProposals.map((proposal, index) =>
+  const acceptedRaw = rawProposals.slice(0, MAX_REASONING_PROPOSALS);
+  const proposals = acceptedRaw.map((proposal, index) =>
     normalizeProposal(proposal, index)
   );
 
@@ -131,7 +133,9 @@ export function normalizeProposedClaimSet(value, {
       id: String(bridgeId),
       version: String(bridgeVersion)
     },
-    proposals
+    proposals,
+    rejected_excess_count:
+      Math.max(0, rawProposals.length - MAX_REASONING_PROPOSALS)
   };
 }
 
