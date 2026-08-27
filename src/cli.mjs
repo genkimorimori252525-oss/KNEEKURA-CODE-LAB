@@ -4,6 +4,7 @@ import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { scanRepository } from './core/scan.mjs';
 import { scanWorkspace, parseWorkspaceRepoSpec } from './core/workspace.mjs';
+import { writeHumanViewerBundle } from './viewer/bundle.mjs';
 
 const args = process.argv.slice(2);
 const cmd = args.shift();
@@ -29,7 +30,28 @@ if (cmd === 'scan') {
   await writeGraph(out, graph);
   const boundary = graph.meta.workspace?.boundaryEdgeCount ?? 0;
   console.log(`KNEEKURA workspace: ${repos.map(r=>r.name).join(' + ')} -> ${graph.nodes.length} nodes / ${graph.edges.length} edges / ${boundary} boundary edges -> ${out}`);
+} else if (cmd === 'viewer-bundle') {
+  const resultFile = flag('--result');
+  const graphFile = flag('--graph');
+  if (!resultFile || !graphFile) {
+    throw new Error('viewer-bundle requires --result and --graph');
+  }
+  const outDir = flag('--out','dist/viewer-bundle');
+  const [result, graph] = await Promise.all([
+    readJson(resultFile),
+    readJson(graphFile)
+  ]);
+  const bundle = await writeHumanViewerBundle({
+    result,
+    graph,
+    outDir
+  });
+  console.log(
+    `KNEEKURA viewer bundle: ${bundle.evidence_count} evidence refs -> ${bundle.root}`
+  );
 } else if (cmd === 'serve') {
+  const bundleArg = flag('--bundle');
+  const bundleRoot = bundleArg ? path.resolve(bundleArg) : null;
   const graphFile = path.resolve(flag('--graph','dist/graph.json'));
   const port = Number(flag('--port','8789'));
   const here = path.dirname(fileURLToPath(import.meta.url));
@@ -38,23 +60,57 @@ if (cmd === 'scan') {
     try {
       const requestPath = decodeURIComponent(new URL(req.url, 'http://127.0.0.1').pathname);
       let target;
-      if (requestPath === '/graph.json') target = graphFile;
-      else {
+
+      if (bundleRoot && isBundleResource(requestPath)) {
+        const rel = requestPath.replace(/^\/+/, '');
+        target = path.resolve(bundleRoot, rel);
+        if (target !== bundleRoot && !target.startsWith(bundleRoot + path.sep)) {
+          res.statusCode = 403; res.end('forbidden'); return;
+        }
+      } else if (!bundleRoot && requestPath === '/graph.json') {
+        target = graphFile;
+      } else {
         const rel = requestPath === '/' ? 'index.html' : requestPath.replace(/^\/+/, '');
         target = path.resolve(viewer, rel);
         if (target !== viewer && !target.startsWith(viewer + path.sep)) {
           res.statusCode = 403; res.end('forbidden'); return;
         }
       }
+
       const data = await fs.readFile(target);
       const ext = path.extname(target);
-      res.setHeader('content-type', ext==='.html'?'text/html; charset=utf-8':ext==='.js'?'text/javascript; charset=utf-8':ext==='.css'?'text/css; charset=utf-8':'application/json; charset=utf-8');
+      res.setHeader(
+        'content-type',
+        ext==='.html'
+          ? 'text/html; charset=utf-8'
+          : ext==='.js' || ext==='.mjs'
+            ? 'text/javascript; charset=utf-8'
+            : ext==='.css'
+              ? 'text/css; charset=utf-8'
+              : 'application/json; charset=utf-8'
+      );
       res.end(data);
-    } catch { res.statusCode=404; res.end('not found'); }
+    } catch {
+      res.statusCode=404;
+      res.end('not found');
+    }
   });
   server.listen(port,'127.0.0.1',()=>console.log(`KNEEKURA-CODE-LAB viewer: http://127.0.0.1:${port}`));
 } else {
-  console.log('usage:\n  node src/cli.mjs scan <repo> --out dist/graph.json [--codegraph file.json] [--understand project-or-graph] [--trace trace.jsonl] [--pose stamp.pose.json] [--palette stamp.pal.json] [--net process.net.jsonl ...] [--allow-v1-pose] [--allow-v1-palette] [--allow-unbound-net]\n  node src/cli.mjs workspace --repo tlm=C:\\path\\to\\tlm --repo ysm=C:\\path\\to\\ysm --out dist/workspace.json\n  node src/cli.mjs serve --graph dist/graph.json [--port 8789]');
+  console.log('usage:\n  node src/cli.mjs scan <repo> --out dist/graph.json [--codegraph file.json] [--understand project-or-graph] [--trace trace.jsonl] [--pose stamp.pose.json] [--palette stamp.pal.json] [--net process.net.jsonl ...] [--allow-v1-pose] [--allow-v1-palette] [--allow-unbound-net]\n  node src/cli.mjs workspace --repo tlm=C:\\path\\to\\tlm --repo ysm=C:\\path\\to\\ysm --out dist/workspace.json\n  node src/cli.mjs viewer-bundle --result dist/analysis-result.json --graph dist/graph.json --out dist/viewer-bundle\n  node src/cli.mjs serve --graph dist/graph.json [--port 8789]\n  node src/cli.mjs serve --bundle dist/viewer-bundle [--port 8789]');
+}
+
+async function readJson(file) {
+  return JSON.parse(await fs.readFile(path.resolve(file), 'utf8'));
+}
+
+function isBundleResource(requestPath) {
+  return [
+    '/viewer-manifest.json',
+    '/analysis-result.json',
+    '/graph.json'
+  ].includes(requestPath) ||
+    requestPath.startsWith('/refs/');
 }
 
 async function writeGraph(out, graph) {
