@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import {
   createRepositoryIdentity,
@@ -20,6 +22,7 @@ import {
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const identityFixture = JSON.parse(await fs.readFile(path.join(ROOT, 'fixtures/core/pr-a/identity.json'), 'utf8'));
 const workspaceFixture = JSON.parse(await fs.readFile(path.join(ROOT, 'fixtures/core/pr-a/workspace-states.json'), 'utf8'));
+const execFileAsync = promisify(execFile);
 
 test('RepositoryIdentity canonicalizes common GitHub remote spellings without local path influence', () => {
   const ids = identityFixture.equivalentRemotes.map((remote, index) => createRepositoryIdentity({
@@ -30,6 +33,15 @@ test('RepositoryIdentity canonicalizes common GitHub remote spellings without lo
   }));
   assert.equal(new Set(ids.map(identity => identity.repository_id)).size, 1);
   assert.equal(normalizeGitRemote(identityFixture.equivalentRemotes[0]), 'github.com/genkimorimori252525-oss/kneekura-code-lab');
+});
+
+test('RepositoryIdentity preserves Windows drive local remotes without dropping drive identity', () => {
+  assert.equal(normalizeGitRemote('C:\\Users\\one\\repo.git'), 'local:c:/Users/one/repo');
+  assert.equal(normalizeGitRemote('c:/Users/one/repo.git'), 'local:c:/Users/one/repo');
+  assert.notEqual(
+    createRepositoryIdentity({ root: '/tmp/a', remote: 'C:\\repos\\same.git', vcs: 'git' }).repository_id,
+    createRepositoryIdentity({ root: '/tmp/b', remote: 'D:\\repos\\same.git', vcs: 'git' }).repository_id
+  );
 });
 
 test('RepositoryIdentity avoids lossy path-replacement collisions and remains stable', () => {
@@ -89,6 +101,27 @@ test('WORKSPACE SnapshotIdentity distinguishes tracked, modified, untracked and 
   assert.equal(createWorkspaceSnapshot(repo, { baseCommit: base, entries: [
     { path: 'src/A.java', state: 'TRACKED', digest: workspaceFixture.trackedDigest }
   ]}).snapshot_id, tracked.snapshot_id);
+});
+
+test('WORKSPACE SnapshotIdentity represents a porcelain -z rename as modified destination plus deleted source', async t => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'kneekura-snapshot-rename-'));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+
+  await execFileAsync('git', ['-C', dir, 'init']);
+  await execFileAsync('git', ['-C', dir, 'config', 'user.email', 'fixture@example.invalid']);
+  await execFileAsync('git', ['-C', dir, 'config', 'user.name', 'Fixture']);
+  await fs.writeFile(path.join(dir, 'Old.java'), 'class Old {}\n');
+  await execFileAsync('git', ['-C', dir, 'add', 'Old.java']);
+  await execFileAsync('git', ['-C', dir, 'commit', '-m', 'fixture']);
+  await execFileAsync('git', ['-C', dir, 'mv', 'Old.java', 'Renamed.java']);
+
+  const repository = await resolveRepositoryIdentity(dir);
+  const snapshot = await captureWorkspaceSnapshot(dir, repository);
+  const byPath = new Map(snapshot.content_manifest.map(entry => [entry.path, entry]));
+
+  assert.equal(byPath.get('Renamed.java')?.state, 'MODIFIED');
+  assert.equal(byPath.get('Old.java')?.state, 'DELETED');
+  assert.equal(byPath.get('Old.java')?.digest, null);
 });
 
 test('MULTI_REPO SnapshotIdentity changes when one constituent changes', () => {

@@ -197,7 +197,10 @@ async function readGitStatus(root) {
     if (xy === '??') state = 'UNTRACKED';
     else if (xy.includes('D')) state = 'DELETED';
     map.set(relative, state);
-    if ((xy.includes('R') || xy.includes('C')) && i + 1 < records.length) i += 1;
+    if ((xy.includes('R') || xy.includes('C')) && i + 1 < records.length) {
+      const original = normalizeRelativePath(records[++i]);
+      if (xy.includes('R') && original) map.set(original, 'DELETED');
+    }
   }
   return map;
 }

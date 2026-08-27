@@ -43,6 +43,40 @@ test('workspace scan preserves existing boundary metadata and adds per-repositor
   assert.equal(graph.meta.snapshot?.kind, 'MULTI_REPO');
 });
 
+test('workspace merge does not synthesize MULTI_REPO metadata for a single independently merged graph', () => {
+  const graph = mergeWorkspaceGraphs([
+    {
+      name: 'single',
+      graph: {
+        root: '/single',
+        nodes: [],
+        edges: [],
+        meta: {
+          analyzers: [],
+          repository: {
+            schema: 'core.repository-identity/v1',
+            vcs: 'filesystem',
+            canonical_identity: 'filesystem:root:/single',
+            repository_id: `repo:sha256:${'1'.repeat(64)}`
+          },
+          snapshot: {
+            schema: 'core.snapshot-identity/v1',
+            kind: 'WORKSPACE',
+            repository_id: `repo:sha256:${'1'.repeat(64)}`,
+            content_manifest_digest: `sha256:${'2'.repeat(64)}`,
+            content_manifest: [],
+            snapshot_id: `snapshot:sha256:${'3'.repeat(64)}`
+          }
+        }
+      }
+    }
+  ]);
+
+  assert.deepEqual(graph.meta.workspace.repositories, ['single']);
+  assert.equal(graph.meta.repositories.length, 1);
+  assert.equal(Object.hasOwn(graph.meta, 'snapshot'), false);
+});
+
 test('workspace merge remains compatible with handcrafted graphs that do not carry identity metadata', () => {
   const graph = mergeWorkspaceGraphs([
     { name: 'left', graph: { root: '/left', nodes: [], edges: [], meta: { analyzers: [] } } },

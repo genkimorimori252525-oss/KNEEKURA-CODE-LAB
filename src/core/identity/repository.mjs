@@ -12,7 +12,16 @@ export function normalizeGitRemote(remote) {
   if (typeof remote !== 'string' || !remote.trim()) throw new TypeError('git remote must be a non-empty string');
   let value = remote.trim().replace(/\\/g, '/');
 
-  if (!/^[A-Za-z]:\//.test(value) && !value.includes('://')) {
+  if (/^[A-Za-z]:\//.test(value)) {
+    const local = value
+      .replace(/^([A-Z]):/, (_, drive) => `${drive.toLowerCase()}:`)
+      .replace(/\.git$/i, '')
+      .replace(/\/+$/g, '');
+    if (!local) throw new TypeError('git remote is malformed');
+    return `local:${local}`;
+  }
+
+  if (!value.includes('://')) {
     const scp = value.match(/^(?:[^@/\s]+@)?([^:/\s]+):(.+)$/);
     if (scp) value = `ssh://${scp[1]}/${scp[2]}`;
   }

@@ -102,7 +102,7 @@ export function mergeWorkspaceGraphs(entries) {
     .map(entry => entry.snapshot)
     .filter(Boolean);
 
-  if (constituents.length === entries.length) {
+  if (entries.length >= 2 && constituents.length === entries.length) {
     result.meta.snapshot = createMultiRepoSnapshot(constituents);
   }
   return result;
