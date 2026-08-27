@@ -41,6 +41,7 @@ export function restoreExplorationLedger(value, {
   };
   if (targetSnapshotId != null) ledger.snapshot_id = targetSnapshotId;
   for (const entry of ledger.acquisitions) {
+    validateAcquisitionEntry(entry);
     entry.stale = Boolean(entry.stale);
     entry.stale_reasons ??= [];
     entry.dependencies = canonicalRefs(entry.dependencies ?? []);
@@ -71,6 +72,11 @@ export function recordProviderAcquisition(ledger, {
   if (!Number.isFinite(fidelity) || fidelity < 0) {
     throw new TypeError('fidelity must be a non-negative number');
   }
+  validateProviderResultIdentity(result, {
+    providerId,
+    providerVersion,
+    dependencyFingerprint
+  });
 
   const entry = {
     provider_id: providerId,
@@ -125,7 +131,7 @@ export function findReusableAcquisition(ledger, {
 
     return Boolean(
       entry.dependency_fingerprint === dependencyFingerprint &&
-      (!targetSnapshotId || !entry.snapshot_id || entry.snapshot_id === targetSnapshotId)
+      (!targetSnapshotId || entry.snapshot_id === targetSnapshotId)
     );
   });
 
@@ -274,6 +280,45 @@ export function evaluateClaimReuse(claim, {
     reusable: reasons.length === 0,
     reasons
   };
+}
+
+function validateAcquisitionEntry(entry) {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+    throw new TypeError('exploration acquisition must be an object');
+  }
+  requireString(entry.provider_id, 'acquisition.provider_id');
+  requireString(entry.provider_version, 'acquisition.provider_version');
+  requireString(entry.dependency_fingerprint, 'acquisition.dependency_fingerprint');
+  if (entry.snapshot_id != null) requireString(entry.snapshot_id, 'acquisition.snapshot_id');
+  if (!Number.isFinite(entry.fidelity) || entry.fidelity < 0) {
+    throw new TypeError('acquisition.fidelity must be a non-negative number');
+  }
+  validateProviderResultIdentity(entry.provider_result, {
+    providerId: entry.provider_id,
+    providerVersion: entry.provider_version,
+    dependencyFingerprint: entry.dependency_fingerprint
+  });
+  return true;
+}
+
+function validateProviderResultIdentity(result, {
+  providerId,
+  providerVersion,
+  dependencyFingerprint
+}) {
+  if (!result || typeof result !== 'object' || Array.isArray(result)) {
+    throw new TypeError('provider result is required');
+  }
+  if (result.provider?.id !== providerId || result.provider?.version !== providerVersion) {
+    throw new Error('provider result identity mismatch');
+  }
+  if (
+    result.dependency_fingerprint != null &&
+    result.dependency_fingerprint !== dependencyFingerprint
+  ) {
+    throw new Error('provider result dependency fingerprint mismatch');
+  }
+  return true;
 }
 
 function acquisitionIdentity(entry) {
