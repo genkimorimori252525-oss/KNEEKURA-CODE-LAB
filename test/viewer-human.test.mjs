@@ -607,3 +607,40 @@ test('Human Viewer source preserves KNEEKURA filters fidelity and raw evidence a
 
   assert.equal(js.includes('Math.random'), false);
 });
+
+
+test('focused fallback adds exactly one graph hop and does not cascade', () => {
+  const graph = {
+    meta: {},
+    nodes: [
+      { id: 'a', kind: 'class', key: 'A', label: 'A' },
+      { id: 'b', kind: 'class', key: 'B', label: 'B' },
+      { id: 'c', kind: 'class', key: 'C', label: 'C' },
+      { id: 'd', kind: 'class', key: 'D', label: 'D' }
+    ],
+    edges: [
+      { id: 'ab', from: 'a', to: 'b', type: 'CALLS' },
+      { id: 'bc', from: 'b', to: 'c', type: 'CALLS' },
+      { id: 'cd', from: 'c', to: 'd', type: 'CALLS' }
+    ]
+  };
+  const result = {
+    schema: 'core.analysis-result/v1',
+    affected_symbols: [{ node_id: 'a' }],
+    graph_paths: [],
+    claims: [],
+    coverage: { entries: [] }
+  };
+
+  const projection = projectGraph(graph, result, {
+    focused: true
+  });
+  assert.deepEqual(
+    projection.nodes.map(node => node.id).sort(),
+    ['a', 'b']
+  );
+  assert.deepEqual(
+    projection.edges.map(edge => edge.id),
+    ['ab']
+  );
+});
