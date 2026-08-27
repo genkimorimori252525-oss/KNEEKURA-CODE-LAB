@@ -1,0 +1,298 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { GraphBuilder } from '../src/core/graph.mjs';
+import { planScope } from '../src/core/scope/planner.mjs';
+import {
+  createCoverageManifest,
+  updateCoverageEntry,
+  finalizeCoverage,
+  assertCoveragePartition
+} from '../src/core/scope/coverage.mjs';
+import { resolveRules } from '../src/core/rules/resolver.mjs';
+import { buildSemanticAnalysisUnits } from '../src/core/scope/semantic-unit.mjs';
+import { planDeterministicAnalysis } from '../src/core/planning.mjs';
+
+function fixtureGraph() {
+  const b = new GraphBuilder('/fixture');
+  const fileA = b.node('file', 'src/A.java', { path: 'src/A.java', language: 'java' });
+  const fileB = b.node('file', 'src/B.java', { path: 'src/B.java', language: 'java' });
+  const fileC = b.node('file', 'src/C.java', { path: 'src/C.java', language: 'java' });
+  const service = b.node('class', 'demo.a.Foo', { label: 'Foo', path: 'src/A.java', language: 'java' });
+  const otherFoo = b.node('class', 'demo.b.Foo', { label: 'Foo', path: 'src/B.java', language: 'java' });
+  const repo = b.node('class', 'demo.repo.Repository', { label: 'Repository', path: 'src/C.java', language: 'java' });
+  const config = b.node('resource', 'config/demo.json', { label: 'demo.json', path: 'config/demo.json' });
+  const unrelated = b.node('class', 'demo.unrelated.Other', { label: 'Other', path: 'src/Other.java', language: 'java' });
+  const runtime = b.node('runtime_entity', 'entity-42', { label: 'entity-42', run: 'run-42', uuid: 'uuid-42', runtimeObserved: true });
+
+  b.edge(fileA, service, 'DECLARES', { source: 'src/A.java' });
+  b.edge(fileB, otherFoo, 'DECLARES', { source: 'src/B.java' });
+  b.edge(fileC, repo, 'DECLARES', { source: 'src/C.java' });
+  b.edge(service, repo, 'CALLS', { source: 'src/A.java', confidence: 1 });
+  b.edge(repo, config, 'REFERENCES', { source: 'src/C.java', confidence: 1 });
+  b.edge(repo, unrelated, 'CORRELATED_WITH', { source: 'history', confidence: 1, strength: 'CORRELATED' });
+
+  const graph = b.finish();
+  graph.meta.repository = {
+    schema: 'core.repository-identity/v1',
+    vcs: 'filesystem',
+    canonical_identity: 'local:/fixture',
+    repository_id: 'repo:sha256:' + '1'.repeat(64)
+  };
+  graph.meta.snapshot = {
+    schema: 'core.snapshot-identity/v1',
+    kind: 'WORKSPACE',
+    repository_id: graph.meta.repository.repository_id,
+    snapshot_id: 'snapshot:sha256:' + '2'.repeat(64),
+    base_commit: null,
+    content_manifest_digest: 'sha256:' + '3'.repeat(64),
+    content_manifest: [],
+    index_digest: null
+  };
+  graph.meta.platform = {
+    detected: { loader: 'forge' },
+    primaryTarget: { key: 'forge-1.20.1-47.x' },
+    compatibility: 'PRIMARY_EXACT'
+  };
+  graph.meta.evidence = [{
+    schema: 'core.evidence/v1',
+    id: 'evidence:runtime-42',
+    kind: 'RUNTIME',
+    observation: { entity: 'entity-42' },
+    provenance: {
+      repository_id: graph.meta.repository.repository_id,
+      snapshot_id: graph.meta.snapshot.snapshot_id,
+      provider_id: 'runtime-test',
+      provider_version: 'v1',
+      extraction_method: 'fixture',
+      artifact_id: 'artifact:runtime-42',
+      artifact_digest: 'sha256:' + '4'.repeat(64),
+      runtime_run_id: 'run-42'
+    },
+    integrity_digest: 'sha256:' + '5'.repeat(64),
+    trust_class: 'RUNTIME_MEASURED',
+    provider_id: 'runtime-test',
+    provider_version: 'v1'
+  }];
+  return { graph, nodes: { fileA, fileB, fileC, service, otherFoo, repo, config, unrelated, runtime } };
+}
+
+test('scope planner resolves exact paths, graph nodes, runtime refs and explicit ambiguous symbol candidates', () => {
+  const { graph, nodes } = fixtureGraph();
+  const plan = planScope(graph, {
+    mode: 'TRACE',
+    seeds: [
+      { kind: 'PATH', value: 'src/A.java' },
+      { kind: 'SYMBOL', value: 'Foo' },
+      { kind: 'GRAPH_NODE', value: nodes.repo.id },
+      { kind: 'RUNTIME_REF', value: 'run-42' }
+    ]
+  }, { maxDepth: 0 });
+
+  const symbolSeed = plan.seeds.find(item => item.seed.kind === 'SYMBOL');
+  assert.equal(symbolSeed.status, 'AMBIGUOUS');
+  assert.equal(symbolSeed.candidate_ids.length, 2);
+  assert.equal(plan.selected_ids.includes('node:' + nodes.fileA.id), true);
+  assert.equal(plan.selected_ids.includes('node:' + nodes.repo.id), true);
+  assert.equal(plan.selected_ids.includes('node:' + nodes.runtime.id), true);
+  assert.equal(plan.selected_ids.includes('evidence:evidence:runtime-42'), true);
+  assert.equal(plan.decisions.every(item => item.planner_id === 'core-scope-planner'), true);
+});
+
+test('diff file seed is resolved as a primary path seed', () => {
+  const { graph, nodes } = fixtureGraph();
+  const plan = planScope(graph, {
+    mode: 'REVIEW',
+    seeds: [{ kind: 'DIFF_FILE', value: 'src/B.java' }]
+  }, { maxDepth: 0 });
+
+  const item = plan.items.find(entry => entry.node_id === nodes.fileB.id);
+  assert.ok(item);
+  assert.equal(item.role, 'PRIMARY');
+});
+
+test('explicit depth horizon produces BOUNDED coverage rather than pretending completeness', () => {
+  const { graph, nodes } = fixtureGraph();
+  const plan = planScope(graph, {
+    mode: 'TRACE',
+    seeds: [{ kind: 'GRAPH_NODE', value: nodes.service.id }]
+  }, { maxDepth: 1 });
+
+  const terminal = finalizeCoverage(
+    plan.coverage.entries.reduce((manifest, entry) => {
+      if (entry.status === 'PENDING') updateCoverageEntry(manifest, entry.id, 'ANALYZED');
+      return manifest;
+    }, structuredClone(plan.coverage))
+  );
+
+  assert.equal(terminal.completeness, 'BOUNDED');
+  assert.equal(
+    terminal.entries.some(entry => entry.reason_code === 'DEPTH_HORIZON' && entry.status === 'UNEXPLORED'),
+    true
+  );
+});
+
+test('analyzer failure yields PARTIAL coverage and terminal manifest has no pending entries', () => {
+  const manifest = createCoverageManifest([
+    { id: 'a', role: 'PRIMARY' },
+    { id: 'b', role: 'DEPENDENCY' }
+  ]);
+  updateCoverageEntry(manifest, 'a', 'ANALYZED');
+  updateCoverageEntry(manifest, 'b', 'FAILED', {
+    reason: 'parser failed',
+    reasonCode: 'PARSE_FAILED'
+  });
+  const terminal = finalizeCoverage(manifest);
+
+  assert.equal(terminal.completeness, 'PARTIAL');
+  assertCoveragePartition(terminal, ['a','b']);
+});
+
+test('unenumerable candidate universe yields UNKNOWN even when selected items are analyzed', () => {
+  const manifest = createCoverageManifest([
+    { id: 'a', role: 'PRIMARY' }
+  ], { universeEnumerable: false });
+  updateCoverageEntry(manifest, 'a', 'ANALYZED');
+  const terminal = finalizeCoverage(manifest);
+  assert.equal(terminal.completeness, 'UNKNOWN');
+});
+
+test('coverage finalizer converts silently pending items into explicit unexplored gaps', () => {
+  const terminal = finalizeCoverage(createCoverageManifest([
+    { id: 'a', role: 'PRIMARY' }
+  ]));
+  assert.equal(terminal.entries[0].status, 'UNEXPLORED');
+  assert.equal(terminal.entries[0].reason_code, 'FINALIZE_BACKSTOP');
+  assert.equal(terminal.completeness, 'PARTIAL');
+});
+
+test('rule resolver records applied/rejected rules and request precedence shadows repository rule', () => {
+  const { graph, nodes } = fixtureGraph();
+  const scope = planScope(graph, {
+    mode: 'TRACE',
+    seeds: [{ kind: 'GRAPH_NODE', value: nodes.service.id }]
+  }, { maxDepth: 1 });
+
+  const resolution = resolveRules({
+    graph,
+    request: {
+      mode: 'TRACE',
+      ruleset_overrides: [{
+        rule_id: 'demo.same',
+        version: 'request-v1',
+        selectors: { modes: ['TRACE'] },
+        content_reference: 'request-rule'
+      }]
+    },
+    scope,
+    repositoryRules: [{
+      rule_id: 'demo.same',
+      version: 'repo-v1',
+      selectors: { modes: ['TRACE'] },
+      content_reference: 'repo-rule'
+    }, {
+      rule_id: 'demo.audit-only',
+      version: 'v1',
+      selectors: { modes: ['AUDIT'] },
+      content_reference: 'audit-only'
+    }]
+  });
+
+  const winner = resolution.applied.find(rule => rule.rule_id === 'demo.same');
+  assert.equal(winner.version, 'request-v1');
+  assert.equal(winner.source_class, 'request');
+  assert.equal(
+    resolution.rejected.some(rule => rule.rule_id === 'demo.same' && /shadowed/.test(rule.reason)),
+    true
+  );
+  assert.equal(
+    resolution.rejected.some(rule => rule.rule_id === 'demo.audit-only' && /selector mismatch/.test(rule.reason)),
+    true
+  );
+  assert.match(resolution.resolution_fingerprint, /^sha256:[0-9a-f]{64}$/);
+});
+
+test('SAUs group strong semantic relationships but do not group correlated unrelated nodes', () => {
+  const { graph, nodes } = fixtureGraph();
+  const scope = planScope(graph, {
+    mode: 'DIAGNOSE',
+    seeds: [
+      { kind: 'GRAPH_NODE', value: nodes.service.id },
+      { kind: 'GRAPH_NODE', value: nodes.unrelated.id }
+    ]
+  }, { maxDepth: 2 });
+  const rules = resolveRules({ graph, request: { mode: 'DIAGNOSE' }, scope });
+  const result = buildSemanticAnalysisUnits(graph, scope, rules, { maxUnitItems: 20 });
+
+  const serviceUnit = result.units.find(unit =>
+    [...unit.primary_targets, ...unit.dependency_items, ...unit.supporting_items]
+      .includes('node:' + nodes.service.id)
+  );
+  const unrelatedUnit = result.units.find(unit =>
+    [...unit.primary_targets, ...unit.dependency_items, ...unit.supporting_items]
+      .includes('node:' + nodes.unrelated.id)
+  );
+
+  assert.ok(serviceUnit);
+  assert.ok(unrelatedUnit);
+  assert.notEqual(serviceUnit.id, unrelatedUnit.id);
+  assert.equal(
+    [...serviceUnit.primary_targets, ...serviceUnit.dependency_items, ...serviceUnit.supporting_items]
+      .includes('node:' + nodes.repo.id),
+    true
+  );
+});
+
+test('SAU size split assigns every selected item exactly once', () => {
+  const b = new GraphBuilder('/split');
+  const nodes = [];
+  for (let i = 0; i < 7; i++) nodes.push(b.node('class', 'N' + i, { label: 'N' + i, language: 'java' }));
+  for (let i = 0; i < nodes.length - 1; i++) b.edge(nodes[i], nodes[i + 1], 'CALLS');
+  const graph = b.finish();
+  const scope = planScope(graph, {
+    mode: 'TRACE',
+    seeds: [{ kind: 'GRAPH_NODE', value: nodes[0].id }]
+  }, { maxDepth: 10 });
+  const rules = resolveRules({ graph, request: { mode: 'TRACE' }, scope });
+  const result = buildSemanticAnalysisUnits(graph, scope, rules, { maxUnitItems: 3 });
+
+  assert.equal(result.units.length >= 3, true);
+  const ids = result.units.flatMap(unit => [
+    ...unit.primary_targets,
+    ...unit.dependency_items,
+    ...unit.supporting_items
+  ]);
+  assert.equal(ids.length, new Set(ids).size);
+  assert.deepEqual(new Set(ids), new Set(scope.selected_ids));
+});
+
+test('deterministic planning returns stable scope/rule/SAU fingerprints for identical input', () => {
+  const { graph, nodes } = fixtureGraph();
+  const request = {
+    mode: 'TRACE',
+    seeds: [{ kind: 'GRAPH_NODE', value: nodes.service.id }]
+  };
+  const a = planDeterministicAnalysis(graph, request, { scope: { maxDepth: 2 } });
+  const b = planDeterministicAnalysis(graph, request, { scope: { maxDepth: 2 } });
+
+  assert.equal(a.scope.deterministic_fingerprint, b.scope.deterministic_fingerprint);
+  assert.equal(a.rules.resolution_fingerprint, b.rules.resolution_fingerprint);
+  assert.equal(a.semantic_units.deterministic_fingerprint, b.semantic_units.deterministic_fingerprint);
+  assert.equal(a.deterministic_fingerprint, b.deterministic_fingerprint);
+  assert.equal(a.coverage.entries.some(entry => entry.status === 'PENDING'), false);
+});
+
+test('item budget exhaustion is PARTIAL, not the safer explicit-depth BOUNDED state', () => {
+  const { graph, nodes } = fixtureGraph();
+  const plan = planScope(graph, {
+    mode: 'TRACE',
+    seeds: [{ kind: 'GRAPH_NODE', value: nodes.service.id }]
+  }, { maxDepth: 5, maxItems: 1 });
+
+  const manifest = structuredClone(plan.coverage);
+  for (const entry of manifest.entries) {
+    if (entry.status === 'PENDING') updateCoverageEntry(manifest, entry.id, 'ANALYZED');
+  }
+  const terminal = finalizeCoverage(manifest);
+  assert.equal(terminal.completeness, 'PARTIAL');
+  assert.equal(terminal.entries.some(entry => entry.reason_code === 'BUDGET_EXHAUSTED'), true);
+});
