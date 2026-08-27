@@ -110,10 +110,11 @@ export function projectGraph(graph, result, {
   );
 
   if (edges.length === 0 && nodeIds.size <= 4) {
+    const seedNodeIds = new Set(nodeIds);
     for (const edge of graph.edges) {
       if (
-        nodeIds.has(String(edge.from)) ||
-        nodeIds.has(String(edge.to))
+        seedNodeIds.has(String(edge.from)) ||
+        seedNodeIds.has(String(edge.to))
       ) {
         edges.push(edge);
         nodeIds.add(String(edge.from));
