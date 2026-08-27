@@ -132,7 +132,31 @@ function buildContext(graph, request, scope) {
       .filter(edge => !selectedNodeIds.size || selectedNodeIds.has(edge.from) || selectedNodeIds.has(edge.to))
       .map(edge => edge.type)
   );
-  const evidenceKinds = new Set((graph.meta?.evidence ?? []).map(record => record.kind).filter(Boolean));
+  const evidenceRecords = graph.meta?.evidence ?? [];
+  const selectedEvidenceIds = new Set(
+    (scope?.items ?? [])
+      .filter(item => item.selected !== false && item.evidence_id)
+      .map(item => item.evidence_id)
+  );
+  const runtimeRefs = new Set();
+  for (const node of selectedNodes) {
+    for (const value of [
+      node.runtime_run_id,
+      node.run,
+      node.artifact_id,
+      node.artifactId,
+      node.artifact_digest,
+      node.artifactDigest
+    ]) {
+      if (value != null) runtimeRefs.add(String(value));
+    }
+  }
+  const scopedEvidence = scope?.items
+    ? evidenceRecords.filter(record =>
+        evidenceInScope(record, selectedEvidenceIds, paths, runtimeRefs)
+      )
+    : evidenceRecords;
+  const evidenceKinds = new Set(scopedEvidence.map(record => record.kind).filter(Boolean));
   const riskTags = new Set();
   for (const node of selectedNodes) {
     for (const tag of node.riskTags ?? node.risk_tags ?? []) riskTags.add(tag);
@@ -155,6 +179,20 @@ function buildContext(graph, request, scope) {
     evidenceKinds,
     riskTags
   };
+}
+
+function evidenceInScope(record, selectedEvidenceIds, selectedPaths, runtimeRefs) {
+  if (selectedEvidenceIds.has(record.id)) return true;
+  const provenance = record.provenance ?? {};
+  if (provenance.path && selectedPaths.has(provenance.path)) return true;
+  for (const value of [
+    provenance.runtime_run_id,
+    provenance.artifact_id,
+    provenance.artifact_digest
+  ]) {
+    if (value != null && runtimeRefs.has(String(value))) return true;
+  }
+  return false;
 }
 
 function matchSelectors(selectors, context) {
