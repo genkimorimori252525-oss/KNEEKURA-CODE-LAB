@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+
 export const EXPLORATION_LEDGER_SCHEMA = 'core.exploration-ledger/v1';
 
 export function createExplorationLedger({
@@ -92,6 +94,7 @@ export function recordProviderAcquisition(ledger, {
     evidence_ids: (result?.evidence ?? []).map(item => item.id).sort(),
     provider_result: structuredClone(result)
   };
+  entry.acquisition_digest = acquisitionDigest(entry);
 
   const existing = ledger.acquisitions.find(item =>
     acquisitionIdentity(item) === acquisitionIdentity(entry)
@@ -125,6 +128,7 @@ export function findReusableAcquisition(ledger, {
     );
   }
   const candidates = ledger.acquisitions.filter(entry => {
+    validateAcquisitionEntry(entry);
     if (entry.stale) return false;
     if (entry.provider_id !== providerId || entry.provider_version !== providerVersion) return false;
     if (entry.fidelity < requiredFidelity) return false;
@@ -298,6 +302,10 @@ function validateAcquisitionEntry(entry) {
     providerVersion: entry.provider_version,
     dependencyFingerprint: entry.dependency_fingerprint
   });
+  const expectedDigest = acquisitionDigest(entry);
+  if (entry.acquisition_digest !== expectedDigest) {
+    throw new Error('exploration acquisition content digest mismatch');
+  }
   return true;
 }
 
@@ -320,6 +328,24 @@ function validateProviderResultIdentity(result, {
 
 function jsonPersistable(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function acquisitionDigest(entry) {
+  const basis = {
+    provider_id: entry.provider_id,
+    provider_version: entry.provider_version,
+    dependency_fingerprint: entry.dependency_fingerprint,
+    cache_fingerprint: entry.cache_fingerprint ?? null,
+    cache_scope: entry.cache_scope,
+    fidelity: entry.fidelity,
+    dependencies: canonicalRefs(entry.dependencies ?? []),
+    snapshot_id: entry.snapshot_id ?? null,
+    evidence_ids: canonicalRefs(entry.evidence_ids ?? []),
+    provider_result: entry.provider_result
+  };
+  return 'sha256:' + crypto.createHash('sha256')
+    .update(stableStringify(basis))
+    .digest('hex');
 }
 
 function acquisitionIdentity(entry) {
