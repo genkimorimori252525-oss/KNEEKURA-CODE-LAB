@@ -1,4 +1,42 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KNEEKURA CODE LAB</title><link rel="stylesheet" href="style.css"></head><body>
-<header><h1>KNEEKURA CODE LAB</h1><input id="q" placeholder="class / mod / registry / resource を検索"><select id="kind"><option value="">all kinds</option></select><select id="edgeType"><option value="">all edges</option></select><label class="toggle"><input id="boundaryOnly" type="checkbox"> TLM↔YSM boundary</label><label class="toggle"><input id="runtimeOnly" type="checkbox"> runtime observed</label></header>
-<main><section id="stage"><svg id="graph"></svg></section><aside><div id="summary"></div><pre id="detail">ノードを選択</pre></aside></main>
-<script type="module" src="viewer.js"></script></body></html>
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>KNEEKURA CODE LAB</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>KNEEKURA CODE LAB</h1>
+  <span id="sourceMode" class="mode-badge">loading</span>
+  <input id="q" placeholder="class / mod / registry / resource / claim を検索">
+  <select id="focusMode" title="表示範囲">
+    <option value="result">result focus</option>
+    <option value="all">full graph</option>
+  </select>
+  <select id="kind"><option value="">all kinds</option></select>
+  <select id="edgeType"><option value="">all edges</option></select>
+  <label class="toggle"><input id="boundaryOnly" type="checkbox"> TLM↔YSM boundary</label>
+  <label class="toggle"><input id="runtimeOnly" type="checkbox"> runtime observed</label>
+</header>
+<main>
+  <section id="stage">
+    <div id="stageMeta"></div>
+    <svg id="graph"></svg>
+  </section>
+  <aside>
+    <section id="identityPanel" class="panel"></section>
+    <section id="summary" class="panel"></section>
+    <section id="coveragePanel" class="panel"></section>
+    <section id="claimPanel" class="panel"></section>
+    <section id="evidencePanel" class="panel"></section>
+    <section id="detailPanel" class="panel">
+      <h2>Selection</h2>
+      <div id="detail" class="empty">ノードを選択</div>
+    </section>
+  </aside>
+</main>
+<script type="module" src="viewer.js"></script>
+</body>
+</html>
