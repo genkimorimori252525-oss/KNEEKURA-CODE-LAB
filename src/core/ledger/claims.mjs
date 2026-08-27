@@ -61,9 +61,14 @@ export function createClaimRecord({
     derivation: normalizedDerivation
   };
 
+  const canonicalId = stableClaimId(claimIdentity);
+  if (id != null && id !== canonicalId) {
+    throw new TypeError('claim id must match the canonical semantic proposition identity');
+  }
+
   const claim = {
     schema: CLAIM_RECORD_SCHEMA,
-    id: id ?? stableClaimId(claimIdentity),
+    id: canonicalId,
     type,
     status: initialStatus,
     subject: structuredClone(subject),
