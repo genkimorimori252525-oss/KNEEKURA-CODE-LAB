@@ -61,6 +61,19 @@ export function planSessionContinuation({
     }
   }
 
+  const invalidationReasons = {};
+  for (const claim of invalidatedClaims) {
+    for (const reason of claim.reasons) {
+      const code = String(reason.code ?? 'UNKNOWN');
+      invalidationReasons[code] = Number(invalidationReasons[code] ?? 0) + 1;
+    }
+  }
+  if (invalidatedEvidenceIds.length) {
+    invalidationReasons.EVIDENCE_NOT_AVAILABLE =
+      Number(invalidationReasons.EVIDENCE_NOT_AVAILABLE ?? 0) +
+      invalidatedEvidenceIds.length;
+  }
+
   return {
     schema: SESSION_CONTINUATION_SCHEMA,
     parent_session_id: parentSession.session_id,
@@ -74,7 +87,10 @@ export function planSessionContinuation({
     reusable_claim_ids: reusableClaimIds.sort(),
     invalidated_claims: invalidatedClaims.sort((a, b) =>
       a.claim_id.localeCompare(b.claim_id)
-    )
+    ),
+    metrics_delta: {
+      invalidation_reasons: invalidationReasons
+    }
   };
 }
 
