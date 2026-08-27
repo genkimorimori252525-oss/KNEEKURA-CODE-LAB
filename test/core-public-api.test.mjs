@@ -437,3 +437,150 @@ test('Evidence Capsule never substitutes an LLM summary for canonical evidence r
     assert.equal(Object.hasOwn(packed, 'llm_summary'), false);
   }
 });
+
+
+test('capsule budget exhaustion prevents ReasoningBridge invocation', async () => {
+  let calls = 0;
+  const bridge = createReasoningBridge({
+    id: 'budget-host',
+    version: 'v1',
+    reason: async () => {
+      calls += 1;
+      return {
+        schema: 'core.proposed-claim-set/v1',
+        proposals: []
+      };
+    }
+  });
+
+  const result = await analyze(request({
+    budget: {
+      scope_depth: 0,
+      capsule_bytes: 1
+    }
+  }), {
+    reasoningBridge: bridge
+  });
+
+  assert.equal(calls, 0);
+  assert.equal(result.status, 'PARTIAL');
+  assert.equal(
+    result.warnings.some(item => item.code === 'BUDGET_EXHAUSTED'),
+    true
+  );
+  assert.equal(
+    result.failures.some(item => item.code === 'REASONING_BRIDGE_FAILED'),
+    false
+  );
+});
+
+test('fake host can execute DIAGNOSE through the same core.analyze path', async () => {
+  let seenMode = null;
+  const bridge = createReasoningBridge({
+    id: 'diagnose-host',
+    version: 'v1',
+    reason: async task => {
+      seenMode = task.request.mode;
+      const target = task.capsule.target_scope.find(item => item.node_id);
+      return {
+        schema: 'core.proposed-claim-set/v1',
+        proposals: [{
+          type: 'HYPOTHESIS',
+          subject: { node_id: target.node_id },
+          predicate: 'fixture.diagnosis_candidate',
+          object_or_value: 'candidate'
+        }]
+      };
+    }
+  });
+
+  const result = await analyze(request({
+    mode: 'DIAGNOSE',
+    question: 'What is the most plausible selected failure point?',
+    budget: { scope_depth: 0 }
+  }), {
+    reasoningBridge: bridge
+  });
+
+  assert.equal(seenMode, 'DIAGNOSE');
+  const claim = result.claims.find(item =>
+    item.predicate === 'fixture.diagnosis_candidate'
+  );
+  assert.ok(claim);
+  assert.equal(claim.status, 'UNRESOLVED');
+});
+
+test('public session.resume reuses same-snapshot dependencies conservatively', async () => {
+  const storageRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), 'kneekura-f-resume-same-')
+  );
+  try {
+    const sessionStore = createSessionStore({
+      storageRoot,
+      targetRepositoryRoot: FORGE_FIXTURE
+    });
+    const engine = createCoreEngine({ sessionStore });
+    const result = await engine.analyze(request({
+      mode: 'RUNTIME',
+      question: 'Resume measured runtime analysis.',
+      runtime_artifacts: [
+        { kind: 'trace', path: TRACE },
+        { kind: 'network', path: SERVER_NET },
+        { kind: 'network', path: CLIENT_NET }
+      ]
+    }));
+
+    const handle = await engine.session.resume(result.session_id);
+    assert.equal(handle.schema, 'core.session-handle/v1');
+    assert.equal(handle.mode, 'SAME_SNAPSHOT');
+    assert.equal(handle.target_snapshot_id, result.snapshot.snapshot_id);
+    assert.equal(handle.exploration_state_available, true);
+    assert.equal(
+      handle.reusable_evidence_ids.length,
+      result.evidence.length
+    );
+    assert.equal(handle.invalidated_evidence_ids.length, 0);
+  } finally {
+    await fs.rm(storageRoot, { recursive: true, force: true });
+  }
+});
+
+test('public session.resume never auto-reuses evidence across a different snapshot', async () => {
+  const storageRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), 'kneekura-f-resume-cross-')
+  );
+  try {
+    const sessionStore = createSessionStore({
+      storageRoot,
+      targetRepositoryRoot: FORGE_FIXTURE
+    });
+    const engine = createCoreEngine({ sessionStore });
+    const result = await engine.analyze(request({
+      mode: 'RUNTIME',
+      question: 'Prepare a cross-snapshot continuation.',
+      runtime_artifacts: [
+        { kind: 'trace', path: TRACE },
+        { kind: 'network', path: SERVER_NET },
+        { kind: 'network', path: CLIENT_NET }
+      ]
+    }));
+
+    const target = 'snapshot:sha256:' + 'f'.repeat(64);
+    assert.notEqual(target, result.snapshot.snapshot_id);
+    const handle = await engine.session.resume(
+      result.session_id,
+      target
+    );
+
+    assert.equal(handle.mode, 'CROSS_SNAPSHOT_REVALIDATION');
+    assert.equal(handle.target_snapshot_id, target);
+    assert.deepEqual(handle.reusable_evidence_ids, []);
+    assert.deepEqual(
+      handle.invalidated_evidence_ids,
+      result.evidence.map(item => item.id).sort()
+    );
+    assert.equal(handle.requires_reanalysis, true);
+  } finally {
+    await fs.rm(storageRoot, { recursive: true, force: true });
+  }
+});
