@@ -157,11 +157,21 @@ OBSERVED_YSM_CLIENT_COMMAND_HANDLED
 
 OBSERVED_YSM_CLIENT_COMMAND_FALLBACK
   = 同メソッドが false を返し、server command へフォールバックする経路
+
+OBSERVED_YSM_MOLANG_COMMAND_PRE_DISPATCH
+  = sendCommand() 直前の診断境界。成功を意味しない
+
+OBSERVED_YSM_STATE_CORRELATED
+  = post-state が命令値と相関した弱い証拠。M6 ではない
+
+OBSERVED_YSM_MOLANG_STATE_APPLIED
+  = controlled E2 認定済みの同一 runtime candidate が actual packet chain 上で
+    pre-dispatch 値から命令値へ変化した直接 runtime evidence
 ~~~
 
 ### Molang transport matrix
 
-各 molang_variable ごとに M0〜M5 を作る。
+各 molang_variable ごとに M0〜M6 を作る。
 
 ~~~text
 M0 runtime Molang intent
@@ -170,6 +180,7 @@ M2 packet receive carries Molang
 M3 client handler executed
 M4 YSM command dispatched
 M5 Forge client command consumed
+M6 YSM Molang runtime state applied
 ~~~
 
 status は observed / unobserved。途中が欠けていて後段だけ観測されても、欠けた段を補完しない。
@@ -182,7 +193,26 @@ M5 は Forge の client command dispatcher がその command を consume した�
 
 ただし ClientCommandHandler.runCommand() は、一部のsyntax/runtime errorをclient側で処理した場合も true で戻る。
 したがって M5 でも YSM内部のMolang evaluatorが最終的に値を適用したことまでは証明しない。
-その内側は次の観測段階として残す。
+
+M6 は `ysm_molang_state_applied` semantic が実際に存在する場合だけ observed。
+M5 から推測補完しない。既存の M5=true fixture でも M6 は unobserved のままになる。
+
+正式M6のproducerが出す `packetTraceIds` もedge evidenceとして保持する。M3側の
+`packetTraceId` とpre-dispatch/M6側のIDを辿れば、同じ式が繰り返された場合でも
+「どのpacket handler由来か」を診断できる。ただしCODE-LAB側でIDを補完・推測はしない。
+
+また `ysm_state_correlated` は、post-state が一致したが controlled E2 資格や
+pre→post の因果証明が不足した弱い証拠なので、`OBSERVED_YSM_STATE_CORRELATED` として保持するだけで
+M6 に昇格させない。
+
+したがって、
+
+~~~text
+M5 observed
+M6 unobserved
+~~~
+
+は正常な診断結果であり、「YSM state apply failure」と自動断定しない。
 
 
 ## Payload fingerprint
