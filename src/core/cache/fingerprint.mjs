@@ -3,7 +3,7 @@ import crypto from 'node:crypto';
 export const CACHE_TIERS = Object.freeze(['C0','C1','C2','C3','C4']);
 
 export function contentDigest(value) {
-  const bytes = Buffer.isBuffer(value) ? value : Buffer.from(String(value));
+  const bytes = contentBytes(value);
   return 'sha256:' + crypto.createHash('sha256').update(bytes).digest('hex');
 }
 
@@ -160,6 +160,13 @@ export function stableStringify(value) {
     ).join(',') + '}';
   }
   return JSON.stringify(value);
+}
+
+function contentBytes(value) {
+  if (Buffer.isBuffer(value)) return value;
+  if (typeof value === 'string') return Buffer.from(value, 'utf8');
+  if (value instanceof Uint8Array) return Buffer.from(value);
+  throw new TypeError('content digest input must be a string, Buffer, or Uint8Array');
 }
 
 function requireString(value, name) {
