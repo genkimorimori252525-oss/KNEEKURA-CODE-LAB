@@ -6,7 +6,7 @@ import {
   validateJollyResearchMailboxServiceResultV1,
   JOLLY_MAILBOX_SERVICE_RESULT_SCHEMA,
   JOLLY_MAILBOX_SERVICE
-} from '../src/mailbox.mjs';
+} from 'kneekura-code-lab/mailbox';
 
 const COMMIT = 'a'.repeat(40);
 
@@ -108,7 +108,14 @@ test('RESULT.md renderer emits the mailbox template sections and pinned metadata
   assert.match(rendered, /^# KNEEKURA CODE-LAB Result\n/);
   assert.match(rendered, /status: partial/);
   assert.match(rendered, /source_commit: a{40}/);
+  assert.match(
+    rendered,
+    /source_snapshot_id: "snapshot:sha256:2{64}"/
+  );
+  assert.match(rendered, /source_snapshot_kind: COMMIT/);
   assert.match(rendered, /analysis_mode: bug_hunt/);
+  assert.match(rendered, /"source_schema": "core\.analysis-result\/v1"/);
+  assert.match(rendered, /"analysis_id": "analysis:sha256:3{64}"/);
 
   for (const heading of [
     '## Bottom line',
