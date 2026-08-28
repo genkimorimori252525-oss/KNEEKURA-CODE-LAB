@@ -37,6 +37,7 @@
 
 ## v0.5 — Understand Anything style UX
 - [x] Human Presentation v2 P0 contract / safety boundary
+- [x] Human Presentation v2 P1 Explorer Projection (one-to-one canonical traceability)
 - [x] Understand Anything graph importer (nodes/edges/layers/tour)
 - [ ] architecture layers
 - [ ] guided tours
