@@ -672,8 +672,15 @@ function collectWarnings({
     });
   }
   if (bridgeFailure) warnings.push(structuredClone(bridgeFailure));
+  const unresolvedWarningIndex =
+    createUnresolvedWarningIndex(graph);
   for (const unresolved of graph.meta?.unresolvedReferences ?? []) {
-    if (!unresolvedReferenceShouldWarn(graph, unresolved)) {
+    if (
+      !unresolvedReferenceShouldWarn(
+        unresolved,
+        unresolvedWarningIndex
+      )
+    ) {
       continue;
     }
     warnings.push({
@@ -685,7 +692,28 @@ function collectWarnings({
   return warnings;
 }
 
-function unresolvedReferenceShouldWarn(graph, unresolved) {
+function createUnresolvedWarningIndex(graph) {
+  const classKeys = new Set();
+  const packageKeys = new Set();
+
+  for (const node of graph.nodes ?? []) {
+    if (node.kind === 'class') {
+      classKeys.add(String(node.key ?? ''));
+    } else if (node.kind === 'package') {
+      packageKeys.add(String(node.key ?? ''));
+    }
+  }
+
+  return {
+    class_keys: classKeys,
+    package_keys: packageKeys
+  };
+}
+
+function unresolvedReferenceShouldWarn(
+  unresolved,
+  index
+) {
   if (
     unresolved?.provider_id === 'builtin-javascript' &&
     unresolved?.kind === 'MODULE_IMPORT'
@@ -702,34 +730,27 @@ function unresolvedReferenceShouldWarn(graph, unresolved) {
     unresolved?.kind === 'IMPORT'
   ) {
     return javaImportMatchesRepository(
-      graph,
-      unresolved.target
+      unresolved.target,
+      index
     );
   }
 
   return true;
 }
 
-function javaImportMatchesRepository(graph, target) {
+function javaImportMatchesRepository(
+  target,
+  index
+) {
   if (typeof target !== 'string' || !target.trim()) {
     return true;
   }
 
   let candidate = target.replace(/\.\*$/, '');
-  const classKeys = new Set(
-    (graph.nodes ?? [])
-      .filter(node => node.kind === 'class')
-      .map(node => String(node.key ?? ''))
-  );
-  const packageKeys = new Set(
-    (graph.nodes ?? [])
-      .filter(node => node.kind === 'package')
-      .map(node => String(node.key ?? ''))
-  );
 
   if (
-    classKeys.has(candidate) ||
-    packageKeys.has(candidate)
+    index.class_keys.has(candidate) ||
+    index.package_keys.has(candidate)
   ) {
     return true;
   }
@@ -739,7 +760,7 @@ function javaImportMatchesRepository(graph, target) {
       0,
       candidate.lastIndexOf('.')
     );
-    if (classKeys.has(candidate)) {
+    if (index.class_keys.has(candidate)) {
       return true;
     }
   }
