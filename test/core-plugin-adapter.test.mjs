@@ -382,3 +382,60 @@ test('plugin session.resume validates requested target snapshot identity', async
     /target_snapshot_id mismatch/
   );
 });
+
+
+test('ReasoningBridge rejects malformed capsule collections with explicit TypeErrors', async () => {
+  const bridge = createReasoningBridge({
+    id: 'malformed-capsule-host',
+    version: 'v1',
+    reason: async () => ({
+      schema: 'core.proposed-claim-set/v1',
+      proposals: []
+    })
+  });
+
+  const base = {
+    schema: 'core.reasoning-task/v1',
+    analysis_id: 'analysis:test',
+    request: {},
+    capsule: {},
+    selected_node_ids: [],
+    existing_claim_ids: []
+  };
+
+  await assert.rejects(
+    () => bridge.reason({
+      ...base,
+      capsule: {
+        evidence: { id: 'evidence:not-an-array' },
+        source_anchors: []
+      }
+    }),
+    error =>
+      error instanceof TypeError &&
+      /capsule\.evidence must be an array/.test(error.message)
+  );
+
+  await assert.rejects(
+    () => bridge.reason({
+      ...base,
+      capsule: {
+        evidence: [],
+        source_anchors: { evidence_id: 'evidence:not-an-array' }
+      }
+    }),
+    error =>
+      error instanceof TypeError &&
+      /capsule\.source_anchors must be an array/.test(error.message)
+  );
+
+  await assert.rejects(
+    () => bridge.reason({
+      ...base,
+      capsule: []
+    }),
+    error =>
+      error instanceof TypeError &&
+      /ReasoningTask capsule is required/.test(error.message)
+  );
+});
