@@ -65,6 +65,10 @@ CORE does not checkout, reset, create a worktree in, or otherwise mutate the
 target repository to honor a COMMIT selector. Current HEAD and dirty working
 tree state are therefore not substituted for the requested commit.
 
+The CORE-owned temporary materialization root is also required to be outside
+the target repository. A configured materialization location that resolves
+inside the target is rejected with `TRUST_BOUNDARY_VIOLATION`.
+
 `{ kind: 'WORKSPACE' }` keeps the existing frozen-workspace semantics,
 including the post-freeze `SNAPSHOT_CHANGED` race check.
 
