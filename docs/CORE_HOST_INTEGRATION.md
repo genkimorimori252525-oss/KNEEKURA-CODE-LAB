@@ -342,7 +342,63 @@ Empty authority-bearing fields stay explicit. For example, an empty
 `recommended_changes` array renders as a statement that canonical CORE did
 not establish a source change rather than synthesizing one in prose.
 
-## 12. Failure handling
+## 12. Run the complete Mailbox pipeline
+
+Hosts that already own a CORE engine can use the pure orchestration helper:
+
+~~~js
+import {
+  runJollyResearchMailboxRequest
+} from 'kneekura-code-lab/mailbox';
+
+const output =
+  await runJollyResearchMailboxRequest(
+    requestMarkdown,
+    {
+      repository: localRepositoryRoot,
+      core
+    }
+  );
+
+await persistResult(
+  output.result_markdown
+);
+~~~
+
+The helper performs only this sequence:
+
+~~~text
+REQUEST.md
+  -> strict Mailbox request parse
+  -> commit-pinned CORE execution plan
+  -> core.analyze()
+  -> conservative Mailbox service projection
+  -> deterministic RESULT.md rendering
+~~~
+
+It does not create a CORE engine, discover a repository, write RESULT.md, mutate
+Mailbox state, or change the target repository. The host retains lifecycle,
+storage, scheduling, and side-effect ownership.
+
+`analyzeOptions` may be supplied and are forwarded unchanged to
+`core.analyze()`. The soft Mailbox `max_output_tokens` target remains in the
+returned execution plan and is not used to truncate canonical analysis or the
+deterministic renderer.
+
+If CORE analysis throws before a canonical `core.analysis-result/v1` exists,
+the helper propagates that failure. It does not fabricate a service result,
+`needs_context` artifact, Evidence, root cause, or successful RESULT.md around
+a failed analysis. The host may record the operational failure separately.
+
+The returned object contains:
+
+- `job`: parsed Mailbox request data.
+- `execution_plan`: the exact CORE request and service projection metadata.
+- `analysis_result`: canonical CORE result.
+- `service_result`: conservative KNEEKURA Mailbox service projection.
+- `result_markdown`: deterministic RESULT.md text.
+
+## 13. Failure handling
 
 Never flatten these states:
 
