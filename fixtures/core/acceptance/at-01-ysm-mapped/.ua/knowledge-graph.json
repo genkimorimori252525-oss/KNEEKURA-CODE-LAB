@@ -1,0 +1,155 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "ysm-2.6.2-at01-oracle",
+    "languages": [
+      "jvm-bytecode"
+    ],
+    "frameworks": [
+      "Forge",
+      "YSM"
+    ],
+    "description": "Curated AT-01 graph derived from the pinned mapped JVM class oracle.",
+    "gitCommitHash": "cdd903691c129ce565d4680ba83c00f2d04993d6"
+  },
+  "nodes": [
+    {
+      "id": "method:Class408.method1332",
+      "type": "method",
+      "name": "Class408.method1332",
+      "filePath": "mapped/Class408.class",
+      "summary": "PoseStack baseline matrix capture before model render dispatch; not proven to be the final per-bone matrix.",
+      "tags": [
+        "AT-01",
+        "POSE_BASELINE_ONLY",
+        "blob:65e449330e1633bf4194c4c2b860ed09b412138f"
+      ]
+    },
+    {
+      "id": "method:Class410.method1353",
+      "type": "method",
+      "name": "Class410.method1353",
+      "filePath": "mapped/Class410.class",
+      "summary": "Obtains current PoseStack pose and Class768 model/float-array data, then calls Class878.method3661.",
+      "tags": [
+        "AT-01",
+        "PRE_NATIVE_HANDOFF",
+        "blob:c291a30f60645b967038c80f97e597561a119653"
+      ]
+    },
+    {
+      "id": "method:Class878.method3661",
+      "type": "method",
+      "name": "Class878.method3661",
+      "filePath": "mapped/Class878.class",
+      "summary": "Combines projection/model-view Matrix4f data and calls native Class878.method3662; field2850 is not proven to be a final per-bone matrix.",
+      "tags": [
+        "AT-01",
+        "LAST_JAVA_HOOK",
+        "blob:1eee5f6f3475dafec9096cdfdcfd01d8458d8079"
+      ]
+    },
+    {
+      "id": "method:Class878.method3662",
+      "type": "method",
+      "name": "Class878.method3662",
+      "filePath": "mapped/Class878.class",
+      "summary": "Static native method with no Java Code body; exact native per-bone generation point remains UNKNOWN.",
+      "tags": [
+        "AT-01",
+        "NATIVE_BOUNDARY",
+        "ACC_NATIVE",
+        "ACC_STATIC",
+        "blob:1eee5f6f3475dafec9096cdfdcfd01d8458d8079"
+      ]
+    },
+    {
+      "id": "method:Class768.method3134",
+      "type": "method",
+      "name": "Class768.method3134",
+      "filePath": "mapped/Class768.class",
+      "summary": "Returns render float array field2299.",
+      "tags": [
+        "AT-01",
+        "MODEL_DATA",
+        "blob:0ced83ab6521a3f48a35aef963790aa1c93c8edc"
+      ]
+    },
+    {
+      "id": "method:Class768.method3135",
+      "type": "method",
+      "name": "Class768.method3135",
+      "filePath": "mapped/Class768.class",
+      "summary": "Returns render float array field2300.",
+      "tags": [
+        "AT-01",
+        "MODEL_DATA",
+        "blob:0ced83ab6521a3f48a35aef963790aa1c93c8edc"
+      ]
+    },
+    {
+      "id": "method:Class768.method3137",
+      "type": "method",
+      "name": "Class768.method3137",
+      "filePath": "mapped/Class768.class",
+      "summary": "Returns Class209 model/mesh object.",
+      "tags": [
+        "AT-01",
+        "MODEL_DATA",
+        "blob:0ced83ab6521a3f48a35aef963790aa1c93c8edc"
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "source": "method:Class408.method1332",
+      "target": "method:Class410.method1353",
+      "type": "calls",
+      "weight": 1
+    },
+    {
+      "source": "method:Class410.method1353",
+      "target": "method:Class878.method3661",
+      "type": "calls",
+      "weight": 1
+    },
+    {
+      "source": "method:Class878.method3661",
+      "target": "method:Class878.method3662",
+      "type": "calls",
+      "weight": 1
+    },
+    {
+      "source": "method:Class768.method3134",
+      "target": "method:Class410.method1353",
+      "type": "provides_data_to",
+      "weight": 0.9
+    },
+    {
+      "source": "method:Class768.method3135",
+      "target": "method:Class410.method1353",
+      "type": "provides_data_to",
+      "weight": 0.9
+    },
+    {
+      "source": "method:Class768.method3137",
+      "target": "method:Class410.method1353",
+      "type": "provides_data_to",
+      "weight": 0.9
+    }
+  ],
+  "layers": [
+    {
+      "id": "layer:at01-render-path",
+      "name": "AT-01 Java-visible render path",
+      "description": "Pinned JVM-visible path ending at the native boundary.",
+      "nodeIds": [
+        "method:Class408.method1332",
+        "method:Class410.method1353",
+        "method:Class878.method3661",
+        "method:Class878.method3662"
+      ]
+    }
+  ],
+  "tour": []
+}
