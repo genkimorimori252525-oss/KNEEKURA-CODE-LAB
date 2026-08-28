@@ -170,6 +170,121 @@ test('AT-01 final bone matrix trace stays exact through the validated Java-to-na
   );
 });
 
+
+
+test('AT-01 CORE analysis returns the pinned native boundary without forbidden certainty', async () => {
+  const oracle = await readJson(
+    path.join(ACCEPTANCE, 'at-01-bone-matrix-oracle.json')
+  );
+  const uaGraph = path.join(
+    ACCEPTANCE,
+    'at-01-ysm-mapped',
+    '.ua',
+    'knowledge-graph.json'
+  );
+
+  const bridge = createReasoningBridge({
+    id: 'at01-safe-oracle-host',
+    version: 'v1',
+    reason: async task => {
+      const target = task.capsule.target_scope.find(item =>
+        String(item.label ?? '').includes('Class878.method3662')
+      );
+      assert.ok(target, 'native boundary must be inside deterministic scope');
+
+      return {
+        schema: 'core.proposed-claim-set/v1',
+        proposals: [{
+          type: 'UNKNOWN',
+          subject: { node_id: target.node_id },
+          predicate: 'ysm.final_bone_matrix_generation',
+          object_or_value: 'UNKNOWN_NATIVE',
+          unresolved_reason:
+            'Pinned JVM-visible evidence ends at the static native ' +
+            'Class878.method3662 boundary; exact native-internal ' +
+            'per-bone generation remains unknown.'
+        }]
+      };
+    }
+  });
+
+  const execution = await analyzeInternal({
+    schema: 'core.analysis-request/v1',
+    repository: FORGE_FIXTURE,
+    mode: 'TRACE',
+    question: oracle.question,
+    scope: {
+      symbols: [
+        'Class408.method1332',
+        'Class410.method1353',
+        'Class878.method3661',
+        'Class878.method3662'
+      ]
+    },
+    policy: 'precision',
+    output_profile: 'forensic',
+    budget: {
+      scope_depth: 0,
+      capsule_bytes: 196000
+    }
+  }, {
+    scan: {
+      understand: uaGraph
+    },
+    reasoningBridge: bridge
+  });
+
+  const claim = execution.result.claims.find(item =>
+    item.predicate === 'ysm.final_bone_matrix_generation'
+  );
+  assert.ok(claim);
+  assert.equal(claim.type, 'UNKNOWN');
+  assert.equal(claim.status, 'UNRESOLVED');
+  assert.equal(claim.object_or_value, 'UNKNOWN_NATIVE');
+  assert.match(
+    claim.unresolved_reason,
+    /native.*unknown/i
+  );
+
+  const affectedLabels = new Set(
+    execution.result.affected_symbols.map(item =>
+      item.label ?? item.key
+    )
+  );
+  for (const symbol of [
+    'Class408.method1332',
+    'Class410.method1353',
+    'Class878.method3661',
+    'Class878.method3662'
+  ]) {
+    assert.equal(affectedLabels.has(symbol), true);
+  }
+
+  const graphEdgeTypes = new Set(
+    execution.result.graph_paths.map(item => item.edge_type)
+  );
+  assert.equal(graphEdgeTypes.has('UA_CALLS'), true);
+
+  const forbidden = oracle.forbidden_overclaims;
+  for (const candidate of forbidden) {
+    assert.equal(
+      execution.result.claims.some(item =>
+        ['VERIFIED','VERIFIED_WITH_LIMITS'].includes(item.status) &&
+        JSON.stringify(item).includes(candidate)
+      ),
+      false
+    );
+  }
+
+  assert.equal(
+    execution.result.claims.some(item =>
+      item.predicate === 'ysm.final_bone_matrix_generation' &&
+      ['VERIFIED','VERIFIED_WITH_LIMITS'].includes(item.status)
+    ),
+    false
+  );
+});
+
 test('AT-02 M5 is not M6', async () => {
   const graph = await scanRepository(FORGE_FIXTURE, {
     trace: TRACE,
