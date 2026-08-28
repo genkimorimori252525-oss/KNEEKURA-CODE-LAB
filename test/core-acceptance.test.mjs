@@ -104,6 +104,16 @@ test('AT-01 final bone matrix trace stays exact through the validated Java-to-na
     baselines.snapshots['YSM decoded repo']
   );
   assert.equal(oracle.source.source_format, 'mapped-jvm-bytecode');
+  assert.equal(
+    oracle.source.tree_sha,
+    'b5d5939eb3937884d772893fdafb28c53fc5fac9'
+  );
+  assert.equal(
+    baselines.successor_snapshots[
+      'KNEEKURA-CODE-LAB after Milestones A-G'
+    ],
+    'bf63b725d01648c5d07007157c9c58d3a46327d3'
+  );
   assert.equal(oracle.conclusion.status, 'UNKNOWN_NATIVE');
   assert.equal(
     oracle.conclusion.confidence.java_to_native_boundary,
