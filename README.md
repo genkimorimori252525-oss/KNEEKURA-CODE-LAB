@@ -2,7 +2,7 @@
 
 Minecraft / Forge Mod のコードを「普通の Java」ではなく、**Mod として意味づけして可視化する**ための私用研究リポジトリです。
 
-初版は依存ゼロの Node.js 20+ で動きます。**第一級解析対象は Minecraft 1.20.1 + Forge 47.x + Java 17**。CodeGraph や Understand Anything を fork して固定化せず、将来それらの出力を adapter で取り込める構造にしています。
+初版は依存ゼロの Node.js 20+ で動きます。**第一級解析対象は Minecraft 1.20.1 + Forge 47.x + Java 17**。解析器/Coreでは CodeGraph や Understand Anything を fork して固定化せず、出力 adapter を優先します。Human Presentation v2 の UI/表示層だけは、固定commit・ライセンス・変更履歴を管理する限定的な vendoring 例外を利用できます。
 
 ## できること
 
@@ -136,7 +136,7 @@ repository B ─ scanner ─┘                      │
 3. **Minecraft 固有意味は adapter / semantic 層に置く**: 汎用グラフ IR を個別 Mod 実装に密結合させない。
 4. **cross-repository 接続は protocol 名で結ぶ**: Java call を捏造せず、Molang variable / animation / bone name の共有 contract として表現する。
 5. **runtime は static と別事実として残す**: 「定義されている」と「実際に観測された」を同じ edge に潰さない。
-6. **外部 OSS は vendoring しない**: CodeGraph / Understand Anything は出力互換 adapter を介して利用する。
+6. **Analyzer/Core は外部 OSS を vendoring しない**: CodeGraph / Understand Anything などの解析能力は出力互換 adapter を優先する。Presentation/UI に限り、`docs/HUMAN_PRESENTATION_V2.md` の **Pinned Presentation Vendoring Exception**（固定SHA・LICENSE・UPSTREAM・PATCH記録必須）を適用できる。Presentation依存は CORE へ逆流させない。
 
 ## ディレクトリ
 
@@ -152,6 +152,12 @@ repository B ─ scanner ─┘                      │
 Java 解析は安全側の lexical scanner（字句ベースの軽量解析）です。完全な構文木ではありません。複雑なネスト・生成コード・難読化コードの正確な call graph は CodeGraph/tree-sitter adapter の担当にします。
 
 KNEEKURA-LAB の main JSONL trace (`anim` / Molang / entity lifecycle) と、対応する client pose companion (`.pose.json` / `.pose.bin`) は静的 graph に重ねられます。runtime evidence がある scan では fidelity matrix も生成され、`C0 static → C1 runtime mod → C2 entity → C3 YSM command → C4 rendered vertices → C5 per-bone runtime` のどこまで観測できたかを表示します。**unobserved は failure を意味しません。** pose は「対応runのクライアント描画が頂点を生成した」証拠です。bone帰属は pose から逆算せず、KNEEKURA-LAB が geoRender 直後に採った palette の `names[slot]` とTRSを直接使います。これにより C5 per-bone runtime transform まで直接 evidence 化できます。Forge 1.20.1 の静的network channel / packet / direction / send / handlerに加え、KNEEKURA-LABのruntime network companionから実送信・実受信も別々の証拠として重ねられます。packetがMolang式を運んだ事実に加えて、`net_semantic` があればReimu handler到達と `ysmclient molang execute` のcommand dispatch成功/失敗まで別々に証拠化できます。M4は `sendCommand()` が例外なく戻った境界、M5はForge client command pathが実際にconsumeした境界です。`handledByClient=false` はserver fallback evidenceとして別管理します。M5でもYSM内部のMolang evaluatorによる最終適用までは未証明です。capability の意味抽出は未実装です。
+
+## Human Presentation v2
+
+人間向け表示の次世代化は `docs/HUMAN_PRESENTATION_V2.md` に従います。KNEEKURA CORE を唯一の解析上の Authority（正しい情報を決める主体）のまま維持し、探索UIや説明図は Canonical Result を読むだけの Presentation 層として分離します。
+
+P0 では境界契約・CORE→Presentation依存禁止・Canonical digest gate・Classic Viewer fallback・OSS provenance 方針だけを先に固定します。Explorer/Archify本体の導入は、その非劣化Gateが通った後の別PRです。
 
 ## AI / coding agent 向け出力との境界
 
