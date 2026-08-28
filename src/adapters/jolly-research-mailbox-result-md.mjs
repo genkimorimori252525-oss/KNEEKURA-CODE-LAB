@@ -169,7 +169,13 @@ export function renderJollyResearchMailboxServiceResultMarkdown(
       jsonScalar(serviceResult.source_repository),
     'source_ref: ' + jsonScalar(serviceResult.source_ref),
     'source_commit: ' + serviceResult.source_commit,
+    'source_snapshot_id: ' +
+      jsonScalar(serviceResult.source_snapshot_id),
+    'source_snapshot_kind: ' +
+      serviceResult.source_snapshot_kind,
     'analysis_mode: ' + serviceResult.analysis_mode,
+    'canonical:',
+    ...jsonData(serviceResult.canonical),
     '',
     '## Bottom line',
     '',
