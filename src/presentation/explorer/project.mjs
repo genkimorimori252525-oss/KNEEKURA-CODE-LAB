@@ -14,6 +14,8 @@ const GRAPH_SCHEMA = 'kneekura.graph/v1';
 export function createExplorerProjection({ graph, result }) {
   validateExplorerGraph(graph);
   validateAnalysisResultV1(result);
+  const sourceIdentity =
+    correlateCanonicalInputs(graph, result);
 
   const analysisResultDigest =
     digestCanonicalAnalysisResult(result);
@@ -79,7 +81,16 @@ export function createExplorerProjection({ graph, result }) {
       analysis_result_schema: result.schema,
       analysis_id: result.analysis_id,
       session_id: result.session_id,
+      repository_id: result.repository?.repository_id ?? null,
+      graph_repository_id:
+        sourceIdentity.graph_repository_id,
       snapshot_id: result.snapshot?.snapshot_id ?? null,
+      graph_snapshot_id:
+        sourceIdentity.graph_snapshot_id,
+      identity_correlation: {
+        repository: sourceIdentity.repository,
+        snapshot: sourceIdentity.snapshot
+      },
       analysis_result_digest: analysisResultDigest
     },
     canonical: {
@@ -231,6 +242,55 @@ export function validateExplorerGraph(graph) {
   }
 
   return graph;
+}
+
+function correlateCanonicalInputs(graph, result) {
+  const graphRepositoryId = optionalIdentityString(
+    graph.meta?.repository?.repository_id,
+    'graph.meta.repository.repository_id'
+  );
+  const resultRepositoryId =
+    result.repository?.repository_id ?? null;
+  const graphSnapshotId = optionalIdentityString(
+    graph.meta?.snapshot?.snapshot_id,
+    'graph.meta.snapshot.snapshot_id'
+  );
+  const resultSnapshotId =
+    result.snapshot?.snapshot_id ?? null;
+
+  if (
+    graphRepositoryId != null &&
+    graphRepositoryId !== resultRepositoryId
+  ) {
+    throw new TypeError(
+      'Explorer Projection repository identity mismatch: ' +
+      graphRepositoryId + ' != ' + resultRepositoryId
+    );
+  }
+
+  if (
+    graphSnapshotId != null &&
+    graphSnapshotId !== resultSnapshotId
+  ) {
+    throw new TypeError(
+      'Explorer Projection snapshot identity mismatch: ' +
+      graphSnapshotId + ' != ' + resultSnapshotId
+    );
+  }
+
+  return {
+    graph_repository_id: graphRepositoryId,
+    graph_snapshot_id: graphSnapshotId,
+    repository:
+      graphRepositoryId == null ? 'UNAVAILABLE' : 'MATCH',
+    snapshot:
+      graphSnapshotId == null ? 'UNAVAILABLE' : 'MATCH'
+  };
+}
+
+function optionalIdentityString(value, label) {
+  if (value == null) return null;
+  return requireString(value, label);
 }
 
 function assertOneToOneTraceability(projection) {
