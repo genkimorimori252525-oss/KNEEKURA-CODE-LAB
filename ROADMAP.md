@@ -36,6 +36,7 @@
 - [x] fidelity/capability matrix (C0-C5 evidence stages; C5 backed by SimPaletteTrace TRS; observed != pass, unobserved != fail)
 
 ## v0.5 — Understand Anything style UX
+- [x] Human Presentation v2 P0 contract / safety boundary
 - [x] Understand Anything graph importer (nodes/edges/layers/tour)
 - [ ] architecture layers
 - [ ] guided tours
