@@ -27,6 +27,14 @@ export function createReasoningBridge(spec) {
   if (typeof spec.reason !== 'function') {
     throw new TypeError('ReasoningBridge reason function is required');
   }
+  if (
+    spec.knownEvidenceIds != null &&
+    typeof spec.knownEvidenceIds !== 'function'
+  ) {
+    throw new TypeError(
+      'ReasoningBridge knownEvidenceIds must be a function when supplied'
+    );
+  }
 
   return Object.freeze({
     id: spec.id,
@@ -34,13 +42,81 @@ export function createReasoningBridge(spec) {
 
     async reason(task) {
       validateReasoningTask(task);
-      const raw = await spec.reason(structuredClone(task));
+      const transmitted = await prepareReasoningTransmission(
+        task,
+        spec.knownEvidenceIds ?? null
+      );
+      const raw = await spec.reason(transmitted);
       return normalizeProposedClaimSet(raw, {
         bridgeId: spec.id,
         bridgeVersion: spec.version
       });
     }
   });
+}
+
+export async function prepareReasoningTransmission(
+  task,
+  knownEvidenceIds = null
+) {
+  validateReasoningTask(task);
+  const transmitted = structuredClone(task);
+  const evidence = transmitted.capsule.evidence ?? [];
+  const fullIds = evidence.map(item => String(item.id)).sort();
+
+  if (!knownEvidenceIds || !fullIds.length) {
+    transmitted.transmission = {
+      schema: 'core.reasoning-transmission/v1',
+      full_evidence_ids: fullIds,
+      reused_evidence_ids: [],
+      transmitted_evidence_ids: fullIds,
+      full_evidence_record_count: fullIds.length,
+      transmitted_evidence_record_count: fullIds.length
+    };
+    return transmitted;
+  }
+
+  const returned = await knownEvidenceIds(Object.freeze({
+    analysis_id: transmitted.analysis_id,
+    snapshot_id: transmitted.capsule.coverage?.snapshot_id ?? null,
+    evidence_ids: Object.freeze([...fullIds])
+  }));
+  if (!Array.isArray(returned)) {
+    throw new TypeError(
+      'ReasoningBridge knownEvidenceIds must return an array'
+    );
+  }
+
+  const fullSet = new Set(fullIds);
+  const reused = canonicalStrings(returned);
+  for (const id of reused) {
+    if (!fullSet.has(id)) {
+      throw new TypeError(
+        'ReasoningBridge knownEvidenceIds returned an unknown Evidence ID: ' +
+        id
+      );
+    }
+  }
+  const reusedSet = new Set(reused);
+  transmitted.capsule.evidence = evidence.filter(
+    item => !reusedSet.has(String(item.id))
+  );
+  transmitted.capsule.source_anchors = (
+    transmitted.capsule.source_anchors ?? []
+  ).filter(anchor => !reusedSet.has(String(anchor.evidence_id)));
+  transmitted.capsule.reused_evidence_ids = reused;
+  const transmittedIds = transmitted.capsule.evidence
+    .map(item => String(item.id))
+    .sort();
+  transmitted.transmission = {
+    schema: 'core.reasoning-transmission/v1',
+    full_evidence_ids: fullIds,
+    reused_evidence_ids: reused,
+    transmitted_evidence_ids: transmittedIds,
+    full_evidence_record_count: fullIds.length,
+    transmitted_evidence_record_count: transmittedIds.length
+  };
+  return transmitted;
 }
 
 export function createStaticReasoningBridge({
@@ -90,8 +166,28 @@ export function validateReasoningTask(task) {
   if (!task.request || typeof task.request !== 'object') {
     throw new TypeError('ReasoningTask request is required');
   }
-  if (!task.capsule || typeof task.capsule !== 'object') {
+  if (
+    !task.capsule ||
+    typeof task.capsule !== 'object' ||
+    Array.isArray(task.capsule)
+  ) {
     throw new TypeError('ReasoningTask capsule is required');
+  }
+  if (
+    task.capsule.evidence != null &&
+    !Array.isArray(task.capsule.evidence)
+  ) {
+    throw new TypeError(
+      'ReasoningTask capsule.evidence must be an array when supplied'
+    );
+  }
+  if (
+    task.capsule.source_anchors != null &&
+    !Array.isArray(task.capsule.source_anchors)
+  ) {
+    throw new TypeError(
+      'ReasoningTask capsule.source_anchors must be an array when supplied'
+    );
   }
   if (!Array.isArray(task.selected_node_ids)) {
     throw new TypeError('ReasoningTask selected_node_ids must be an array');
