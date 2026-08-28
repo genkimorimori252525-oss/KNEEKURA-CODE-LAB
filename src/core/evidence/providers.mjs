@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { createEvidenceProvider } from './provider.mjs';
 import { analyzeJava } from '../../analyzers/java.mjs';
+import { analyzeJavaScript } from '../../analyzers/javascript.mjs';
 import { analyzeForgeJava, analyzeModsToml } from '../../analyzers/forge.mjs';
 import { analyzeForgeNetworkJava } from '../../analyzers/forge-network.mjs';
 import { analyzeMinecraftJavaBridge, analyzeMinecraftJson } from '../../analyzers/minecraft.mjs';
@@ -28,6 +29,34 @@ export const javaLexicalProvider = createEvidenceProvider({
     graph_delta: summarizeFragment(fragment),
     unresolved_references: unresolved
   })
+});
+
+export const javascriptLexicalProvider = createEvidenceProvider({
+  id: 'builtin-javascript',
+  version: 'lexical-v1',
+  inputKinds: ['javascript-source'],
+  supportedProperties: [
+    'import',
+    'reexport',
+    'require',
+    'class',
+    'function',
+    'export'
+  ],
+  evidenceKind: 'STATIC_ANALYSIS',
+  trustClass: 'REPOSITORY_UNTRUSTED',
+  extractionMethod: 'javascript-lexical-regex-v1',
+  failureClass: 'PARSE_FAILED',
+  acquire: ({ builder, root }, unit) =>
+    analyzeJavaScript(builder, unit.file, root),
+  unresolved:
+    unresolvedJavaScriptImports,
+  observation:
+    (_context, _unit, fragment, value, unresolved, descriptor) => ({
+      source_path: value?.rel ?? descriptor.unit_ref,
+      graph_delta: summarizeFragment(fragment),
+      unresolved_references: unresolved
+    })
 });
 
 export const forgeJavaProvider = createEvidenceProvider({
@@ -182,6 +211,45 @@ export const networkCompanionProvider = createEvidenceProvider({
     };
   }
 });
+
+function unresolvedJavaScriptImports(
+  context,
+  unit,
+  fragment
+) {
+  const refs = [];
+  for (const edge of fragment.edges.filter(item =>
+    [
+      'IMPORTS',
+      'REEXPORTS',
+      'DYNAMIC_IMPORTS',
+      'REQUIRES'
+    ].includes(item.type)
+  )) {
+    const target = context.builder.graph.nodes.find(
+      node => node.id === edge.to
+    );
+    if (!target?.external) continue;
+    target.resolution = 'UNRESOLVED';
+    target.unresolved = true;
+    refs.push({
+      kind: 'MODULE_IMPORT',
+      path:
+        unit.file
+          ? path.relative(
+              context.root,
+              unit.file
+            ).replaceAll('\\', '/')
+          : null,
+      target: target.key,
+      edge_type: edge.type,
+      resolution: 'UNRESOLVED',
+      reason:
+        'lexical JavaScript module target is not resolved to a repository file'
+    });
+  }
+  return refs;
+}
 
 function unresolvedJavaImports(context, unit, fragment) {
   const refs = [];
