@@ -259,7 +259,9 @@ const markdown =
 The renderer validates
 `jolly.research-mailbox-service-result/v1`, emits the standard KNEEKURA
 Mailbox RESULT.md sections in a fixed order, and does not mutate the service
-result.
+result. The artifact also carries `source_snapshot_id`,
+`source_snapshot_kind`, and the canonical CORE provenance block so a host can
+reconcile the rendered result with the persisted service projection.
 
 Repository-derived Evidence, rejected hypotheses, uncertainty, and other
 structured dynamic values are serialized inside deterministic JSON data blocks.
