@@ -11,3 +11,10 @@ export {
   renderJollyResearchMailboxServiceResultMarkdown,
   validateJollyResearchMailboxServiceResultV1
 } from './adapters/jolly-research-mailbox-result-md.mjs';
+
+export {
+  JOLLY_MAILBOX_CORE_MODE_MAP,
+  parseJollyResearchMailboxRequestMarkdown,
+  toJollyResearchMailboxCoreExecutionPlan,
+  validateJollyResearchMailboxRequest
+} from './adapters/jolly-research-mailbox-request.mjs';
