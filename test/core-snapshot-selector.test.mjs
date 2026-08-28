@@ -281,6 +281,40 @@ test('WORKSPACE snapshot_selector explicitly keeps current frozen workspace sema
   );
 });
 
+test('COMMIT snapshot materialization refuses CORE temp storage inside the target repository', async t => {
+  const fixture = await createVersionedRepository(t);
+  const before = await git(
+    fixture.root,
+    ['status', '--porcelain=v1']
+  );
+
+  await assert.rejects(
+    () => analyzeInternal(
+      request(fixture.root, {
+        kind: 'COMMIT',
+        commit: fixture.oldCommit
+      }),
+      {
+        commitMaterialization: {
+          tempParent: fixture.root
+        }
+      }
+    ),
+    error =>
+      error?.code === 'TRUST_BOUNDARY_VIOLATION' &&
+      /outside the target repository/.test(error.message)
+  );
+
+  assert.equal(
+    await git(fixture.root, ['status', '--porcelain=v1']),
+    before
+  );
+  assert.equal(
+    await fs.readFile(fixture.source, 'utf8'),
+    fixture.dirtySource
+  );
+});
+
 test('COMMIT snapshot_selector rejects a missing commit instead of falling back to the workspace', async t => {
   const fixture = await createVersionedRepository(t);
 
