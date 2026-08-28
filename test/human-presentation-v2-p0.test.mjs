@@ -5,6 +5,11 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { analyzeInternal } from '../src/core/api/analyze.mjs';
+import {
+  createHumanViewerManifest,
+  digestCanonicalAnalysisResult
+} from '../src/viewer/bundle.mjs';
 import {
   auditCorePresentationBoundary
 } from '../scripts/check-presentation-boundary.mjs';
@@ -12,6 +17,42 @@ import {
 const ROOT = path.dirname(
   path.dirname(fileURLToPath(import.meta.url))
 );
+const FORGE_FIXTURE = path.join(ROOT, 'fixtures/forge-mini');
+const TRACE = path.join(
+  ROOT,
+  'fixtures/runtime/kneekura-trace.jsonl'
+);
+const SERVER_NET = path.join(
+  ROOT,
+  'fixtures/runtime/kneekura-server.net.jsonl'
+);
+const CLIENT_NET = path.join(
+  ROOT,
+  'fixtures/runtime/kneekura-client.net.jsonl'
+);
+
+let canonicalExecutionPromise = null;
+
+function canonicalExecution() {
+  canonicalExecutionPromise ??= analyzeInternal({
+    schema: 'core.analysis-request/v1',
+    repository: FORGE_FIXTURE,
+    mode: 'RUNTIME',
+    question:
+      'P0 digest gate: trace ReimuPacket without changing canonical semantics.',
+    scope: {
+      paths: ['ReimuPacket.java']
+    },
+    policy: 'precision',
+    output_profile: 'compact',
+    runtime_artifacts: [
+      { kind: 'trace', path: TRACE },
+      { kind: 'network', path: SERVER_NET },
+      { kind: 'network', path: CLIENT_NET }
+    ]
+  });
+  return canonicalExecutionPromise;
+}
 
 test('P0 CORE has no Presentation or UI imports', async () => {
   const violations = await auditCorePresentationBoundary({
@@ -68,4 +109,41 @@ test('P0 boundary guard rejects package and local Presentation imports', async t
       'expected boundary violation for ' + forbidden
     );
   }
+});
+
+
+test('P0 canonical digest gate proves Viewer projection is non-mutating', async () => {
+  const run = await canonicalExecution();
+  const original = structuredClone(run.result);
+
+  const before = digestCanonicalAnalysisResult(run.result);
+  const topLevelReordered = Object.fromEntries(
+    Object.entries(run.result).reverse()
+  );
+  assert.equal(
+    digestCanonicalAnalysisResult(topLevelReordered),
+    before,
+    'object key order must not change the canonical digest'
+  );
+
+  const projected = createHumanViewerManifest(run.result);
+  const after = digestCanonicalAnalysisResult(run.result);
+
+  assert.equal(after, before);
+  assert.equal(
+    projected.manifest.source_result_digest,
+    before
+  );
+  assert.deepEqual(run.result, original);
+
+  assert.equal(
+    Object.hasOwn(projected.result, 'evidence'),
+    false,
+    'Viewer bundle may externalize Evidence only from its clone'
+  );
+  assert.equal(
+    Object.hasOwn(run.result, 'evidence'),
+    true,
+    'canonical AnalysisResult must retain its Evidence field'
+  );
 });
