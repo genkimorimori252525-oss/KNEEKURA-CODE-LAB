@@ -672,14 +672,100 @@ function collectWarnings({
     });
   }
   if (bridgeFailure) warnings.push(structuredClone(bridgeFailure));
+  const unresolvedWarningIndex =
+    createUnresolvedWarningIndex(graph);
   for (const unresolved of graph.meta?.unresolvedReferences ?? []) {
+    if (
+      !unresolvedReferenceShouldWarn(
+        unresolved,
+        unresolvedWarningIndex
+      )
+    ) {
+      continue;
+    }
     warnings.push({
       code: 'UNRESOLVED_REFERENCE',
-      message: 'provider reported an unresolved reference',
+      message: 'provider reported an unresolved repository-relevant reference',
       ref: structuredClone(unresolved)
     });
   }
   return warnings;
+}
+
+function createUnresolvedWarningIndex(graph) {
+  const classKeys = new Set();
+  const packageKeys = new Set();
+
+  for (const node of graph.nodes ?? []) {
+    if (node.kind === 'class') {
+      classKeys.add(String(node.key ?? ''));
+    } else if (node.kind === 'package') {
+      packageKeys.add(String(node.key ?? ''));
+    }
+  }
+
+  return {
+    class_keys: classKeys,
+    package_keys: packageKeys
+  };
+}
+
+function unresolvedReferenceShouldWarn(
+  unresolved,
+  index
+) {
+  if (
+    unresolved?.provider_id === 'builtin-javascript' &&
+    unresolved?.kind === 'MODULE_IMPORT'
+  ) {
+    const target = unresolved.target;
+    return (
+      typeof target !== 'string' ||
+      target.startsWith('.')
+    );
+  }
+
+  if (
+    unresolved?.provider_id === 'builtin-java' &&
+    unresolved?.kind === 'IMPORT'
+  ) {
+    return javaImportMatchesRepository(
+      unresolved.target,
+      index
+    );
+  }
+
+  return true;
+}
+
+function javaImportMatchesRepository(
+  target,
+  index
+) {
+  if (typeof target !== 'string' || !target.trim()) {
+    return true;
+  }
+
+  let candidate = target.replace(/\.\*$/, '');
+
+  if (
+    index.class_keys.has(candidate) ||
+    index.package_keys.has(candidate)
+  ) {
+    return true;
+  }
+
+  while (candidate.includes('.')) {
+    candidate = candidate.slice(
+      0,
+      candidate.lastIndexOf('.')
+    );
+    if (index.class_keys.has(candidate)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function collectFailures(graph, bridgeFailure) {

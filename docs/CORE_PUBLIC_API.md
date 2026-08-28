@@ -348,6 +348,17 @@ file candidate exists. Package/builtin modules and unresolved relative imports
 remain explicit unresolved external module references; CORE does not fabricate
 repository ownership for them.
 
+Unresolved provider references remain present in graph metadata and provider
+Evidence even when they are outside the provider's resolution authority.
+AnalysisResult warnings distinguish those expected external references from
+repository-relevant resolution failures. In particular, bare/package/builtin
+JavaScript imports and external Java classpath imports are not promoted to
+`UNRESOLVED_REFERENCE` warnings solely because a lexical provider does not
+resolve package managers or classpaths. Missing repository-relative JavaScript
+imports, unresolved Java imports that match repository classes/packages, and
+unresolved references from other provider classes (for example runtime/static
+matching) remain actionable warnings.
+
 This is intentionally a lexical provider, not a JavaScript AST/type/runtime
 engine. It does not claim full ECMAScript parsing, type inference, control-flow
 resolution, call-target resolution, or runtime behavior. Comment text is masked
