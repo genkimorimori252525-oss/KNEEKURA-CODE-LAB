@@ -175,7 +175,76 @@ change. A mailbox host may format the entry into the service-specific
 `RESULT.md` contract, but facts and certainty must remain bounded by the
 canonical Claims, Evidence, Coverage, and verifier state.
 
-## 9. Project into the KNEEKURA Mailbox service contract
+## 9. Consume a KNEEKURA Mailbox REQUEST.md
+
+A host can parse the canonical Mailbox request and construct an execution plan
+without teaching CORE the Mailbox protocol:
+
+~~~js
+import {
+  parseJollyResearchMailboxRequestMarkdown,
+  toJollyResearchMailboxCoreExecutionPlan
+} from 'kneekura-code-lab/mailbox';
+
+const job =
+  parseJollyResearchMailboxRequestMarkdown(requestMarkdown);
+
+const plan =
+  toJollyResearchMailboxCoreExecutionPlan(job, {
+    repository: localRepositoryRoot
+  });
+
+const result = await core.analyze(plan.core_request);
+~~~
+
+`job.source_repository` and `plan.core_request.repository` are deliberately
+different concepts. The first is Mailbox/GitHub source identity such as
+`owner/repository`. The second is the local repository execution target that
+CORE reads. The adapter never substitutes the GitHub name for the local path.
+
+The execution plan always copies the required full `source_commit` into:
+
+~~~text
+snapshot_selector.kind   = COMMIT
+snapshot_selector.commit = source_commit
+~~~
+
+Therefore a Mailbox job cannot silently fall back to the current workspace.
+
+Mailbox analysis modes are mapped to the frozen CORE v1 modes according to
+planner behavior:
+
+| Mailbox mode | CORE mode |
+| --- | --- |
+| `architecture` | `UNDERSTAND` |
+| `bug_hunt` | `DIAGNOSE` |
+| `integration` | `UNDERSTAND` |
+| `data_flow` | `TRACE` |
+| `control_flow` | `TRACE` |
+| `performance` | `AUDIT` |
+| `regression` | `DIAGNOSE` |
+| `dead_code` | `AUDIT` |
+| `compare` | `REVIEW` |
+| `general_review` | `REVIEW` |
+
+Target paths become exact `scope.paths` seeds. Traversal, absolute paths,
+Windows drive paths, backslash paths, empty segments, and glob-like targets are
+rejected before CORE scope planning rather than being reinterpreted.
+
+Caller-known observations, constraints, and exclusions are appended to the
+CORE question under explicit caller-context labels. The Mailbox
+`Required output` section is not copied into the analysis question because it
+describes consumer rendering rather than repository evidence.
+
+`max_output_tokens` remains a soft Mailbox result-compression target. It is
+returned as `plan.output_target.max_output_tokens` and is intentionally not
+converted into a CORE analysis/correctness budget.
+
+The plan also returns `service_result_options`, preserving the exact job id,
+source ref, source commit, source repository, and original Mailbox analysis mode
+for `toJollyResearchMailboxServiceResult()`.
+
+## 10. Project into the KNEEKURA Mailbox service contract
 
 For a `service: kneekura-code-lab` job, use the conservative service
 projection:
@@ -240,7 +309,7 @@ Therefore this projection intentionally returns:
 A host may produce human/agent wording around these fields, but it must not
 promote that wording into canonical CORE authority.
 
-## 10. Render the service RESULT.md
+## 11. Render the service RESULT.md
 
 After creating the conservative service projection, render the Mailbox artifact
 with the stable renderer:
@@ -273,7 +342,7 @@ Empty authority-bearing fields stay explicit. For example, an empty
 `recommended_changes` array renders as a statement that canonical CORE did
 not establish a source change rather than synthesizing one in prose.
 
-## 11. Failure handling
+## 12. Failure handling
 
 Never flatten these states:
 
