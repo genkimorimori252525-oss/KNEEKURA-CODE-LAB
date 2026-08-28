@@ -74,6 +74,17 @@ plugin.session.resume(session_id, target_snapshot?)
 Inputs are cloned before delegation where relevant and returned objects are
 cloned before leaving the adapter.
 
+The adapter also validates delegated public results before exposing them:
+
+- `analyze` must return valid `core.analysis-result/v1`;
+- `expand` must return `core.analysis-delta/v1` with the requested
+  `analysis_id`;
+- `session.resume` must return `core.session-handle/v1` with the requested
+  `session_id`, and must preserve an explicitly requested target snapshot.
+
+A malformed engine result is rejected at the plugin boundary rather than being
+passed through as if it were canonical.
+
 ## Trust boundary
 
 The adapter does not weaken CORE authority.
