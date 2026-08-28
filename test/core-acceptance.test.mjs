@@ -1060,8 +1060,7 @@ test('AT-12 insufficient budget returns PARTIAL/BUDGET_EXHAUSTED with visible un
     output_profile: 'compact',
     budget: {
       scope_depth: 8,
-      scope_items: 1,
-      capsule_bytes: 1
+      scope_items: 1
     }
   });
 
