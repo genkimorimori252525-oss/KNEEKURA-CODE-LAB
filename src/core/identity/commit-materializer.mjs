@@ -90,10 +90,29 @@ async function assertMaterializationOutsideTarget(
   sourceRoot,
   tempParent
 ) {
-  const [realSource, realParent] = await Promise.all([
-    fs.realpath(sourceRoot),
-    fs.realpath(path.resolve(tempParent))
-  ]);
+  const realSource = await fs.realpath(sourceRoot);
+
+  let resolvedParent;
+  let realParent;
+  let parentStat;
+  try {
+    resolvedParent = path.resolve(tempParent);
+    realParent = await fs.realpath(resolvedParent);
+    parentStat = await fs.stat(realParent);
+  } catch (error) {
+    throw codedError(
+      'INVALID_REQUEST',
+      'commit materialization tempParent must be an existing directory',
+      error
+    );
+  }
+
+  if (!parentStat.isDirectory()) {
+    throw codedError(
+      'INVALID_REQUEST',
+      'commit materialization tempParent must be an existing directory'
+    );
+  }
 
   const sourcePrefix = realSource.endsWith(path.sep)
     ? realSource
