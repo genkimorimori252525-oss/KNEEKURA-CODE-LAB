@@ -216,7 +216,9 @@ test('service projection publishes the mailbox service contract without inventin
   const result = baseResult();
   const projected = toJollyResearchMailboxServiceResult(
     result,
-    context()
+    context({
+      analysisMode: 'architecture'
+    })
   );
 
   assert.equal(
@@ -282,6 +284,22 @@ test('service projection publishes the mailbox service contract without inventin
   assert.equal(projected.confidence.level, 'high');
 });
 
+test('service projection keeps bug_hunt partial until a canonical root cause exists', () => {
+  const projected = toJollyResearchMailboxServiceResult(
+    baseResult(),
+    context({
+      analysisMode: 'bug_hunt'
+    })
+  );
+
+  assert.equal(projected.status, 'partial');
+  assert.equal(projected.root_cause.established, false);
+  assert.match(
+    projected.bottom_line,
+    /bug_hunt remains partial/
+  );
+});
+
 test('service projection refuses to call a workspace snapshot completed or partial', () => {
   const projected = toJollyResearchMailboxServiceResult(
     baseResult({
@@ -345,6 +363,19 @@ test('service projection fails fast on a source commit mismatch', () => {
   );
 });
 
+test('service projection rejects a source repository that conflicts with canonical GitHub identity', () => {
+  assert.throws(
+    () => toJollyResearchMailboxServiceResult(
+      baseResult(),
+      context({
+        sourceRepository: 'other/repo',
+        analysisMode: 'architecture'
+      })
+    ),
+    /sourceRepository does not match AnalysisResult repository identity/
+  );
+});
+
 test('service projection requires a canonical mailbox analysis mode and full commit id', () => {
   assert.equal(
     JOLLY_MAILBOX_ANALYSIS_MODES.includes('bug_hunt'),
@@ -396,6 +427,61 @@ test('service projection surfaces missing inline Evidence as uncertainty instead
     projected.remaining_uncertainty.some(item =>
       item.kind === 'EVIDENCE_RECORD_UNAVAILABLE' &&
       item.evidence_id === EVIDENCE_ID
+    ),
+    true
+  );
+});
+
+test('service projection does not mislabel unresolved hypotheses as rejected', () => {
+  const result = baseResult();
+  const unresolved = applyVerificationResult(
+    createClaimRecord({
+      type: 'HYPOTHESIS',
+      subject: { node_id: 'node:foo' },
+      predicate: 'fixture.unresolved_candidate',
+      objectOrValue: true,
+      coverageRef: COVERAGE_FINGERPRINT,
+      confidence: {
+        level: 'LOW',
+        rationale: 'fixture unresolved hypothesis'
+      }
+    }),
+    {
+      status: 'UNRESOLVED',
+      verifierResults: []
+    }
+  );
+
+  result.claims.push(unresolved);
+  result.negated_hypotheses.push({
+    claim_id: unresolved.id,
+    type: unresolved.type,
+    status: unresolved.status
+  });
+  result.unknowns.push({
+    kind: 'CLAIM',
+    ref: unresolved.id,
+    reason: 'fixture hypothesis remains unresolved'
+  });
+
+  const projected = toJollyResearchMailboxServiceResult(
+    result,
+    context({
+      analysisMode: 'architecture'
+    })
+  );
+
+  assert.equal(
+    projected.rejected_hypotheses.some(item =>
+      item.kind === 'CLAIM' &&
+      item.claim.id === unresolved.id
+    ),
+    false
+  );
+  assert.equal(
+    projected.remaining_uncertainty.some(item =>
+      item.kind === 'CORE_UNKNOWN' &&
+      item.value.ref === unresolved.id
     ),
     true
   );
