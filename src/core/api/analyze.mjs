@@ -5,6 +5,12 @@ import {
   validateAnalysisResultV1
 } from '../schema/v1.mjs';
 import { scanRepository } from '../scan.mjs';
+import {
+  resolveRepositoryIdentity
+} from '../identity/repository.mjs';
+import {
+  materializeCommitAnalysisRoot
+} from '../identity/commit-materializer.mjs';
 import { planDeterministicAnalysis } from '../planning.mjs';
 import {
   addClaim,
@@ -47,7 +53,7 @@ export async function analyzeInternal(request, options = {}) {
     options.explorationLedger ??
     createExplorationLedger();
 
-  const graph = await scanRepository(repositoryRoot, {
+  const scanOptions = {
     ...scanOptionsForRequest(request, options.scan ?? {}),
     explorationLedger,
     requiredEvidenceFidelity: options.requiredEvidenceFidelity ?? 0,
@@ -57,7 +63,62 @@ export async function analyzeInternal(request, options = {}) {
         payload: structuredClone(payload)
       });
     }
-  });
+  };
+
+  let materializedCommit = null;
+  let graph;
+  try {
+    const selector = request.snapshot_selector ?? null;
+    if (selector?.kind === 'COMMIT') {
+      const repositoryIdentity =
+        await resolveRepositoryIdentity(
+          repositoryRoot,
+          options.scan?.identity ?? {}
+        );
+      assertRequestedRepositoryIdentity(
+        request.repository,
+        repositoryIdentity
+      );
+
+      materializedCommit =
+        await materializeCommitAnalysisRoot(
+          repositoryRoot,
+          repositoryIdentity,
+          selector.commit ?? selector.base_commit,
+          options.commitMaterialization ?? {}
+        );
+
+      graph = await scanRepository(
+        materializedCommit.root,
+        {
+          ...scanOptions,
+          repositoryIdentity,
+          snapshotIdentity:
+            materializedCommit.snapshotIdentity,
+          graphRoot: repositoryRoot
+        }
+      );
+    } else {
+      if (
+        selector != null &&
+        selector.kind !== 'WORKSPACE'
+      ) {
+        throw codedError(
+          'INVALID_REQUEST',
+          'snapshot_selector kind is not supported by core.analyze v1: ' +
+            selector.kind
+        );
+      }
+      graph = await scanRepository(
+        repositoryRoot,
+        scanOptions
+      );
+    }
+  } finally {
+    if (materializedCommit) {
+      await materializedCommit.cleanup();
+    }
+  }
 
   assertRequestedRepositoryIdentity(request.repository, graph.meta?.repository);
   explorationLedger.snapshot_id = graph.meta?.snapshot?.snapshot_id ?? null;

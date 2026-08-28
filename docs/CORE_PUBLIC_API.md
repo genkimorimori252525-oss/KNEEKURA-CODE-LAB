@@ -46,6 +46,39 @@ Renderer decisions do not occur inside analysis.
 A ReasoningBridge is optional. Analysis remains deterministic and usable
 without one.
 
+### Snapshot selector execution
+
+`AnalysisRequest.snapshot_selector` is an execution constraint, not metadata.
+
+For `{ kind: 'COMMIT', commit: '<full SHA>' }`, CORE:
+
+1. resolves RepositoryIdentity from the original target repository;
+2. verifies the exact requested Git object exists and is a commit;
+3. reads the commit tree/blob objects through Git plumbing;
+4. materializes only analyzable repository files into a CORE-owned temporary
+   directory;
+5. scans those bytes with the original RepositoryIdentity plus a canonical
+   `COMMIT` SnapshotIdentity;
+6. removes the temporary materialization after analysis.
+
+CORE does not checkout, reset, create a worktree in, or otherwise mutate the
+target repository to honor a COMMIT selector. Current HEAD and dirty working
+tree state are therefore not substituted for the requested commit.
+
+The CORE-owned temporary materialization root is also required to be outside
+the target repository. A configured materialization location that resolves
+inside the target is rejected with `TRUST_BOUNDARY_VIOLATION`.
+
+`{ kind: 'WORKSPACE' }` keeps the existing frozen-workspace semantics,
+including the post-freeze `SNAPSHOT_CHANGED` race check.
+
+Selector kinds that the single-repository analyze path cannot execute are
+rejected with `INVALID_REQUEST`; they are not silently ignored.
+
+Evidence acquired from a COMMIT materialization keeps the original
+RepositoryIdentity and the canonical COMMIT SnapshotIdentity in provenance.
+The temporary filesystem path is not the repository identity.
+
 ## ReasoningBridge trust boundary
 
 The interface is:
