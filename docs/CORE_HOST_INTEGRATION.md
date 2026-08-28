@@ -147,7 +147,72 @@ change. A mailbox host may format the entry into the service-specific
 `RESULT.md` contract, but facts and certainty must remain bounded by the
 canonical Claims, Evidence, Coverage, and verifier state.
 
-## 9. Failure handling
+## 9. Project into the KNEEKURA Mailbox service contract
+
+For a `service: kneekura-code-lab` job, use the conservative service
+projection:
+
+~~~js
+import {
+  toJollyResearchMailboxServiceResult
+} from 'kneekura-code-lab/mailbox';
+
+const serviceResult = toJollyResearchMailboxServiceResult(result, {
+  jobId: 'JOB-...',
+  sourceRepository: 'owner/repository',
+  sourceRef: 'main',
+  sourceCommit: 'FULL_COMMIT_SHA',
+  analysisMode: 'bug_hunt'
+});
+~~~
+
+The projection schema is:
+
+~~~text
+jolly.research-mailbox-service-result/v1
+~~~
+
+The projection is deliberately stricter than a prose renderer.
+
+- `sourceCommit` must be a full SHA and must match
+  `AnalysisResult.snapshot.base_commit` when that field exists.
+- For GitHub-backed RepositoryIdentity, `sourceRepository` is validated
+  against the canonical remote and emitted in normalized `owner/repository`
+  form rather than echoing caller whitespace or a trailing `.git`.
+- Only a `COMMIT` AnalysisResult snapshot can project to
+  `completed` or `partial`. WORKSPACE/MULTI_REPO/ARCHIVE results project to
+  `needs_context` because `source_commit` alone does not prove the exact
+  analyzed bytes required by the mailbox service contract.
+- A canonical `COMPLETE` run is not automatically a completed mailbox job:
+  when no verified Claim exists, projection remains `partial`.
+- `bug_hunt` remains `partial` until CORE has an explicit canonical
+  root-cause contract. The current adapter will not relabel an arbitrary
+  verified Claim as a causal root cause.
+- Evidence file/symbol/line fields are emitted only when canonical Evidence
+  provenance/observation contains them. Missing inline Evidence is surfaced as
+  uncertainty instead of fabricated location data.
+- Canonical CORE warnings are preserved in `remaining_uncertainty` and
+  therefore prevent an otherwise warning-bearing result from receiving
+  unqualified high aggregate confidence.
+- Rejected hypotheses come from canonical negated/rejected Claim state.
+- `verification_plan` is copied from canonical
+  `recommended_validation`.
+- An external-research request is surfaced only when CORE explicitly emits the
+  `EXTERNAL_RESEARCH_REQUIRED` reason code.
+
+CORE v1 does **not** have canonical fields that authorize arbitrary source
+changes or assign a generic Claim the semantic role of “root cause”.
+Therefore this projection intentionally returns:
+
+- `root_cause.established = false` unless a future version adds an explicit
+  verified causal contract;
+- an empty `recommended_changes` list;
+- an empty `do_not_change` list.
+
+A host may produce human/agent wording around these fields, but it must not
+promote that wording into canonical CORE authority.
+
+## 10. Failure handling
 
 Never flatten these states:
 
