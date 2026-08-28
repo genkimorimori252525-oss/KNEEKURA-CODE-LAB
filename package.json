@@ -16,9 +16,20 @@
     "demo": "node src/cli.mjs scan fixtures/forge-mini --out dist/graph.json && node src/cli.mjs serve --graph dist/graph.json",
     "presentation:guard": "node scripts/check-presentation-boundary.mjs",
     "test:presentation-p0": "node --test test/human-presentation-v2-p0.test.mjs",
-    "test:presentation-p1": "node --test test/human-presentation-v2-p1.test.mjs"
+    "test:presentation-p1": "node --test test/human-presentation-v2-p1.test.mjs",
+    "explorer:dev": "vite --config packages/human-explorer/vite.config.mjs",
+    "explorer:build": "vite build --config packages/human-explorer/vite.config.mjs"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "@xyflow/react": "12.11.5",
+    "elkjs": "0.12.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "vite": "8.2.2"
   }
 }
