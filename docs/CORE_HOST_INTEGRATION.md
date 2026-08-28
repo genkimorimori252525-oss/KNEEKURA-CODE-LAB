@@ -2,13 +2,23 @@
 
 This is the minimal host integration path for CORE v1.
 
+Stable package subpaths:
+
+~~~text
+kneekura-code-lab/plugin
+kneekura-code-lab/mailbox
+~~~
+
+When working directly from a source checkout, the equivalent files are
+`./src/plugin.mjs` and `./src/mailbox.mjs`.
+
 ## 1. Create an engine
 
 ~~~js
 import {
   createCoreEngine,
   createCorePluginAdapter
-} from './src/plugin.mjs';
+} from 'kneekura-code-lab/plugin';
 
 const engine = createCoreEngine({
   // optional CORE-owned session/cache configuration
@@ -114,6 +124,28 @@ The same canonical AnalysisResult can be sent to:
 - another consumer
 
 Human explanation text is never verification authority.
+
+For the Jolly Research Mailbox machine consumer:
+
+~~~js
+import {
+  toJollyResearchMailbox
+} from 'kneekura-code-lab/mailbox';
+
+const mailboxEntry = toJollyResearchMailbox(result, {
+  profile: 'compact'
+});
+~~~
+
+The mailbox adapter preserves canonical Claim IDs/status, support and
+counterevidence IDs, Coverage completeness, UNKNOWNs, warnings/failures, and
+recommended validation. Its output is detached from the canonical
+AnalysisResult so consumer-side formatting cannot mutate CORE state.
+
+This machine entry is not permission to invent a narrative root cause or code
+change. A mailbox host may format the entry into the service-specific
+`RESULT.md` contract, but facts and certainty must remain bounded by the
+canonical Claims, Evidence, Coverage, and verifier state.
 
 ## 9. Failure handling
 
