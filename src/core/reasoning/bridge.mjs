@@ -166,8 +166,28 @@ export function validateReasoningTask(task) {
   if (!task.request || typeof task.request !== 'object') {
     throw new TypeError('ReasoningTask request is required');
   }
-  if (!task.capsule || typeof task.capsule !== 'object') {
+  if (
+    !task.capsule ||
+    typeof task.capsule !== 'object' ||
+    Array.isArray(task.capsule)
+  ) {
     throw new TypeError('ReasoningTask capsule is required');
+  }
+  if (
+    task.capsule.evidence != null &&
+    !Array.isArray(task.capsule.evidence)
+  ) {
+    throw new TypeError(
+      'ReasoningTask capsule.evidence must be an array when supplied'
+    );
+  }
+  if (
+    task.capsule.source_anchors != null &&
+    !Array.isArray(task.capsule.source_anchors)
+  ) {
+    throw new TypeError(
+      'ReasoningTask capsule.source_anchors must be an array when supplied'
+    );
   }
   if (!Array.isArray(task.selected_node_ids)) {
     throw new TypeError('ReasoningTask selected_node_ids must be an array');
