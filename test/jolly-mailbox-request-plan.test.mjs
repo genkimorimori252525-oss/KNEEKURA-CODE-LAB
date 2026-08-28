@@ -285,7 +285,7 @@ test('strict Markdown parsing rejects unknown metadata, sections, and duplicate 
     () => parseJollyResearchMailboxRequestMarkdown(
       EXAMPLE.replace(
         'priority: normal',
-        'priority: normal\\nmagic_mode: yes'
+        'priority: normal\nmagic_mode: yes'
       )
     ),
     /unsupported mailbox request metadata/
@@ -305,7 +305,7 @@ test('strict Markdown parsing rejects unknown metadata, sections, and duplicate 
     () => parseJollyResearchMailboxRequestMarkdown(
       EXAMPLE.replace(
         'status: pending',
-        'status: pending\\nstatus: researching'
+        'status: pending\nstatus: researching'
       )
     ),
     /duplicate mailbox request metadata/
