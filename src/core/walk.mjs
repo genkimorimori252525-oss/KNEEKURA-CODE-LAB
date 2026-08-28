@@ -6,7 +6,7 @@ const IGNORE = new Set([
   '.gradle','.idea','.vscode','run'
 ]);
 const ALLOWED = new Set([
-  '.java','.json','.toml','.gradle',
+  '.java','.js','.mjs','.cjs','.json','.toml','.gradle',
   '.kts','.properties','.mcmeta'
 ]);
 
