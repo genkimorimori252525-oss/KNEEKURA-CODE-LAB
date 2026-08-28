@@ -207,18 +207,21 @@ export async function analyzeInternal(request, options = {}) {
     profile: request.output_profile ?? options.outputProfile ?? 'standard',
     budget: request.budget ?? {}
   });
+  const reasoningRequested =
+    Boolean(options.reasoningBridge);
+
   await session.append('METRICS_UPDATED', {
     metrics: {
       evidence_ids_sent_to_reasoning_bridge:
-        options.reasoningBridge && !capsule.budget.budget_exhausted
+        reasoningRequested && !capsule.budget.budget_exhausted
           ? capsule.evidence.length
           : 0,
       raw_excerpt_bytes_packed:
-        options.reasoningBridge && !capsule.budget.budget_exhausted
+        reasoningRequested && !capsule.budget.budget_exhausted
           ? capsule.metrics.raw_excerpt_bytes
           : 0,
       raw_excerpt_tokens_packed:
-        options.reasoningBridge && !capsule.budget.budget_exhausted
+        reasoningRequested && !capsule.budget.budget_exhausted
           ? capsule.metrics.raw_excerpt_tokens
           : 0
     }
@@ -227,7 +230,7 @@ export async function analyzeInternal(request, options = {}) {
   const proposalOutcomes = [];
   let bridgeFailure = null;
 
-  if (options.reasoningBridge && !capsule.budget.budget_exhausted) {
+  if (reasoningRequested && !capsule.budget.budget_exhausted) {
     try {
       const task = createReasoningTask({
         analysisId,
@@ -287,8 +290,6 @@ export async function analyzeInternal(request, options = {}) {
   }
 
   const ledgerSnapshot = finalizeEvidenceLedger(ledger);
-  const reasoningRequested =
-    Boolean(options.reasoningBridge);
   const warnings = collectWarnings({
     graph,
     imported,
