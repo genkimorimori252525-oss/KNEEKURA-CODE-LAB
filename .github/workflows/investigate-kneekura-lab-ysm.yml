@@ -1,0 +1,28 @@
+name: KNEEKURA LAB YSM Investigation
+
+on:
+  push:
+    branches:
+      - analysis/kneekura-lab-ysm-render-parity-v1
+    paths:
+      - 'scripts/investigate-kneekura-lab-ysm.mjs'
+      - '.github/workflows/investigate-kneekura-lab-ysm.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  investigate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Clone exact KNEEKURA-LAB target
+        run: |
+          git clone https://github.com/genkimorimori252525-oss/KNEEKURA-LAB.git ../KNEEKURA-LAB
+          git -C ../KNEEKURA-LAB checkout --detach f9f01c9d3357f2d795b90152a1095423423db2fd
+          test "$(git -C ../KNEEKURA-LAB rev-parse HEAD)" = "f9f01c9d3357f2d795b90152a1095423423db2fd"
+      - name: Analyze YSM render parity with KNEEKURA
+        run: node scripts/investigate-kneekura-lab-ysm.mjs ../KNEEKURA-LAB
