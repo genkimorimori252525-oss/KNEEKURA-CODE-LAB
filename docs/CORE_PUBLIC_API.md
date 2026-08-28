@@ -329,6 +329,32 @@ recommended validation.
 
 Mailbox wording/shape is not a CORE canonical schema.
 
+## Built-in JavaScript lexical evidence
+
+CORE scans repository JavaScript modules with the deterministic
+`builtin-javascript/lexical-v1` provider for these extensions:
+
+- `.js`
+- `.mjs`
+- `.cjs`
+
+The provider records repository file nodes, local/external module dependency
+edges, class declarations, named function/function-binding declarations, and
+explicit export names. Relative module specifiers are resolved only when a
+deterministic repository file candidate exists. Package/builtin modules and
+unresolved relative imports remain explicit unresolved external module
+references; CORE does not fabricate repository ownership for them.
+
+This is intentionally a lexical provider, not a JavaScript AST/type/runtime
+engine. It does not claim full ECMAScript parsing, type inference, control-flow
+resolution, call-target resolution, or runtime behavior. Comment text is masked
+before matching, and Evidence remains `REPOSITORY_UNTRUSTED`
+`STATIC_ANALYSIS` with the exact repository/snapshot provenance.
+
+COMMIT snapshot materialization uses the same analyzable-path predicate as the
+workspace scanner, so JavaScript bytes used by a commit-pinned analysis come
+from the requested Git tree rather than dirty workspace content.
+
 ## Target repository safety
 
 No public API operation provides a repository-write primitive.
