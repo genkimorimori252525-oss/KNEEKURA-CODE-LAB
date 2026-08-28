@@ -120,6 +120,7 @@ test('JavaScript lexical provider records local module dependencies, declaration
   );
   assert.ok(main);
   assert.equal(main.language, 'javascript');
+  assert.equal(main.moduleType, 'esm');
   assert.deepEqual(
     main.exports,
     [
@@ -209,19 +210,28 @@ test('JavaScript lexical provider records local module dependencies, declaration
   );
 });
 
-test('JavaScript lexical analyzer ignores comment text without destroying string literals', async t => {
+test('JavaScript lexical analyzer masks comments in template expressions and raw template text', async t => {
   const root = await tempDir(
     t,
     'kneekura-js-comments-'
   );
 
   const source = path.join(root, 'entry.mjs');
+  const dependency = path.join(root, 'real.mjs');
+  await fs.writeFile(
+    dependency,
+    'export const real = true;\n',
+    'utf8'
+  );
   await fs.writeFile(
     source,
     [
       "const url = 'https://example.invalid/path';",
       "// import 'fake-module';",
       '/* export function fakeBlock() {} */',
+      "const raw = `import 'raw-fake'; export function rawFake() {}`;",
+      "const expression = `value: ${ /* import 'expr-fake'; export function exprFake() {} */ import('./real.mjs') }`;",
+      "const nested = `outer ${ `inner ${ /* export function nestedFake() {} */ 1 }` }`;",
       'export function realFunction() {',
       '  return url;',
       '}',
@@ -236,10 +246,80 @@ test('JavaScript lexical analyzer ignores comment text without destroying string
     node.kind === 'function' &&
     node.key === 'entry.mjs#realFunction'
   ));
+  for (const fake of [
+    'entry.mjs#fakeBlock',
+    'entry.mjs#rawFake',
+    'entry.mjs#exprFake',
+    'entry.mjs#nestedFake',
+    'fake-module',
+    'raw-fake',
+    'expr-fake'
+  ]) {
+    assert.equal(
+      graph.nodes.some(node => node.key === fake),
+      false,
+      fake
+    );
+  }
+
+  const entry = graph.nodes.find(node =>
+    node.kind === 'file' &&
+    node.path === 'entry.mjs'
+  );
+  const real = graph.nodes.find(node =>
+    node.kind === 'file' &&
+    node.path === 'real.mjs'
+  );
+  assert.ok(entry);
+  assert.ok(real);
+  assert.ok(graph.edges.some(edge =>
+    edge.from === entry.id &&
+    edge.to === real.id &&
+    edge.type === 'DYNAMIC_IMPORTS'
+  ));
+});
+
+test('JavaScript module type is classified only when the extension is authoritative', async t => {
+  const root = await tempDir(
+    t,
+    'kneekura-js-module-type-'
+  );
+
+  await fs.writeFile(
+    path.join(root, 'module.mjs'),
+    'export const esm = true;\n',
+    'utf8'
+  );
+  await fs.writeFile(
+    path.join(root, 'legacy.cjs'),
+    'exports.legacy = true;\n',
+    'utf8'
+  );
+  await fs.writeFile(
+    path.join(root, 'ambiguous.js'),
+    'export const maybe = true;\n',
+    'utf8'
+  );
+
+  const graph = await scanRepository(root);
+  const byPath = pathName =>
+    graph.nodes.find(node =>
+      node.kind === 'file' &&
+      node.path === pathName
+    );
+
   assert.equal(
-    graph.nodes.some(node =>
-      node.key === 'entry.mjs#fakeBlock' ||
-      node.key === 'fake-module'
+    byPath('module.mjs').moduleType,
+    'esm'
+  );
+  assert.equal(
+    byPath('legacy.cjs').moduleType,
+    'commonjs'
+  );
+  assert.equal(
+    Object.hasOwn(
+      byPath('ambiguous.js'),
+      'moduleType'
     ),
     false
   );
