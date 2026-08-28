@@ -20,5 +20,8 @@
     "AT-10",
     "AT-11",
     "AT-12"
-  ]
+  ],
+  "successor_snapshots": {
+    "KNEEKURA-CODE-LAB after Milestones A-G": "bf63b725d01648c5d07007157c9c58d3a46327d3"
+  }
 }
