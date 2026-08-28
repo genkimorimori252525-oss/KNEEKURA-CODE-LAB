@@ -98,10 +98,11 @@ export function toJollyResearchMailboxServiceResult(result, {
       'sourceCommit does not match AnalysisResult snapshot base_commit'
     );
   }
-  assertSourceRepositoryMatches(
-    result.repository,
-    sourceRepository
-  );
+  const normalizedSourceRepository =
+    normalizeAndAssertSourceRepository(
+      result.repository,
+      sourceRepository
+    );
 
   const claims = (result.claims ?? []).map(projectClaim);
   const verifiedClaims = claims.filter(claim =>
@@ -151,6 +152,13 @@ export function toJollyResearchMailboxServiceResult(result, {
     });
   }
 
+  for (const warning of result.warnings ?? []) {
+    remainingUncertainty.push({
+      kind: 'CORE_WARNING',
+      value: structuredClone(warning)
+    });
+  }
+
   for (const failure of result.failures ?? []) {
     remainingUncertainty.push({
       kind: 'CORE_FAILURE',
@@ -182,7 +190,7 @@ export function toJollyResearchMailboxServiceResult(result, {
     service: JOLLY_MAILBOX_SERVICE,
     id: jobId,
     status,
-    source_repository: sourceRepository,
+    source_repository: normalizedSourceRepository,
     source_ref: sourceRef,
     source_commit: sourceCommit,
     source_snapshot_id: result.snapshot.snapshot_id,
@@ -471,31 +479,36 @@ function serviceStatusForProjection({
   return 'completed';
 }
 
-function assertSourceRepositoryMatches(
+function normalizeAndAssertSourceRepository(
   repository,
   sourceRepository
 ) {
+  const raw = sourceRepository.trim();
   const canonical = repository?.canonical_identity;
   if (
     typeof canonical !== 'string' ||
     !canonical.startsWith('git:github.com/')
   ) {
-    return;
+    return raw;
   }
 
-  const value = sourceRepository.trim().replace(/\.git$/i, '');
+  const value = raw.replace(/\.git$/i, '');
   if (!/^[^/\s]+\/[^/\s]+$/.test(value)) {
     throw new TypeError(
       'sourceRepository must be owner/repository for a GitHub-backed AnalysisResult'
     );
   }
 
-  const expected = 'git:github.com/' + value.toLowerCase();
-  if (canonical.toLowerCase() !== expected) {
+  const canonicalPath = canonical.slice(
+    'git:github.com/'.length
+  );
+  if (canonicalPath.toLowerCase() !== value.toLowerCase()) {
     throw new Error(
       'sourceRepository does not match AnalysisResult repository identity'
     );
   }
+
+  return canonicalPath;
 }
 
 function mapServiceStatus(status) {
