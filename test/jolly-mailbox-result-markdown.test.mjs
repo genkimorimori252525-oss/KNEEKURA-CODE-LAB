@@ -274,7 +274,10 @@ test('RESULT.md renders detailed uncertainty once in compact deterministic JSON'
     );
 
   for (let index = 0; index < 50; index++) {
-    const token = 'unique-warning-' + index;
+    const token =
+      '"message":"unique-warning-' +
+      index +
+      '"';
     assert.equal(
       rendered.split(token).length - 1,
       1,
