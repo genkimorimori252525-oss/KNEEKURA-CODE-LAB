@@ -802,7 +802,10 @@ Add symlink/path traversal fixtures where the platform permits.
 
 ### H4. Budget/coverage fixtures
 
-Force low budget and verify PARTIAL/BUDGET_EXHAUSTED.
+Force an inadequate deterministic scope/item budget and verify
+PARTIAL/BUDGET_EXHAUSTED with visible UNEXPLORED scope. Test ReasoningBridge
+Evidence Capsule exhaustion separately so bridge-transmission limits are not
+conflated with deterministic Coverage.
 
 ### H5. Plugin readiness gate
 

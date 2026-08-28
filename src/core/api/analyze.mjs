@@ -207,18 +207,21 @@ export async function analyzeInternal(request, options = {}) {
     profile: request.output_profile ?? options.outputProfile ?? 'standard',
     budget: request.budget ?? {}
   });
+  const reasoningRequested =
+    Boolean(options.reasoningBridge);
+
   await session.append('METRICS_UPDATED', {
     metrics: {
       evidence_ids_sent_to_reasoning_bridge:
-        options.reasoningBridge && !capsule.budget.budget_exhausted
+        reasoningRequested && !capsule.budget.budget_exhausted
           ? capsule.evidence.length
           : 0,
       raw_excerpt_bytes_packed:
-        options.reasoningBridge && !capsule.budget.budget_exhausted
+        reasoningRequested && !capsule.budget.budget_exhausted
           ? capsule.metrics.raw_excerpt_bytes
           : 0,
       raw_excerpt_tokens_packed:
-        options.reasoningBridge && !capsule.budget.budget_exhausted
+        reasoningRequested && !capsule.budget.budget_exhausted
           ? capsule.metrics.raw_excerpt_tokens
           : 0
     }
@@ -227,7 +230,7 @@ export async function analyzeInternal(request, options = {}) {
   const proposalOutcomes = [];
   let bridgeFailure = null;
 
-  if (options.reasoningBridge && !capsule.budget.budget_exhausted) {
+  if (reasoningRequested && !capsule.budget.budget_exhausted) {
     try {
       const task = createReasoningTask({
         analysisId,
@@ -292,6 +295,8 @@ export async function analyzeInternal(request, options = {}) {
     imported,
     proposalOutcomes,
     capsule,
+    coverage: planning.coverage,
+    reasoningRequested,
     bridgeFailure
   });
   const failures = collectFailures(graph, bridgeFailure);
@@ -304,6 +309,7 @@ export async function analyzeInternal(request, options = {}) {
     ledgerSnapshot,
     proposalOutcomes,
     capsule,
+    reasoningRequested,
     warnings,
     failures
   });
@@ -540,6 +546,7 @@ function buildAnalysisResult({
   ledgerSnapshot,
   proposalOutcomes,
   capsule,
+  reasoningRequested,
   warnings,
   failures
 }) {
@@ -611,6 +618,7 @@ function buildAnalysisResult({
   const status = runStatus({
     coverage: planning.coverage,
     capsule,
+    reasoningRequested,
     failures
   });
 
@@ -644,6 +652,8 @@ function collectWarnings({
   imported,
   proposalOutcomes,
   capsule,
+  coverage,
+  reasoningRequested,
   bridgeFailure
 }) {
   const warnings = [];
@@ -664,11 +674,25 @@ function collectWarnings({
       });
     }
   }
-  if (capsule.budget.budget_exhausted) {
+  const scopeBudgetExhausted =
+    coverage?.closure?.budget_exhausted === true ||
+    (coverage?.entries ?? []).some(entry =>
+      entry.reason_code === 'BUDGET_EXHAUSTED'
+    );
+  const reasoningCapsuleBudgetExhausted =
+    reasoningRequested === true &&
+    capsule.budget.budget_exhausted === true;
+
+  if (
+    scopeBudgetExhausted ||
+    reasoningCapsuleBudgetExhausted
+  ) {
     warnings.push({
       code: 'BUDGET_EXHAUSTED',
-      message:
-        'Evidence Capsule budget omitted required/high-priority evidence'
+      message: budgetExhaustedMessage({
+        scopeBudgetExhausted,
+        reasoningCapsuleBudgetExhausted
+      })
     });
   }
   if (bridgeFailure) warnings.push(structuredClone(bridgeFailure));
@@ -781,14 +805,51 @@ function collectFailures(graph, bridgeFailure) {
   return failures;
 }
 
-function runStatus({ coverage, capsule, failures }) {
-  if (coverage.completeness === 'PARTIAL' ||
-      coverage.completeness === 'UNKNOWN' ||
-      capsule.budget.budget_exhausted ||
-      failures.some(item => item.code === 'REASONING_BRIDGE_FAILED')) {
+function runStatus({
+  coverage,
+  capsule,
+  reasoningRequested,
+  failures
+}) {
+  if (
+    coverage.completeness === 'PARTIAL' ||
+    coverage.completeness === 'UNKNOWN' ||
+    (
+      reasoningRequested === true &&
+      capsule.budget.budget_exhausted
+    ) ||
+    failures.some(item =>
+      item.code === 'REASONING_BRIDGE_FAILED'
+    )
+  ) {
     return 'PARTIAL';
   }
   return 'COMPLETE';
+}
+
+function budgetExhaustedMessage({
+  scopeBudgetExhausted,
+  reasoningCapsuleBudgetExhausted
+}) {
+  if (
+    scopeBudgetExhausted &&
+    reasoningCapsuleBudgetExhausted
+  ) {
+    return (
+      'deterministic analysis scope budget left relevant items unexplored, ' +
+      'and the requested ReasoningBridge Evidence Capsule omitted ' +
+      'required/high-priority evidence'
+    );
+  }
+  if (scopeBudgetExhausted) {
+    return (
+      'deterministic analysis scope budget left relevant items unexplored'
+    );
+  }
+  return (
+    'requested ReasoningBridge Evidence Capsule budget omitted ' +
+    'required/high-priority evidence'
+  );
 }
 
 function affectedSymbols(graph, scope) {

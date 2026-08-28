@@ -195,7 +195,7 @@ test('ReasoningBridge exact symbol outside deterministic candidate set is reject
   );
 });
 
-test('Evidence Capsule deduplicates IDs and tiny budget forces PARTIAL/BUDGET_EXHAUSTED', async () => {
+test('Evidence Capsule can exhaust without downgrading deterministic analysis when no ReasoningBridge is requested', async () => {
   const execution = await analyzeInternal(request({
     budget: {
       scope_depth: 0,
@@ -211,12 +211,17 @@ test('Evidence Capsule deduplicates IDs and tiny budget forces PARTIAL/BUDGET_EX
       execution.state.capsule.budget.max_bytes,
     true
   );
-  assert.equal(execution.result.status, 'PARTIAL');
+
+  assert.equal(
+    execution.result.coverage.completeness,
+    'BOUNDED'
+  );
+  assert.equal(execution.result.status, 'COMPLETE');
   assert.equal(
     execution.result.warnings.some(item =>
       item.code === 'BUDGET_EXHAUSTED'
     ),
-    true
+    false
   );
 });
 
@@ -470,7 +475,12 @@ test('capsule budget exhaustion prevents ReasoningBridge invocation', async () =
   assert.equal(calls, 0);
   assert.equal(result.status, 'PARTIAL');
   assert.equal(
-    result.warnings.some(item => item.code === 'BUDGET_EXHAUSTED'),
+    result.warnings.some(item =>
+      item.code === 'BUDGET_EXHAUSTED' &&
+      /ReasoningBridge Evidence Capsule/.test(
+        item.message
+      )
+    ),
     true
   );
   assert.equal(

@@ -881,7 +881,11 @@ AI output profiles:
 
 Compact output may omit tutorial prose, but never the coverage/unknown qualifiers required to interpret a conclusion.
 
-If required exploration cannot fit the budget, CORE returns `PARTIAL / BUDGET_EXHAUSTED`.
+If required deterministic exploration cannot fit the scope/item budget, CORE
+returns `PARTIAL / BUDGET_EXHAUSTED` with the relevant scope left explicitly
+UNEXPLORED. Evidence Capsule packing pressure is a separate boundary: it
+downgrades a run only when a ReasoningBridge was actually requested and cannot
+be given its required capsule.
 
 CORE may estimate tokens for packing/telemetry. It does not own provider pricing.
 

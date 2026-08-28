@@ -187,9 +187,17 @@ Profiles:
 A request may further constrain capsule bytes/tokens through the existing
 budget object.
 
-If the capsule cannot fit its required envelope/evidence budget, CORE marks
-`BUDGET_EXHAUSTED`, returns a PARTIAL AnalysisResult, and does not invoke the
-ReasoningBridge with an incomplete reasoning context.
+The Evidence Capsule remains an inspectable bounded projection even when no
+ReasoningBridge is injected. In that deterministic-only case,
+`capsule.budget.budget_exhausted` records packing pressure but does not by
+itself downgrade the canonical AnalysisResult or emit a run warning.
+
+If a ReasoningBridge is requested and its capsule cannot fit the required
+envelope/evidence budget, CORE marks `BUDGET_EXHAUSTED`, returns a PARTIAL
+AnalysisResult, and does not invoke the bridge with an incomplete reasoning
+context. Deterministic scope/item budget exhaustion is independent: when it
+leaves relevant scope UNEXPLORED, Coverage remains PARTIAL and the run reports
+`BUDGET_EXHAUSTED` whether or not a ReasoningBridge is configured.
 
 ## AnalysisResult
 

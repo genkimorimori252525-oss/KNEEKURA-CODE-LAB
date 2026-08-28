@@ -1060,15 +1060,17 @@ test('AT-12 insufficient budget returns PARTIAL/BUDGET_EXHAUSTED with visible un
     output_profile: 'compact',
     budget: {
       scope_depth: 8,
-      scope_items: 1,
-      capsule_bytes: 1
+      scope_items: 1
     }
   });
 
   assert.equal(execution.result.status, 'PARTIAL');
   assert.equal(
     execution.result.warnings.some(item =>
-      item.code === 'BUDGET_EXHAUSTED'
+      item.code === 'BUDGET_EXHAUSTED' &&
+      /deterministic analysis scope budget/.test(
+        item.message
+      )
     ),
     true
   );
