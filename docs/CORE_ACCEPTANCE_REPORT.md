@@ -200,7 +200,7 @@ root is ignored where the platform permits symlink creation.
 
 PASS.
 
-An intentionally inadequate exhaustive request returns:
+An intentionally inadequate deterministic scope/item budget returns:
 
 - run status PARTIAL
 - `BUDGET_EXHAUSTED`
