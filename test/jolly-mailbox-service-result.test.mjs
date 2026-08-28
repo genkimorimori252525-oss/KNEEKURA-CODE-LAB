@@ -373,10 +373,11 @@ test('service projection requires a canonical mailbox analysis mode and full com
 });
 
 test('service projection surfaces missing inline Evidence as uncertainty instead of fabricating file or line data', () => {
+  const result = baseResult({
+    includeEvidence: false
+  });
   const projected = toJollyResearchMailboxServiceResult(
-    baseResult({
-      includeEvidence: false
-    }),
+    result,
     context()
   );
 
@@ -385,10 +386,7 @@ test('service projection surfaces missing inline Evidence as uncertainty instead
     evidence_id: EVIDENCE_ID,
     record_available: false,
     relevance: [{
-      claim_id: projected.rejected_hypotheses[0].claim.id ===
-        projected.canonical.analysis_id
-        ? 'unreachable'
-        : baseResult().claims[0].id,
+      claim_id: result.claims[0].id,
       role: 'SUPPORT',
       strength: 'DIRECT',
       channel: 'support'
