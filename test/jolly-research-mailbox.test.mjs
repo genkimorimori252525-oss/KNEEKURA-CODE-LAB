@@ -17,19 +17,28 @@ import {
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const FIXTURE = path.join(ROOT, 'fixtures/forge-mini');
 
+let baseResultPromise = null;
+
+function analyzedBaseResult() {
+  if (!baseResultPromise) {
+    const engine = createCoreEngine();
+    baseResultPromise = engine.analyze({
+      schema: 'core.analysis-request/v1',
+      repository: FIXTURE,
+      mode: 'TRACE',
+      question: 'Trace ReimuPacket for mailbox rendering.',
+      scope: {
+        paths: ['ReimuPacket.java']
+      },
+      policy: 'precision',
+      output_profile: 'compact'
+    });
+  }
+  return baseResultPromise;
+}
+
 async function canonicalResult() {
-  const engine = createCoreEngine();
-  const result = await engine.analyze({
-    schema: 'core.analysis-request/v1',
-    repository: FIXTURE,
-    mode: 'TRACE',
-    question: 'Trace ReimuPacket for mailbox rendering.',
-    scope: {
-      paths: ['ReimuPacket.java']
-    },
-    policy: 'precision',
-    output_profile: 'compact'
-  });
+  const result = structuredClone(await analyzedBaseResult());
 
   const claim = createClaimRecord({
     type: 'INFERRED',
