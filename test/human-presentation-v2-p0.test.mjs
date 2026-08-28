@@ -83,6 +83,7 @@ test('P0 boundary guard rejects package and local Presentation imports', async t
       "import { forceSimulation } from 'd3-force';",
       "import archify from 'archify';",
       "import '../viewer/model.mjs';",
+      "require('..\\\\viewer\\\\windows.mjs');",
       "export { x } from '../../third_party/example/x.mjs';"
     ].join('\n') + '\n',
     'utf8'
@@ -103,6 +104,7 @@ test('P0 boundary guard rejects package and local Presentation imports', async t
     'd3-force',
     'archify',
     '../viewer/model.mjs',
+    '..\\\\viewer\\\\windows.mjs',
     '../../third_party/example/x.mjs'
   ]) {
     assert.equal(
