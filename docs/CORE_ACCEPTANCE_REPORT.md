@@ -111,6 +111,16 @@ PASS.
 Exact Java-visible anchors and native boundary are pinned. Native-internal
 generation remains explicit UNKNOWN.
 
+AT-01 is not oracle-only. A curated offline UA graph derived from the pinned
+class metadata is passed through the canonical
+`core.analyze -> ReasoningBridge -> Claim -> Verifier -> AnalysisResult`
+path. The resulting Claim identifies the `Class878.method3662` native
+boundary but remains `UNKNOWN / UNRESOLVED` for the exact native-internal
+per-bone generation point, and no forbidden overclaim is verified.
+
+- canonical AT-01 execution: CI #521
+- full suite: 205/205 PASS
+
 ### AT-02 — M5 is not M6
 
 PASS.
