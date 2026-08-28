@@ -210,14 +210,15 @@ Only after the 12 acceptance tests passed, Milestone H added:
 - `docs/CORE_PLUGIN_ADAPTER.md`
 - `docs/CORE_HOST_INTEGRATION.md`
 
-Plugin/schema contract regression run:
+Plugin/schema contract regression runs:
 
-- CI #509
-- 202/202 PASS
+- CI #509: 202/202 PASS — initial plugin readiness gate
+- CI #516: 204/204 PASS — delegated expand/session output schema and identity hardening
 - plugin manifest/schema tests: PASS
 - real plugin analyze/expand/get delegation: PASS
 - unknown host Evidence-cache ID rejection: PASS
-- plugin expand/session delegated output schema and identity validation: PASS
+- malformed delegated AnalysisDelta/SessionHandle rejection: PASS
+- explicit resume target-snapshot identity validation: PASS
 
 ## Remaining merge gate
 
