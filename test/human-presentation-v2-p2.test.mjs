@@ -177,7 +177,13 @@ test('P2 rejects incomplete or foreign layout identities instead of repairing th
   assert.throws(
     () => applyElkLayout(model, {
       ...input,
-      children: input.children.slice(1)
+      children: input.children
+        .slice(1)
+        .map(node => ({
+          ...node,
+          x: 0,
+          y: 0
+        }))
     }),
     /map every canonical UI node exactly once/
   );
