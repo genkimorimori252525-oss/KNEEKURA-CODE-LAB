@@ -28,7 +28,9 @@ import { deriveYsmFidelityMatrix } from '../analyzers/fidelity.mjs';
 
 export async function scanRepository(root, opts={}) {
   root = path.resolve(root);
-  const b = new GraphBuilder(root);
+  const b = new GraphBuilder(
+    path.resolve(opts.graphRoot ?? root)
+  );
   b.addAnalyzer('builtin-java','lexical-v1');
   b.addAnalyzer('forge-semantics','v2');
   b.addAnalyzer('minecraft-ysm-semantics','v2');
@@ -37,7 +39,24 @@ export async function scanRepository(root, opts={}) {
     opts.repositoryIdentity ??
     await resolveRepositoryIdentity(root, opts.identity ?? {});
   const snapshotIdentity =
-    await captureWorkspaceSnapshot(root, repositoryIdentity, { files });
+    opts.snapshotIdentity == null
+      ? await captureWorkspaceSnapshot(
+          root,
+          repositoryIdentity,
+          { files }
+        )
+      : structuredClone(opts.snapshotIdentity);
+
+  if (
+    snapshotIdentity.kind === 'MULTI_REPO' ||
+    snapshotIdentity.repository_id !==
+      repositoryIdentity.repository_id
+  ) {
+    throw new TypeError(
+      'scan snapshot identity does not match repository identity'
+    );
+  }
+
   b.graph.meta.repository = repositoryIdentity;
   b.graph.meta.snapshot = snapshotIdentity;
 
