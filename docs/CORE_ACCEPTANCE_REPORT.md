@@ -13,8 +13,14 @@ Architecture §29 names these design baselines:
 | KNEEKURA-LAB | `15c270377d27fc06976d29fd285152a368ff9b58` | commit exists |
 | reimu-mod | `ff4e3e03c3d1f44da4e1b722bb35b80209d4b8e2` | commit exists |
 
-The complete CORE acceptance suite was executed on the current successor of
-the KNEEKURA-CODE-LAB baseline, after Milestones A-G were merged.
+The complete CORE acceptance suite was executed on the recorded successor of
+the KNEEKURA-CODE-LAB baseline after Milestones A-G were merged:
+
+- successor snapshot: `bf63b725d01648c5d07007157c9c58d3a46327d3`
+- merge content: Milestones A-G complete, before Milestone H acceptance/plugin changes
+
+This successor is also pinned in
+`fixtures/core/acceptance/baselines.json`.
 
 The report does not claim that the entire test suite was executed by checking
 out the old KNEEKURA-CODE-LAB baseline SHA.
@@ -31,6 +37,17 @@ Snapshot:
 
 The pinned source is mapped JVM bytecode (`mapped/Class*.class`), not
 reconstructed Java source.
+
+Git object provenance was independently revalidated against the pinned commit:
+
+- commit: `cdd903691c129ce565d4680ba83c00f2d04993d6`
+- tree: `b5d5939eb3937884d772893fdafb28c53fc5fac9`
+- `mapped/Class408.class`: `65e449330e1633bf4194c4c2b860ed09b412138f`
+- `mapped/Class410.class`: `c291a30f60645b967038c80f97e597561a119653`
+- `mapped/Class768.class`: `0ced83ab6521a3f48a35aef963790aa1c93c8edc`
+- `mapped/Class878.class`: `1eee5f6f3475dafec9096cdfdcfd01d8458d8079`
+
+The four blob SHAs exactly match the curated oracle.
 
 Manually validated anchors include:
 
@@ -200,6 +217,7 @@ Plugin/schema contract regression run:
 - plugin manifest/schema tests: PASS
 - real plugin analyze/expand/get delegation: PASS
 - unknown host Evidence-cache ID rejection: PASS
+- plugin expand/session delegated output schema and identity validation: PASS
 
 ## Remaining merge gate
 
