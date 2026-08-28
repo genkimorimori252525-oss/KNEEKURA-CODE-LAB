@@ -143,7 +143,8 @@ repository B ─ scanner ─┘                      │
 - `src/core/` — 共通 IR、単一repo走査、workspace merge
 - `src/analyzers/` — Java / Forge / Minecraft / YSM の意味抽出
 - `src/adapters/` — CodeGraph / Understand Anything / KNEEKURA-LAB Runtime trace / pose / bone palette / network companion
-- `viewer/` — 依存ゼロの Web Viewer
+- `src/presentation/` — Human Presentation v2 の純粋Projection/表示adapter（COREへ逆依存しない）
+- `viewer/` — 依存ゼロの Classic Web Viewer
 - `fixtures/` — Minecraft を起動せず検証する小さな合成 Mod / workspace / runtime trace / pose / palette companion
 - `docs/` — 設計・互換契約
 
@@ -157,7 +158,7 @@ KNEEKURA-LAB の main JSONL trace (`anim` / Molang / entity lifecycle) と、対
 
 人間向け表示の次世代化は `docs/HUMAN_PRESENTATION_V2.md` に従います。KNEEKURA CORE を唯一の解析上の Authority（正しい情報を決める主体）のまま維持し、探索UIや説明図は Canonical Result を読むだけの Presentation 層として分離します。
 
-P0 では境界契約・CORE→Presentation依存禁止・Canonical digest gate・Classic Viewer fallback・OSS provenance 方針だけを先に固定します。Explorer/Archify本体の導入は、その非劣化Gateが通った後の別PRです。
+P0 で境界契約・CORE→Presentation依存禁止・Canonical digest gate・Classic Viewer fallback・OSS provenance 方針を固定しました。P1 では `kneekura.explorer-projection/v1` を追加し、`kneekura.graph/v1` と `core.analysis-result/v1` を変更せず複製した Canonical snapshot の横に、node/edge/Claim/Coverage の一対一で追跡可能な Explorer metadata を生成します。KNEEKURA固有 kind、send/receive、M5/M6、static/runtime、UNKNOWN/FAILED/UNEXPLORED、Evidence/Counterevidence の意味は変換しません。React Flow 等の新UIは P2 以降です。
 
 ## AI / coding agent 向け出力との境界
 
