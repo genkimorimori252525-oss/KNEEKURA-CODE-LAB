@@ -340,16 +340,21 @@ CORE scans repository JavaScript modules with the deterministic
 
 The provider records repository file nodes, local/external module dependency
 edges, class declarations, named function/function-binding declarations, and
-explicit export names. Relative module specifiers are resolved only when a
-deterministic repository file candidate exists. Package/builtin modules and
-unresolved relative imports remain explicit unresolved external module
-references; CORE does not fabricate repository ownership for them.
+explicit export names. Module type is classified only where the file extension
+is authoritative: `.mjs` is ESM, `.cjs` is CommonJS, and plain `.js`
+remains unclassified because its meaning can depend on package/tooling context.
+Relative module specifiers are resolved only when a deterministic repository
+file candidate exists. Package/builtin modules and unresolved relative imports
+remain explicit unresolved external module references; CORE does not fabricate
+repository ownership for them.
 
 This is intentionally a lexical provider, not a JavaScript AST/type/runtime
 engine. It does not claim full ECMAScript parsing, type inference, control-flow
 resolution, call-target resolution, or runtime behavior. Comment text is masked
-before matching, and Evidence remains `REPOSITORY_UNTRUSTED`
-`STATIC_ANALYSIS` with the exact repository/snapshot provenance.
+before matching, including comments inside template-literal expressions.
+Template raw text is treated as data rather than executable code. Evidence
+remains `REPOSITORY_UNTRUSTED` `STATIC_ANALYSIS` with the exact
+repository/snapshot provenance.
 
 COMMIT snapshot materialization uses the same analyzable-path predicate as the
 workspace scanner, so JavaScript bytes used by a commit-pinned analysis come
