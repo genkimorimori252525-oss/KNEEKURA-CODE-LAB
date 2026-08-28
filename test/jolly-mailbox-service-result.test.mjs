@@ -467,6 +467,61 @@ test('service projection preserves CORE warnings as uncertainty and lowers aggre
   assert.equal(projected.confidence.level, 'medium');
 });
 
+
+test('service projection preserves uncertainty once and uses a compact confidence reference instead of cloning it', () => {
+  const warnings = Array.from(
+    { length: 50 },
+    (_, index) => ({
+      code: 'UNRESOLVED_REFERENCE',
+      message: 'warning-' + index,
+      ref: {
+        provider_id: 'builtin-javascript',
+        path: 'src/file-' + index + '.mjs',
+        target: 'node:fixture-' + index
+      }
+    })
+  );
+
+  const projected =
+    toJollyResearchMailboxServiceResult(
+      baseResult({ warnings }),
+      context({
+        analysisMode: 'architecture'
+      })
+    );
+
+  const warningRows =
+    projected.remaining_uncertainty.filter(
+      item => item.kind === 'CORE_WARNING'
+    );
+
+  assert.equal(warningRows.length, 50);
+  for (let index = 0; index < warnings.length; index++) {
+    assert.deepEqual(
+      warningRows[index].value,
+      warnings[index]
+    );
+  }
+
+  assert.deepEqual(
+    projected.confidence.missing,
+    [{
+      kind: 'remaining_uncertainty',
+      count: projected.remaining_uncertainty.length,
+      location: 'remaining_uncertainty',
+      reason:
+        'Detailed uncertainty is preserved once in the remaining_uncertainty field.'
+    }]
+  );
+
+  assert.equal(
+    projected.confidence.missing.some(item =>
+      item?.kind === 'CORE_WARNING'
+    ),
+    false
+  );
+});
+
 test('service projection does not mislabel unresolved hypotheses as rejected', () => {
   const result = baseResult();
   const unresolved = applyVerificationResult(
