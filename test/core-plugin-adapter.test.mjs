@@ -271,3 +271,114 @@ test('ReasoningBridge evidence-cache capability rejects host claims of unknown e
     /unknown Evidence ID/
   );
 });
+
+
+test('plugin adapter rejects malformed expand and resume identities', async () => {
+  const baseEngine = {
+    async analyze() {
+      throw new Error('unused');
+    },
+    async expand() {
+      return {
+        schema: 'core.analysis-delta/v1',
+        analysis_id: 'analysis:wrong'
+      };
+    },
+    get() {
+      return null;
+    },
+    session: {
+      async resume(sessionId) {
+        return {
+          schema: 'core.session-handle/v1',
+          session_id: sessionId + ':wrong',
+          target_snapshot_id: 'snapshot:test'
+        };
+      }
+    }
+  };
+
+  const plugin = createCorePluginAdapter({ engine: baseEngine });
+
+  await assert.rejects(
+    () => plugin.expand(
+      'analysis:expected',
+      { kind: 'GRAPH_NODE', ref: 'node:test' }
+    ),
+    /analysis_id mismatch/
+  );
+
+  await assert.rejects(
+    () => plugin.session.resume('session:expected'),
+    /session_id mismatch/
+  );
+
+  const wrongSchemaPlugin = createCorePluginAdapter({
+    engine: {
+      ...baseEngine,
+      async expand(analysisId) {
+        return {
+          schema: 'fixture.delta/v1',
+          analysis_id: analysisId
+        };
+      },
+      session: {
+        async resume(sessionId) {
+          return {
+            schema: 'fixture.handle/v1',
+            session_id: sessionId
+          };
+        }
+      }
+    }
+  });
+
+  await assert.rejects(
+    () => wrongSchemaPlugin.expand(
+      'analysis:expected',
+      { kind: 'GRAPH_NODE', ref: 'node:test' }
+    ),
+    /core\.analysis-delta\/v1/
+  );
+
+  await assert.rejects(
+    () => wrongSchemaPlugin.session.resume('session:expected'),
+    /core\.session-handle\/v1/
+  );
+});
+
+test('plugin session.resume validates requested target snapshot identity', async () => {
+  const plugin = createCorePluginAdapter({
+    engine: {
+      async analyze() {
+        throw new Error('unused');
+      },
+      async expand(analysisId) {
+        return {
+          schema: 'core.analysis-delta/v1',
+          analysis_id: analysisId
+        };
+      },
+      get() {
+        return null;
+      },
+      session: {
+        async resume(sessionId) {
+          return {
+            schema: 'core.session-handle/v1',
+            session_id: sessionId,
+            target_snapshot_id: 'snapshot:other'
+          };
+        }
+      }
+    }
+  });
+
+  await assert.rejects(
+    () => plugin.session.resume(
+      'session:test',
+      'snapshot:expected'
+    ),
+    /target_snapshot_id mismatch/
+  );
+});
