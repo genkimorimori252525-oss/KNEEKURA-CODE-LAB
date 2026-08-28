@@ -11,6 +11,7 @@ on:
     paths:
       - 'scripts/self-audit.mjs'
       - 'test/self-audit-dogfood.test.mjs'
+      - 'test/javascript-analysis.test.mjs'
       - '.github/workflows/self-audit.yml'
       - 'src/core/**'
       - 'src/analyzers/javascript.mjs'
