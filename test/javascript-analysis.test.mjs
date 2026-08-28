@@ -232,7 +232,7 @@ test('JavaScript lexical analyzer masks comments in template expressions and raw
       "// import 'fake-module';",
       '/* export function fakeBlock() {} */',
       "const raw = `import 'raw-fake'; export function rawFake() {}`;",
-      "const expression = `value: ${ /* import 'expr-fake'; export function exprFake() {} */ import('./real.mjs') }`;"
+      "const expression = `value: ${ /* import 'expr-fake'; export function exprFake() {} */ import('./real.mjs') }`;",
       "const nested = `outer ${ `inner ${ /* export function nestedFake() {} */ 1 }` }`;",
       'export function realFunction() {',
       '  return url;',
