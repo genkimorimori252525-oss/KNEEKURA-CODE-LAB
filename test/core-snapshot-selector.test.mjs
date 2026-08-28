@@ -315,6 +315,67 @@ test('COMMIT snapshot materialization refuses CORE temp storage inside the targe
   );
 });
 
+test('COMMIT snapshot materialization rejects a missing temp parent with a stable API error', async t => {
+  const fixture = await createVersionedRepository(t);
+  const missingParent = path.join(
+    fixture.tempParent,
+    'does-not-exist'
+  );
+
+  await assert.rejects(
+    () => analyzeInternal(
+      request(fixture.root, {
+        kind: 'COMMIT',
+        commit: fixture.oldCommit
+      }),
+      {
+        commitMaterialization: {
+          tempParent: missingParent
+        }
+      }
+    ),
+    error =>
+      error?.code === 'INVALID_REQUEST' &&
+      /existing directory/.test(error.message)
+  );
+
+  assert.equal(
+    await fs.readFile(fixture.source, 'utf8'),
+    fixture.dirtySource
+  );
+});
+
+test('COMMIT snapshot materialization rejects a non-directory temp parent with a stable API error', async t => {
+  const fixture = await createVersionedRepository(t);
+  const fileParent = path.join(
+    fixture.tempParent,
+    'not-a-directory'
+  );
+  await fs.writeFile(fileParent, 'fixture', 'utf8');
+
+  await assert.rejects(
+    () => analyzeInternal(
+      request(fixture.root, {
+        kind: 'COMMIT',
+        commit: fixture.oldCommit
+      }),
+      {
+        commitMaterialization: {
+          tempParent: fileParent
+        }
+      }
+    ),
+    error =>
+      error?.code === 'INVALID_REQUEST' &&
+      /existing directory/.test(error.message)
+  );
+
+  assert.equal(
+    await fs.readFile(fixture.source, 'utf8'),
+    fixture.dirtySource
+  );
+});
+
 test('COMMIT snapshot_selector rejects a missing commit instead of falling back to the workspace', async t => {
   const fixture = await createVersionedRepository(t);
 
