@@ -22,6 +22,11 @@ export async function materializeCommitAnalysisRoot(
   } = {}
 ) {
   const sourceRoot = path.resolve(repositoryRoot);
+  const materializationParent =
+    await assertMaterializationOutsideTarget(
+      sourceRoot,
+      tempParent
+    );
   const snapshotIdentity = createCommitSnapshot(
     repositoryIdentity,
     commitSha
@@ -31,7 +36,7 @@ export async function materializeCommitAnalysisRoot(
   await assertCommitObject(sourceRoot, commit);
 
   const materializedRoot = await fs.mkdtemp(
-    path.join(path.resolve(tempParent), 'kneekura-commit-')
+    path.join(materializationParent, 'kneekura-commit-')
   );
   let cleaned = false;
 
@@ -79,6 +84,32 @@ export async function materializeCommitAnalysisRoot(
     await cleanup();
     throw error;
   }
+}
+
+async function assertMaterializationOutsideTarget(
+  sourceRoot,
+  tempParent
+) {
+  const [realSource, realParent] = await Promise.all([
+    fs.realpath(sourceRoot),
+    fs.realpath(path.resolve(tempParent))
+  ]);
+
+  const sourcePrefix = realSource.endsWith(path.sep)
+    ? realSource
+    : realSource + path.sep;
+
+  if (
+    realParent === realSource ||
+    realParent.startsWith(sourcePrefix)
+  ) {
+    throw codedError(
+      'TRUST_BOUNDARY_VIOLATION',
+      'commit materialization storage must be outside the target repository'
+    );
+  }
+
+  return realParent;
 }
 
 async function assertCommitObject(root, commit) {
