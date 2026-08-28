@@ -462,9 +462,15 @@ function aggregateConfidence({
         claim_ids: verifiedClaims.map(claim => claim.id)
       }
     ],
-    missing: remainingUncertainty.map(item =>
-      structuredClone(item)
-    )
+    missing: remainingUncertainty.length === 0
+      ? []
+      : [{
+          kind: 'remaining_uncertainty',
+          count: remainingUncertainty.length,
+          location: 'remaining_uncertainty',
+          reason:
+            'Detailed uncertainty is preserved once in the remaining_uncertainty field.'
+        }]
   };
 }
 
