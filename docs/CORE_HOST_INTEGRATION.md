@@ -291,6 +291,10 @@ The projection is deliberately stricter than a prose renderer.
 - Canonical CORE warnings are preserved in `remaining_uncertainty` and
   therefore prevent an otherwise warning-bearing result from receiving
   unqualified high aggregate confidence.
+- `confidence.missing` does not duplicate the full uncertainty payload.
+  When uncertainty exists it contains a deterministic count/reference to
+  `remaining_uncertainty`; the detailed rows remain preserved once in
+  `remaining_uncertainty`.
 - Rejected hypotheses come from canonical negated/rejected Claim state.
 - `verification_plan` is copied from canonical
   `recommended_validation`.
@@ -334,9 +338,11 @@ reconcile the rendered result with the persisted service projection.
 
 Repository-derived Evidence, rejected hypotheses, uncertainty, and other
 structured dynamic values are serialized inside deterministic JSON data blocks.
-They are data, not instruction authority. The renderer never invents a missing
-file, symbol, line range, root cause, recommended source change, or
-`do_not_change` conclusion.
+They are data, not instruction authority. The
+`remaining_uncertainty` section is always serialized as canonicalized compact
+JSON rather than pretty-printed JSON; this changes whitespace only, not the
+projected rows or their values. The renderer never invents a missing file, symbol, line range,
+root cause, recommended source change, or `do_not_change` conclusion.
 
 Empty authority-bearing fields stay explicit. For example, an empty
 `recommended_changes` array renders as a statement that canonical CORE did

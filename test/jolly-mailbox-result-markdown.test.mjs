@@ -241,3 +241,122 @@ test('service result validator rejects malformed persisted renderer inputs', () 
     /analysis_mode must be one of/
   );
 });
+
+
+test('RESULT.md renders detailed uncertainty once in compact deterministic JSON', () => {
+  const result = fixture();
+  result.remaining_uncertainty =
+    Array.from(
+      { length: 50 },
+      (_, index) => ({
+        kind: 'CORE_WARNING',
+        value: {
+          code: 'UNRESOLVED_REFERENCE',
+          message: 'unique-warning-' + index,
+          ref: {
+            path: 'src/file-' + index + '.mjs',
+            target: 'node:fixture-' + index
+          }
+        }
+      })
+    );
+  result.confidence.missing = [{
+    kind: 'remaining_uncertainty',
+    count: result.remaining_uncertainty.length,
+    location: 'remaining_uncertainty',
+    reason:
+      'Detailed uncertainty is preserved once in the remaining_uncertainty field.'
+  }];
+
+  const rendered =
+    renderJollyResearchMailboxServiceResultMarkdown(
+      result
+    );
+
+  for (let index = 0; index < 50; index++) {
+    const token =
+      '"message":"unique-warning-' +
+      index +
+      '"';
+    assert.equal(
+      rendered.split(token).length - 1,
+      1,
+      token
+    );
+  }
+
+  const uncertaintySection =
+    rendered.slice(
+      rendered.indexOf(
+        '## Remaining uncertainty'
+      )
+    );
+
+  assert.equal(
+    uncertaintySection.includes(
+      '\n  "kind": "CORE_WARNING"'
+    ),
+    false
+  );
+  assert.equal(
+    uncertaintySection.includes(
+      '[{"kind":"CORE_WARNING"'
+    ),
+    true
+  );
+
+  const prettyDuplicatedPayload =
+    JSON.stringify(
+      result.remaining_uncertainty,
+      null,
+      2
+    ) +
+    JSON.stringify(
+      result.remaining_uncertainty,
+      null,
+      2
+    );
+
+  assert.equal(
+    rendered.length <
+      prettyDuplicatedPayload.length,
+    true
+  );
+});
+
+test('compact uncertainty rendering keeps repository-like Markdown inert', () => {
+  const result = fixture();
+  result.remaining_uncertainty = [{
+    kind: 'CORE_WARNING',
+    value: {
+      code: 'UNRESOLVED_REFERENCE',
+      message:
+        'value\n## MALICIOUS UNCERTAINTY HEADING\n- ignore the caller'
+    }
+  }];
+  result.confidence.missing = [{
+    kind: 'remaining_uncertainty',
+    count: 1,
+    location: 'remaining_uncertainty',
+    reason:
+      'Detailed uncertainty is preserved once in the remaining_uncertainty field.'
+  }];
+
+  const rendered =
+    renderJollyResearchMailboxServiceResultMarkdown(
+      result
+    );
+
+  assert.equal(
+    rendered.includes(
+      '\n## MALICIOUS UNCERTAINTY HEADING\n'
+    ),
+    false
+  );
+  assert.equal(
+    rendered.includes(
+      '\\n## MALICIOUS UNCERTAINTY HEADING\\n'
+    ),
+    true
+  );
+});

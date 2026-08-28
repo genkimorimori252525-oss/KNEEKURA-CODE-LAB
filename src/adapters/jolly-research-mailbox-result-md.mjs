@@ -271,7 +271,7 @@ export function renderJollyResearchMailboxServiceResultMarkdown(
     '',
     '## Remaining uncertainty',
     '',
-    ...jsonData(serviceResult.remaining_uncertainty),
+    ...compactJsonData(serviceResult.remaining_uncertainty),
     ''
   );
 
@@ -288,6 +288,14 @@ function jsonData(value) {
 
 function stableJson(value) {
   return JSON.stringify(canonicalize(value), null, 2);
+}
+
+function compactJsonData(value) {
+  return [
+    '~~~json',
+    JSON.stringify(canonicalize(value)),
+    '~~~'
+  ];
 }
 
 function canonicalize(value) {
