@@ -318,6 +318,18 @@ Therefore P1 cannot reinterpret:
 - static edges as runtime observations
 - counterevidence as support Evidence
 
+### Canonical input identity correlation
+
+When a canonical Graph carries `meta.repository.repository_id` and/or `meta.snapshot.snapshot_id`, P1 must compare those values with the AnalysisResult repository/snapshot identity before creating the projection.
+
+- matching identities are recorded as `MATCH`
+- unavailable Graph identity metadata is recorded as `UNAVAILABLE`
+- an explicit repository or snapshot mismatch fails the Presentation projection closed
+
+A mismatch is a Presentation failure only. It must not alter the already-produced AnalysisResult or turn Analysis success into Analysis failure.
+
+This gate prevents a stale/different Graph from being silently paired with a valid AnalysisResult.
+
 ### Determinism and mutation
 
 For the same canonical inputs, P1 output must be deterministic.
