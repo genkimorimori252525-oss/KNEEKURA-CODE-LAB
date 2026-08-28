@@ -363,6 +363,18 @@ test('service projection fails fast on a source commit mismatch', () => {
   );
 });
 
+test('service projection normalizes GitHub source_repository output after validation', () => {
+  const projected = toJollyResearchMailboxServiceResult(
+    baseResult(),
+    context({
+      sourceRepository: ' Owner/Repo.git ',
+      analysisMode: 'architecture'
+    })
+  );
+
+  assert.equal(projected.source_repository, 'owner/repo');
+});
+
 test('service projection rejects a source repository that conflicts with canonical GitHub identity', () => {
   assert.throws(
     () => toJollyResearchMailboxServiceResult(
@@ -430,6 +442,29 @@ test('service projection surfaces missing inline Evidence as uncertainty instead
     ),
     true
   );
+});
+
+test('service projection preserves CORE warnings as uncertainty and lowers aggregate confidence', () => {
+  const projected = toJollyResearchMailboxServiceResult(
+    baseResult({
+      warnings: [{
+        code: 'PROPOSAL_LIMIT_EXCEEDED',
+        message: 'fixture warning'
+      }]
+    }),
+    context({
+      analysisMode: 'architecture'
+    })
+  );
+
+  assert.equal(
+    projected.remaining_uncertainty.some(item =>
+      item.kind === 'CORE_WARNING' &&
+      item.value.code === 'PROPOSAL_LIMIT_EXCEEDED'
+    ),
+    true
+  );
+  assert.equal(projected.confidence.level, 'medium');
 });
 
 test('service projection does not mislabel unresolved hypotheses as rejected', () => {
