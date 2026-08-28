@@ -240,7 +240,40 @@ Therefore this projection intentionally returns:
 A host may produce human/agent wording around these fields, but it must not
 promote that wording into canonical CORE authority.
 
-## 10. Failure handling
+## 10. Render the service RESULT.md
+
+After creating the conservative service projection, render the Mailbox artifact
+with the stable renderer:
+
+~~~js
+import {
+  renderJollyResearchMailboxServiceResultMarkdown
+} from 'kneekura-code-lab/mailbox';
+
+const markdown =
+  renderJollyResearchMailboxServiceResultMarkdown(
+    serviceResult
+  );
+~~~
+
+The renderer validates
+`jolly.research-mailbox-service-result/v1`, emits the standard KNEEKURA
+Mailbox RESULT.md sections in a fixed order, and does not mutate the service
+result. The artifact also carries `source_snapshot_id`,
+`source_snapshot_kind`, and the canonical CORE provenance block so a host can
+reconcile the rendered result with the persisted service projection.
+
+Repository-derived Evidence, rejected hypotheses, uncertainty, and other
+structured dynamic values are serialized inside deterministic JSON data blocks.
+They are data, not instruction authority. The renderer never invents a missing
+file, symbol, line range, root cause, recommended source change, or
+`do_not_change` conclusion.
+
+Empty authority-bearing fields stay explicit. For example, an empty
+`recommended_changes` array renders as a statement that canonical CORE did
+not establish a source change rather than synthesizing one in prose.
+
+## 11. Failure handling
 
 Never flatten these states:
 
