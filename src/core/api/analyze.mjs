@@ -673,13 +673,78 @@ function collectWarnings({
   }
   if (bridgeFailure) warnings.push(structuredClone(bridgeFailure));
   for (const unresolved of graph.meta?.unresolvedReferences ?? []) {
+    if (!unresolvedReferenceShouldWarn(graph, unresolved)) {
+      continue;
+    }
     warnings.push({
       code: 'UNRESOLVED_REFERENCE',
-      message: 'provider reported an unresolved reference',
+      message: 'provider reported an unresolved repository-relevant reference',
       ref: structuredClone(unresolved)
     });
   }
   return warnings;
+}
+
+function unresolvedReferenceShouldWarn(graph, unresolved) {
+  if (
+    unresolved?.provider_id === 'builtin-javascript' &&
+    unresolved?.kind === 'MODULE_IMPORT'
+  ) {
+    const target = unresolved.target;
+    return (
+      typeof target !== 'string' ||
+      target.startsWith('.')
+    );
+  }
+
+  if (
+    unresolved?.provider_id === 'builtin-java' &&
+    unresolved?.kind === 'IMPORT'
+  ) {
+    return javaImportMatchesRepository(
+      graph,
+      unresolved.target
+    );
+  }
+
+  return true;
+}
+
+function javaImportMatchesRepository(graph, target) {
+  if (typeof target !== 'string' || !target.trim()) {
+    return true;
+  }
+
+  let candidate = target.replace(/\.\*$/, '');
+  const classKeys = new Set(
+    (graph.nodes ?? [])
+      .filter(node => node.kind === 'class')
+      .map(node => String(node.key ?? ''))
+  );
+  const packageKeys = new Set(
+    (graph.nodes ?? [])
+      .filter(node => node.kind === 'package')
+      .map(node => String(node.key ?? ''))
+  );
+
+  if (
+    classKeys.has(candidate) ||
+    packageKeys.has(candidate)
+  ) {
+    return true;
+  }
+
+  while (candidate.includes('.')) {
+    candidate = candidate.slice(
+      0,
+      candidate.lastIndexOf('.')
+    );
+    if (classKeys.has(candidate)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 function collectFailures(graph, bridgeFailure) {
