@@ -64,6 +64,22 @@ test('P1 PT-01/PT-02/PT-12 preserve graph identities one-to-one', async () => {
     projection.schema,
     'kneekura.explorer-projection/v1'
   );
+  assert.equal(
+    projection.source.identity_correlation.repository,
+    'MATCH'
+  );
+  assert.equal(
+    projection.source.identity_correlation.snapshot,
+    'MATCH'
+  );
+  assert.equal(
+    projection.source.graph_repository_id,
+    run.result.repository.repository_id
+  );
+  assert.equal(
+    projection.source.graph_snapshot_id,
+    run.result.snapshot.snapshot_id
+  );
 
   const canonicalNodeIds = run.state.graph.nodes
     .map(node => node.id)
@@ -386,6 +402,45 @@ test('P1 rejects malformed graph identity instead of inventing repair edges', as
       result: run.result
     }),
     /edge endpoint is missing/
+  );
+});
+
+test('P1 fails closed when canonical Graph and Result identities do not match', async () => {
+  const run = await execution();
+  const resultBefore = structuredClone(run.result);
+  const digestBefore =
+    digestCanonicalAnalysisResult(run.result);
+
+  const wrongRepository = structuredClone(run.state.graph);
+  assert.ok(wrongRepository.meta?.repository?.repository_id);
+  wrongRepository.meta.repository.repository_id =
+    'repo:sha256:' + 'f'.repeat(64);
+
+  assert.throws(
+    () => createExplorerProjection({
+      graph: wrongRepository,
+      result: run.result
+    }),
+    /repository identity mismatch/
+  );
+
+  const wrongSnapshot = structuredClone(run.state.graph);
+  assert.ok(wrongSnapshot.meta?.snapshot?.snapshot_id);
+  wrongSnapshot.meta.snapshot.snapshot_id =
+    'snapshot:sha256:' + 'e'.repeat(64);
+
+  assert.throws(
+    () => createExplorerProjection({
+      graph: wrongSnapshot,
+      result: run.result
+    }),
+    /snapshot identity mismatch/
+  );
+
+  assert.deepEqual(run.result, resultBefore);
+  assert.equal(
+    digestCanonicalAnalysisResult(run.result),
+    digestBefore
   );
 });
 
