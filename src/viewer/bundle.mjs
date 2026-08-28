@@ -54,7 +54,7 @@ export function createHumanViewerManifest(result, {
       coverage_entries: result.coverage?.entries?.length ?? 0,
       unknowns: result.unknowns?.length ?? 0
     },
-    source_result_digest: digestObject(result)
+    source_result_digest: digestCanonicalAnalysisResult(result)
   };
 
   return {
@@ -195,9 +195,10 @@ async function writeJsonAtomic(file, value) {
   await fs.rename(temp, file);
 }
 
-function digestObject(value) {
+export function digestCanonicalAnalysisResult(result) {
+  validateAnalysisResultV1(result);
   return 'sha256:' + crypto.createHash('sha256')
-    .update(stableStringify(value))
+    .update(stableStringify(result))
     .digest('hex');
 }
 

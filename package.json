@@ -13,7 +13,11 @@
     "serve": "node src/cli.mjs serve",
     "test": "node --test",
     "self-audit": "node scripts/self-audit.mjs",
-    "demo": "node src/cli.mjs scan fixtures/forge-mini --out dist/graph.json && node src/cli.mjs serve --graph dist/graph.json"
+    "demo": "node src/cli.mjs scan fixtures/forge-mini --out dist/graph.json && node src/cli.mjs serve --graph dist/graph.json",
+    "presentation:guard": "node scripts/check-presentation-boundary.mjs",
+    "test:presentation-p0": "node --test test/human-presentation-v2-p0.test.mjs"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }
