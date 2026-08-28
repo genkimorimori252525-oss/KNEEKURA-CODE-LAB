@@ -10,6 +10,7 @@ import { acquireAndRecord } from './evidence/provider.mjs';
 import { acquireWithExploration } from './session/provider-reuse.mjs';
 import {
   javaLexicalProvider,
+  javascriptLexicalProvider,
   forgeJavaProvider,
   forgeNetworkProvider,
   minecraftJavaProvider,
@@ -32,6 +33,7 @@ export async function scanRepository(root, opts={}) {
     path.resolve(opts.graphRoot ?? root)
   );
   b.addAnalyzer('builtin-java','lexical-v1');
+  b.addAnalyzer('builtin-javascript','lexical-v1');
   b.addAnalyzer('forge-semantics','v2');
   b.addAnalyzer('minecraft-ysm-semantics','v2');
   const files = await walk(root);
@@ -96,6 +98,16 @@ export async function scanRepository(root, opts={}) {
         await acquireProvider(forgeJavaProvider, providerContext, { file, java });
         await acquireProvider(forgeNetworkProvider, providerContext, { file, java });
         await acquireProvider(minecraftJavaProvider, providerContext, { file, java });
+      } else if (
+        file.endsWith('.js') ||
+        file.endsWith('.mjs') ||
+        file.endsWith('.cjs')
+      ) {
+        await acquireProvider(
+          javascriptLexicalProvider,
+          providerContext,
+          { file }
+        );
       } else if (file.endsWith('mods.toml')) {
         await acquireProvider(forgeModsTomlProvider, providerContext, { file });
       } else if (file.endsWith('.json')) {
