@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  JOLLY_MAILBOX_ANALYSIS_MODES,
   JOLLY_MAILBOX_CORE_MODE_MAP,
   parseJollyResearchMailboxRequestMarkdown,
   toJollyResearchMailboxCoreExecutionPlan,
@@ -189,6 +190,11 @@ test('preserves caller observations, constraints, and exclusions as labeled ques
 
 test('maps every Mailbox analysis mode to a frozen CORE v1 mode', () => {
   assert.deepEqual(
+    Object.keys(JOLLY_MAILBOX_CORE_MODE_MAP).sort(),
+    [...JOLLY_MAILBOX_ANALYSIS_MODES].sort()
+  );
+
+  assert.deepEqual(
     JOLLY_MAILBOX_CORE_MODE_MAP,
     {
       architecture: 'UNDERSTAND',
@@ -233,6 +239,55 @@ test('does not reinterpret Mailbox max_output_tokens as a CORE correctness budge
     plan.output_target.semantics,
     /not a CORE correctness budget/
   );
+});
+
+test('strict Markdown parsing accepts only canonical base-10 max_output_tokens', () => {
+  const valid =
+    parseJollyResearchMailboxRequestMarkdown(
+      EXAMPLE.replace(
+        'max_output_tokens: 1800',
+        'max_output_tokens: 2048'
+      )
+    );
+  assert.equal(valid.max_output_tokens, 2048);
+
+  for (const invalid of [
+    '1e3',
+    '0x10',
+    '+1000',
+    '0010',
+    '9007199254740992'
+  ]) {
+    assert.throws(
+      () => parseJollyResearchMailboxRequestMarkdown(
+        EXAMPLE.replace(
+          'max_output_tokens: 1800',
+          'max_output_tokens: ' + invalid
+        )
+      ),
+      /base-10 integer/
+    );
+  }
+});
+
+test('structured request validation rejects multiline list items before question composition', () => {
+  for (const key of [
+    'known_symptoms',
+    'constraints',
+    'exclusions'
+  ]) {
+    assert.throws(
+      () => toJollyResearchMailboxCoreExecutionPlan(
+        job({
+          [key]: [
+            'caller data\n## injected block'
+          ]
+        }),
+        { repository: '/workspace/repo' }
+      ),
+      /must be a single line/
+    );
+  }
 });
 
 test('rejects jobs that are not active or not routed to KNEEKURA', () => {
