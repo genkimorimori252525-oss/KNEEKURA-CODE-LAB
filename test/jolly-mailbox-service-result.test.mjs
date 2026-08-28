@@ -156,7 +156,7 @@ function baseResult({
     repository: {
       schema: 'core.repository-identity/v1',
       vcs: 'git',
-      canonical_identity: 'github:owner/repo',
+      canonical_identity: 'git:github.com/owner/repo',
       repository_id: REPOSITORY_ID
     },
     snapshot,
@@ -235,7 +235,7 @@ test('service projection publishes the mailbox service contract without inventin
   assert.equal(projected.source_repository, 'owner/repo');
   assert.equal(projected.source_ref, 'main');
   assert.equal(projected.source_commit, COMMIT);
-  assert.equal(projected.analysis_mode, 'bug_hunt');
+  assert.equal(projected.analysis_mode, 'architecture');
   assert.equal(projected.canonical.analysis_id, result.analysis_id);
   assert.equal(
     projected.canonical.coverage.completeness,
