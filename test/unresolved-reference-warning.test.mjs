@@ -3,10 +3,26 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   analyzeInternal
 } from '../src/core/api/analyze.mjs';
+
+const ROOT = path.dirname(
+  path.dirname(fileURLToPath(import.meta.url))
+);
+const FIXTURE = path.join(
+  ROOT,
+  'fixtures',
+  'forge-mini'
+);
+const TRACE = path.join(
+  ROOT,
+  'fixtures',
+  'runtime',
+  'kneekura-trace.jsonl'
+);
 
 async function tempDir(t, prefix) {
   const root = await fs.mkdtemp(
@@ -153,44 +169,72 @@ test('Java classpath imports stay explicit but only repository-local unresolved 
   );
 });
 
-test('non-lexical unresolved references remain warnings', async t => {
-  const root = await tempDir(
+test('runtime unresolved static matches remain analysis warnings', async t => {
+  const dir = await tempDir(
     t,
-    'kneekura-warning-generic-'
+    'kneekura-warning-runtime-'
+  );
+  const network = path.join(
+    dir,
+    'unknown-channel.net.jsonl'
   );
 
   await fs.writeFile(
-    path.join(root, 'entry.mjs'),
-    'export const value = true;\n',
+    network,
+    [
+      JSON.stringify({
+        v: 1,
+        ch: 'net_meta',
+        scenario: 'ysm-compat',
+        run: 'run-42',
+        bound: true,
+        physicalSide: 'CLIENT',
+        pid: '999',
+        startedGameTime: 1000
+      }),
+      JSON.stringify({
+        v: 1,
+        ch: 'net',
+        seq: 1,
+        stage: 'receive',
+        physicalSide: 'CLIENT',
+        gameTime: 1002,
+        thread: 'Render thread',
+        packet: 'demo.net.UnknownPacket',
+        direction: 'PLAY_TO_CLIENT',
+        channel: 'missing:channel'
+      })
+    ].join('\n') + '\n',
     'utf8'
   );
 
-  const execution = await analyzeInternal(
-    request(
-      root,
-      'Inspect generic unresolved references.'
-    ),
-    {
-      reasoningBridge: {
-        id: 'fixture-bridge',
-        version: 'v1',
-        async propose() {
-          return [];
-        }
-      }
-    }
+  const base = request(
+    FIXTURE,
+    'Inspect runtime network references.'
   );
+  base.runtime_artifacts = [
+    {
+      kind: 'trace',
+      path: TRACE
+    },
+    {
+      kind: 'network',
+      path: network
+    }
+  ];
 
-  // The focused classification is provider-specific. This assertion guards
-  // against accidentally suppressing unrelated warning classes.
+  const execution =
+    await analyzeInternal(base);
+
   assert.equal(
-    (execution.result.warnings ?? [])
-      .every(item =>
-        item.code !== 'UNRESOLVED_REFERENCE' ||
+    unresolvedWarnings(execution.result)
+      .some(item =>
         item.ref?.provider_id ===
-          'builtin-javascript' ||
-        item.ref?.provider_id ===
-          'builtin-java'
+          'network-companion-adapter' &&
+        item.ref?.kind ===
+          'STATIC_NETWORK_CHANNEL' &&
+        item.ref?.target ===
+          'missing:channel'
       ),
     true
   );
