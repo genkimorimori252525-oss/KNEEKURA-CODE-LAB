@@ -151,11 +151,14 @@ function forbiddenLocalTarget({
     }
   }
 
-  if (!isLocalSpecifier(specifier)) return null;
+  if (!isLocalSpecifier(normalized)) return null;
 
-  const target = specifier.startsWith('/')
-    ? path.resolve(repositoryRoot, '.' + specifier)
-    : path.resolve(path.dirname(importer), specifier);
+  const target = normalized.startsWith('/')
+    ? path.resolve(repositoryRoot, '.' + normalized)
+    : path.resolve(
+        path.dirname(importer),
+        ...normalized.split('/').filter(Boolean)
+      );
 
   for (const [label, forbiddenRoot] of forbiddenLocalRoots) {
     if (isWithin(target, forbiddenRoot)) return label;
@@ -164,10 +167,11 @@ function forbiddenLocalTarget({
 }
 
 function isLocalSpecifier(specifier) {
+  const normalized = normalizeSeparators(specifier);
   return (
-    specifier.startsWith('.') ||
-    specifier.startsWith('/') ||
-    /^[A-Za-z]:[\\/]/.test(specifier)
+    normalized.startsWith('.') ||
+    normalized.startsWith('/') ||
+    /^[A-Za-z]:\//.test(normalized)
   );
 }
 
