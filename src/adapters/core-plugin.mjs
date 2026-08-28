@@ -49,12 +49,22 @@ export function createCorePluginAdapter({
 
   const session = Object.freeze({
     async resume(sessionId, targetSnapshotId = null) {
-      return structuredClone(
-        await engine.session.resume(
-          sessionId,
-          targetSnapshotId
-        )
+      requireString(sessionId, 'sessionId');
+      if (
+        targetSnapshotId != null &&
+        (typeof targetSnapshotId !== 'string' || !targetSnapshotId.trim())
+      ) {
+        throw new TypeError('targetSnapshotId must be a non-empty string or null');
+      }
+      const handle = await engine.session.resume(
+        sessionId,
+        targetSnapshotId
       );
+      validateSessionHandle(handle, {
+        sessionId,
+        targetSnapshotId
+      });
+      return structuredClone(handle);
     }
   });
 
@@ -78,13 +88,13 @@ export function createCorePluginAdapter({
 
     async expand(analysisId, target, budget = null) {
       requireString(analysisId, 'analysisId');
-      return structuredClone(
-        await engine.expand(
-          analysisId,
-          structuredClone(target),
-          budget == null ? undefined : structuredClone(budget)
-        )
+      const delta = await engine.expand(
+        analysisId,
+        structuredClone(target),
+        budget == null ? undefined : structuredClone(budget)
       );
+      validateAnalysisDelta(delta, analysisId);
+      return structuredClone(delta);
     },
 
     get(ref) {
@@ -95,6 +105,49 @@ export function createCorePluginAdapter({
 
     session
   });
+}
+
+function validateAnalysisDelta(value, analysisId) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new TypeError('plugin engine expand() must return an object');
+  }
+  if (value.schema !== 'core.analysis-delta/v1') {
+    throw new TypeError(
+      'plugin engine expand() must return core.analysis-delta/v1'
+    );
+  }
+  if (value.analysis_id !== analysisId) {
+    throw new Error('plugin engine expand() analysis_id mismatch');
+  }
+}
+
+function validateSessionHandle(value, {
+  sessionId,
+  targetSnapshotId
+}) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new TypeError(
+      'plugin engine session.resume() must return an object'
+    );
+  }
+  if (value.schema !== 'core.session-handle/v1') {
+    throw new TypeError(
+      'plugin engine session.resume() must return core.session-handle/v1'
+    );
+  }
+  if (value.session_id !== sessionId) {
+    throw new Error(
+      'plugin engine session.resume() session_id mismatch'
+    );
+  }
+  if (
+    targetSnapshotId != null &&
+    value.target_snapshot_id !== targetSnapshotId
+  ) {
+    throw new Error(
+      'plugin engine session.resume() target_snapshot_id mismatch'
+    );
+  }
 }
 
 function requireString(value, name) {
