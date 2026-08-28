@@ -62,6 +62,34 @@ const result = await plugin.analyze({
 Use the returned AnalysisResult as the source of truth. Do not replace Claim,
 Evidence, Coverage, or verifier semantics with host prose.
 
+For a commit-pinned Mailbox or other reproducible host job, pass the requested
+full commit through `snapshot_selector`:
+
+~~~js
+const result = await plugin.analyze({
+  schema: 'core.analysis-request/v1',
+  repository: '/path/to/repository',
+  snapshot_selector: {
+    kind: 'COMMIT',
+    commit: 'FULL_COMMIT_SHA'
+  },
+  mode: 'TRACE',
+  question: 'Trace this behavior at the pinned commit.',
+  policy: 'precision',
+  output_profile: 'compact'
+});
+~~~
+
+A COMMIT selector analyzes the Git blobs from that exact commit through a
+CORE-owned temporary materialization. It does not checkout/reset the source
+repository and does not consume dirty working-tree bytes. Confirm
+`result.snapshot.kind === 'COMMIT'` and
+`result.snapshot.base_commit === requestedCommit` before projecting a
+commit-pinned external service result.
+
+Use `{ kind: 'WORKSPACE' }` only when the current frozen working tree is
+intentionally the analysis target.
+
 ## 4. Expand only when needed
 
 ~~~js
