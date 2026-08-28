@@ -307,6 +307,12 @@ export function toJollyResearchMailboxCoreExecutionPlan(
     normalizeSourceRepository(job.source_repository);
   const coreMode =
     JOLLY_MAILBOX_CORE_MODE_MAP[job.analysis_mode];
+  if (typeof coreMode !== 'string') {
+    throw new TypeError(
+      'no frozen CORE v1 mode mapping for Mailbox analysis_mode: ' +
+      job.analysis_mode
+    );
+  }
 
   const coreRequest = {
     schema: ANALYSIS_REQUEST_SCHEMA,
@@ -489,9 +495,17 @@ function parsePositiveIntegerOrDefault(
   name
 ) {
   if (raw == null || !String(raw).trim()) return fallback;
-  const value = Number(raw);
-  if (!Number.isInteger(value) || value <= 0) {
-    throw new TypeError(name + ' must be a positive integer');
+  const text = String(raw).trim();
+  if (!/^[1-9][0-9]*$/.test(text)) {
+    throw new TypeError(
+      name + ' must be a canonical positive base-10 integer'
+    );
+  }
+  const value = Number(text);
+  if (!Number.isSafeInteger(value)) {
+    throw new TypeError(
+      name + ' must be a safe positive base-10 integer'
+    );
   }
   return value;
 }
@@ -535,6 +549,6 @@ function requireStringArray(value, name) {
     throw new TypeError(name + ' must be an array');
   }
   value.forEach((item, index) =>
-    requireText(item, name + '[' + index + ']')
+    requireSingleLine(item, name + '[' + index + ']')
   );
 }
