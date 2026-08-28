@@ -180,6 +180,11 @@ The projection is deliberately stricter than a prose renderer.
   `completed` or `partial`. WORKSPACE/MULTI_REPO/ARCHIVE results project to
   `needs_context` because `source_commit` alone does not prove the exact
   analyzed bytes required by the mailbox service contract.
+- A canonical `COMPLETE` run is not automatically a completed mailbox job:
+  when no verified Claim exists, projection remains `partial`.
+- `bug_hunt` remains `partial` until CORE has an explicit canonical
+  root-cause contract. The current adapter will not relabel an arbitrary
+  verified Claim as a causal root cause.
 - Evidence file/symbol/line fields are emitted only when canonical Evidence
   provenance/observation contains them. Missing inline Evidence is surfaced as
   uncertainty instead of fabricated location data.
