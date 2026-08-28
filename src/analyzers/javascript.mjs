@@ -13,7 +13,8 @@ export async function analyzeJavaScript(
   root
 ) {
   const raw = await fs.readFile(file, 'utf8');
-  const src = stripComments(raw);
+  const lexical = sanitizeJavaScript(raw);
+  const src = lexical.source;
   const rel = normalizePath(path.relative(root, file));
   const moduleType =
     file.endsWith('.mjs')
@@ -38,6 +39,8 @@ export async function analyzeJavaScript(
     file,
     rel,
     src,
+    raw,
+    stringLiterals: lexical.stringLiterals,
     fileNode,
     imports
   });
@@ -159,6 +162,8 @@ async function collectImports({
   file,
   rel,
   src,
+  raw,
+  stringLiterals,
   fileNode,
   imports
 }) {
@@ -185,7 +190,20 @@ async function collectImports({
 
   for (const pattern of patterns) {
     for (const match of src.matchAll(pattern.re)) {
-      const specifier = match[2];
+      const quoted =
+        match[1] + match[2] + match[1];
+      const quoteOffset =
+        match[0].lastIndexOf(quoted);
+      if (quoteOffset < 0) continue;
+
+      const quoteStart =
+        match.index + quoteOffset;
+      const specifier =
+        stringLiterals.get(quoteStart);
+      if (typeof specifier !== 'string') {
+        continue;
+      }
+
       const dedupeKey =
         pattern.type + '\0' + specifier + '\0' + match.index;
       if (seen.has(dedupeKey)) continue;
@@ -214,7 +232,10 @@ async function collectImports({
         pattern.type,
         {
           source: rel,
-          evidence: match[0],
+          evidence: raw.slice(
+            match.index,
+            match.index + match[0].length
+          ),
           specifier
         }
       );
@@ -322,11 +343,12 @@ function normalizePath(value) {
   return String(value).replaceAll('\\', '/');
 }
 
-function stripComments(source) {
+function sanitizeJavaScript(source) {
   let out = '';
   let state = 'code';
   let escaped = false;
   const templateExpressionDepth = [];
+  const stringLiterals = new Map();
 
   for (let i = 0; i < source.length; i++) {
     const ch = source[i];
@@ -349,28 +371,6 @@ function stripComments(source) {
         state = 'code';
       } else {
         out += ch === '\n' ? '\n' : ' ';
-      }
-      continue;
-    }
-
-    if (
-      state === 'single' ||
-      state === 'double'
-    ) {
-      out += ch;
-      if (escaped) {
-        escaped = false;
-        continue;
-      }
-      if (ch === '\\') {
-        escaped = true;
-        continue;
-      }
-      if (
-        (state === 'single' && ch === "'") ||
-        (state === 'double' && ch === '"')
-      ) {
-        state = 'code';
       }
       continue;
     }
@@ -416,16 +416,19 @@ function stripComments(source) {
       state = 'block-comment';
       continue;
     }
-    if (ch === "'") {
-      state = 'single';
-      out += ch;
+
+    if (ch === "'" || ch === '"') {
+      const masked =
+        maskQuotedString(source, i, ch);
+      stringLiterals.set(
+        i,
+        masked.rawValue
+      );
+      out += masked.masked;
+      i = masked.endIndex;
       continue;
     }
-    if (ch === '"') {
-      state = 'double';
-      out += ch;
-      continue;
-    }
+
     if (ch === '`') {
       state = 'template';
       out += ' ';
@@ -433,13 +436,16 @@ function stripComments(source) {
     }
 
     if (templateExpressionDepth.length) {
-      const index = templateExpressionDepth.length - 1;
+      const index =
+        templateExpressionDepth.length - 1;
       if (ch === '{') {
         templateExpressionDepth[index] += 1;
       } else if (ch === '}') {
         templateExpressionDepth[index] -= 1;
         out += ch;
-        if (templateExpressionDepth[index] === 0) {
+        if (
+          templateExpressionDepth[index] === 0
+        ) {
           templateExpressionDepth.pop();
           state = 'template';
         }
@@ -450,6 +456,63 @@ function stripComments(source) {
     out += ch;
   }
 
-  return out;
+  return {
+    source: out,
+    stringLiterals
+  };
+}
+
+function maskQuotedString(
+  source,
+  start,
+  quote
+) {
+  let masked = quote;
+  let rawValue = '';
+  let escaped = false;
+
+  for (
+    let index = start + 1;
+    index < source.length;
+    index++
+  ) {
+    const ch = source[index];
+
+    if (escaped) {
+      rawValue += ch;
+      masked +=
+        ch === '\n' ? '\n' : ' ';
+      escaped = false;
+      continue;
+    }
+
+    if (ch === '\\') {
+      rawValue += ch;
+      masked += ' ';
+      escaped = true;
+      continue;
+    }
+
+    if (ch === quote) {
+      masked += quote;
+      return {
+        masked,
+        rawValue,
+        endIndex: index
+      };
+    }
+
+    rawValue += ch;
+    masked +=
+      ch === '\n' ? '\n' : ' ';
+  }
+
+  // Unterminated strings remain masked to EOF. A lexical provider must not
+  // reinterpret their contents as executable declarations/imports.
+  return {
+    masked,
+    rawValue,
+    endIndex: source.length - 1
+  };
 }
 
