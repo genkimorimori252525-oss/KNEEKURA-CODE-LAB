@@ -308,6 +308,7 @@ export async function analyzeInternal(request, options = {}) {
     ledgerSnapshot,
     proposalOutcomes,
     capsule,
+    reasoningRequested,
     warnings,
     failures
   });
@@ -544,6 +545,7 @@ function buildAnalysisResult({
   ledgerSnapshot,
   proposalOutcomes,
   capsule,
+  reasoningRequested,
   warnings,
   failures
 }) {
