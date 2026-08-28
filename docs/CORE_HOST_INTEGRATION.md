@@ -176,6 +176,9 @@ The projection is deliberately stricter than a prose renderer.
 
 - `sourceCommit` must be a full SHA and must match
   `AnalysisResult.snapshot.base_commit` when that field exists.
+- For GitHub-backed RepositoryIdentity, `sourceRepository` is validated
+  against the canonical remote and emitted in normalized `owner/repository`
+  form rather than echoing caller whitespace or a trailing `.git`.
 - Only a `COMMIT` AnalysisResult snapshot can project to
   `completed` or `partial`. WORKSPACE/MULTI_REPO/ARCHIVE results project to
   `needs_context` because `source_commit` alone does not prove the exact
@@ -188,6 +191,9 @@ The projection is deliberately stricter than a prose renderer.
 - Evidence file/symbol/line fields are emitted only when canonical Evidence
   provenance/observation contains them. Missing inline Evidence is surfaced as
   uncertainty instead of fabricated location data.
+- Canonical CORE warnings are preserved in `remaining_uncertainty` and
+  therefore prevent an otherwise warning-bearing result from receiving
+  unqualified high aggregate confidence.
 - Rejected hypotheses come from canonical negated/rejected Claim state.
 - `verification_plan` is copied from canonical
   `recommended_validation`.
