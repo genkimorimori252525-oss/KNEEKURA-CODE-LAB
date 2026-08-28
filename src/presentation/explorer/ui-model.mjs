@@ -161,6 +161,7 @@ function assertProjection(projection) {
     !projection.canonical?.graph ||
     !Array.isArray(projection.canonical.graph.nodes) ||
     !Array.isArray(projection.canonical.graph.edges) ||
+    !projection.canonical?.result ||
     !projection.presentation ||
     !Array.isArray(projection.presentation.nodes) ||
     !Array.isArray(projection.presentation.edges) ||
@@ -170,6 +171,73 @@ function assertProjection(projection) {
     throw new TypeError(
       'Explorer Projection is missing canonical/presentation arrays'
     );
+  }
+
+  const canonicalNodes =
+    projection.canonical.graph.nodes;
+  const canonicalEdges =
+    projection.canonical.graph.edges;
+  const canonicalClaims =
+    projection.canonical.result.claims ?? [];
+  const canonicalCoverage =
+    projection.canonical.result.coverage?.entries ?? [];
+
+  if (
+    projection.presentation.nodes.length !==
+      canonicalNodes.length ||
+    projection.presentation.edges.length !==
+      canonicalEdges.length ||
+    projection.presentation.claims.length !==
+      canonicalClaims.length ||
+    projection.presentation.coverage.length !==
+      canonicalCoverage.length
+  ) {
+    throw new TypeError(
+      'Explorer Projection canonical/presentation counts must remain one-to-one'
+    );
+  }
+
+  for (const meta of projection.presentation.nodes) {
+    assertNodeTrace(
+      meta,
+      canonicalNodes[meta.canonical_index]
+    );
+  }
+  for (const meta of projection.presentation.edges) {
+    assertEdgeTrace(
+      meta,
+      canonicalEdges[meta.canonical_index]
+    );
+  }
+  for (const meta of projection.presentation.claims) {
+    const canonical =
+      canonicalClaims[meta.canonical_index];
+    if (
+      !canonical ||
+      canonical.id !== meta.claim_id ||
+      canonical.type !== meta.type ||
+      canonical.status !== meta.status
+    ) {
+      throw new TypeError(
+        'Explorer UI claim trace mismatch: ' +
+        String(meta?.claim_id)
+      );
+    }
+  }
+  for (const meta of projection.presentation.coverage) {
+    const canonical =
+      canonicalCoverage[meta.canonical_index];
+    if (
+      !canonical ||
+      canonical.id !== meta.coverage_id ||
+      canonical.role !== meta.role ||
+      canonical.status !== meta.status
+    ) {
+      throw new TypeError(
+        'Explorer UI coverage trace mismatch: ' +
+        String(meta?.coverage_id)
+      );
+    }
   }
 }
 

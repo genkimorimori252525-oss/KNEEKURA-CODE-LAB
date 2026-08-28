@@ -112,6 +112,33 @@ test('P2 UI model preserves canonical React Flow identities and edge semantics',
   }
 });
 
+
+test('P2 fails closed if Projection metadata loses canonical records', async () => {
+  const { projection: original } = await projection();
+
+  const missingNode = structuredClone(original);
+  missingNode.presentation.nodes.pop();
+  assert.throws(
+    () => createExplorerUiModel(missingNode),
+    /counts must remain one-to-one/
+  );
+
+  const wrongEdge = structuredClone(original);
+  wrongEdge.presentation.edges[0].canonical_type =
+    'PRESENTATION_INVENTED_TYPE';
+  assert.throws(
+    () => createExplorerUiModel(wrongEdge),
+    /edge trace mismatch/
+  );
+
+  const missingClaim = structuredClone(original);
+  missingClaim.presentation.claims.pop();
+  assert.throws(
+    () => createExplorerUiModel(missingClaim),
+    /counts must remain one-to-one/
+  );
+});
+
 test('P2 ELK input is deterministically sorted and layout changes geometry only', async () => {
   const { projection: value } = await projection();
   const model = createExplorerUiModel(value);
