@@ -4,6 +4,10 @@
   "private": true,
   "type": "module",
   "description": "Minecraft/Forge aware code graph laboratory for private repository analysis.",
+  "exports": {
+    "./plugin": "./src/plugin.mjs",
+    "./mailbox": "./src/mailbox.mjs"
+  },
   "scripts": {
     "scan": "node src/cli.mjs scan",
     "serve": "node src/cli.mjs serve",
