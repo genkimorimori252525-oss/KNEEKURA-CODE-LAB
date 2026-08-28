@@ -1,6 +1,6 @@
 # Human Presentation v2
 
-Status: P0 contract / safety boundary.
+Status: P0 complete. P1 Explorer Projection contract active.
 
 Human Presentation v2 improves human exploration and presentation without changing the authority, schemas, or semantics of KNEEKURA CORE.
 
@@ -250,3 +250,121 @@ canonical truth and evidence
     > compatibility
     > presentation features
 ~~~
+
+## 13. P1 — Explorer Projection contract
+
+P1 introduces a Presentation-only projection with schema `kneekura.explorer-projection/v1`.
+
+The projection is an **immutable-style consumer snapshot**: it clones the canonical graph and AnalysisResult and adds parallel Explorer metadata. It does not translate canonical records into a replacement semantic model.
+
+~~~
+{
+  schema: "kneekura.explorer-projection/v1",
+  source: {
+    graph_schema,
+    analysis_result_schema,
+    analysis_id,
+    session_id,
+    snapshot_id,
+    analysis_result_digest
+  },
+  canonical: {
+    graph,   // structured clone of kneekura.graph/v1
+    result   // structured clone of core.analysis-result/v1
+  },
+  presentation: {
+    nodes,   // one entry per canonical node
+    edges,   // one entry per canonical edge
+    claims,  // exact status/type/link metadata + canonical index
+    coverage // exact role/status + canonical index
+  }
+}
+~~~
+
+### P1 identity rules
+
+For every canonical graph node there is exactly one Presentation node metadata entry and vice versa. `node_id` is the canonical node ID and `canonical_kind` is the canonical node kind verbatim.
+
+For every canonical graph edge there is exactly one Presentation edge metadata entry and vice versa. `edge_id`, `from_node_id`, `to_node_id`, and `canonical_type` are copied verbatim from the canonical edge.
+
+P1 does not create group/container nodes inside the canonical graph and does not create inferred connector edges. Later UI grouping must live outside `canonical.graph.nodes` / `canonical.graph.edges`.
+
+### Display family is not semantic authority
+
+P1 may attach a coarse `display_family` to node metadata for future styling/navigation. For example, a `molang_variable` may receive `display_family: "semantic"`.
+
+This is Presentation metadata only. The canonical kind remains `molang_variable`; downstream code must never use `display_family` as a substitute for the canonical kind, Claim authority, Evidence authority, or edge semantics.
+
+### Claim / Evidence / Coverage rules
+
+Claim metadata keeps these fields verbatim when present:
+
+- `type`
+- `status`
+- `evidence_links`
+- `counterevidence_links`
+- `coverage_ref`
+
+Coverage metadata keeps `role` and `status` verbatim. Unknowns, warnings, failures, Evidence bodies/refs, graph paths, affected symbols, and all other canonical fields remain available in `canonical.result` without rewriting.
+
+Therefore P1 cannot reinterpret:
+
+- `UNKNOWN` as `ABSENT`
+- `FAILED` as `ABSENT`
+- `UNEXPLORED` as `ABSENT`
+- `CORRELATED` as `OBSERVED`
+- packet send as receive
+- M5 as M6
+- static edges as runtime observations
+- counterevidence as support Evidence
+
+### Canonical input identity correlation
+
+When a canonical Graph carries `meta.repository.repository_id` and/or `meta.snapshot.snapshot_id`, P1 must compare those values with the AnalysisResult repository/snapshot identity before creating the projection.
+
+- matching identities are recorded as `MATCH`
+- unavailable Graph identity metadata is recorded as `UNAVAILABLE`
+- an explicit repository or snapshot mismatch fails the Presentation projection closed
+
+A mismatch is a Presentation failure only. It must not alter the already-produced AnalysisResult or turn Analysis success into Analysis failure.
+
+This gate prevents a stale/different Graph from being silently paired with a valid AnalysisResult.
+
+### Determinism and mutation
+
+For the same canonical inputs, P1 output must be deterministic.
+
+Creating a projection must leave both input objects structurally unchanged. The canonical AnalysisResult digest before and after projection must match exactly.
+
+### P1 non-goals
+
+P1 does not implement:
+
+- React / React Flow
+- ELK / Dagre layout
+- search UI
+- layers / containers / drill-down UI
+- semantic zoom
+- Guided Tours
+- Archify projection/export
+- a new default Viewer
+
+Those remain later milestones.
+
+### P1 acceptance subset
+
+P1 must cover the following Presentation acceptance invariants before merge:
+
+- PT-01 canonical node IDs preserved one-to-one
+- PT-02 canonical edge IDs preserved one-to-one
+- PT-03 edge semantics/type and endpoint identity preserved
+- PT-04 UNKNOWN semantics preserved
+- PT-05 PARTIAL/FAILED/UNEXPLORED semantics preserved
+- PT-06 static/runtime metadata preserved without promotion
+- PT-07 packet send/receive remain distinct
+- PT-08 M5/M6 remain distinct
+- PT-09 Evidence links/refs preserved
+- PT-10 Counterevidence links preserved separately
+- PT-11 KNEEKURA-specific node kinds preserved
+- PT-12 every Presentation graph item is source-traceable
+
