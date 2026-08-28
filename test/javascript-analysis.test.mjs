@@ -227,6 +227,8 @@ test('JavaScript lexical analyzer masks comments in template expressions and raw
     source,
     [
       "const url = 'https://example.invalid/path';",
+      "const quoted = \"import './quoted-fake.mjs'; export function quotedFake() {}\";",
+      "const singleQuoted = 'require(\\\"./single-fake.mjs\\\"); export class singleFake {}';",
       "// import 'fake-module';",
       '/* export function fakeBlock() {} */',
       "const raw = `import 'raw-fake'; export function rawFake() {}`;",
@@ -251,9 +253,13 @@ test('JavaScript lexical analyzer masks comments in template expressions and raw
     'entry.mjs#rawFake',
     'entry.mjs#exprFake',
     'entry.mjs#nestedFake',
+    'entry.mjs#quotedFake',
+    'entry.mjs#singleFake',
     'fake-module',
     'raw-fake',
-    'expr-fake'
+    'expr-fake',
+    './quoted-fake.mjs',
+    './single-fake.mjs'
   ]) {
     assert.equal(
       graph.nodes.some(node => node.key === fake),

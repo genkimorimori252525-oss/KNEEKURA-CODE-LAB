@@ -1,0 +1,49 @@
+name: Self Audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: Full commit SHA or ref to audit
+        required: false
+        default: ''
+  push:
+    paths:
+      - 'scripts/self-audit.mjs'
+      - 'test/self-audit-dogfood.test.mjs'
+      - 'test/javascript-analysis.test.mjs'
+      - '.github/workflows/self-audit.yml'
+      - 'src/core/**'
+      - 'src/analyzers/javascript.mjs'
+      - 'src/adapters/jolly-research-mailbox*.mjs'
+      - 'src/mailbox.mjs'
+
+permissions:
+  contents: read
+
+jobs:
+  self-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Resolve dogfood target
+        id: target
+        shell: bash
+        run: |
+          requested="${{ github.event.inputs.commit }}"
+          if [ -n "$requested" ]; then
+            target="$(git rev-parse --verify "$requested^{commit}")"
+          elif [ "$GITHUB_REF_NAME" = "main" ]; then
+            target="$(git rev-parse HEAD)"
+          else
+            target="$(git merge-base HEAD origin/main)"
+          fi
+          echo "commit=$target" >> "$GITHUB_OUTPUT"
+          echo "Self-audit target: $target"
+      - name: Run KNEEKURA self audit
+        run: node scripts/self-audit.mjs --repo . --commit "${{ steps.target.outputs.commit }}"
