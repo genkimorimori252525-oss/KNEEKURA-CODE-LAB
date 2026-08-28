@@ -98,6 +98,10 @@ export function toJollyResearchMailboxServiceResult(result, {
       'sourceCommit does not match AnalysisResult snapshot base_commit'
     );
   }
+  assertSourceRepositoryMatches(
+    result.repository,
+    sourceRepository
+  );
 
   const claims = (result.claims ?? []).map(projectClaim);
   const verifiedClaims = claims.filter(claim =>
@@ -109,9 +113,14 @@ export function toJollyResearchMailboxServiceResult(result, {
 
   const evidenceProjection = projectEvidence(result);
   const sourcePinExact = result.snapshot.kind === 'COMMIT';
-  const status = sourcePinExact
+  const mappedStatus = sourcePinExact
     ? mapServiceStatus(result.status)
     : 'needs_context';
+  const status = serviceStatusForProjection({
+    mappedStatus,
+    analysisMode,
+    verifiedClaims
+  });
 
   const remainingUncertainty = [
     ...(result.unknowns ?? []).map(item => ({
@@ -193,6 +202,7 @@ export function toJollyResearchMailboxServiceResult(result, {
     bottom_line: bottomLine({
       result,
       status,
+      analysisMode,
       verifiedClaims,
       limitedClaims
     }),
@@ -324,25 +334,39 @@ function projectRejectedHypotheses(result) {
   const byId = new Map(
     (result.claims ?? []).map(claim => [claim.id, claim])
   );
+  const rows = [];
 
-  return (result.negated_hypotheses ?? []).map(item => {
+  for (const item of result.negated_hypotheses ?? []) {
     if (item?.claim_id && byId.has(item.claim_id)) {
       const claim = byId.get(item.claim_id);
-      return {
+      if (claim.status !== 'REJECTED') continue;
+      rows.push({
         kind: 'CLAIM',
         claim: projectClaim(claim)
-      };
+      });
+      continue;
     }
-    return {
+
+    if (
+      item?.status !== 'REJECTED' &&
+      item?.kind !== 'REASONING_PROPOSAL'
+    ) {
+      continue;
+    }
+
+    rows.push({
       kind: item?.kind ?? 'REJECTED_HYPOTHESIS',
       value: structuredClone(item)
-    };
-  });
+    });
+  }
+
+  return rows;
 }
 
 function bottomLine({
   result,
   status,
+  analysisMode,
   verifiedClaims,
   limitedClaims
 }) {
@@ -371,6 +395,15 @@ function bottomLine({
       'CORE could not produce a reliable completed analysis. ' +
       claimText + limitsText +
       '; coverage is ' + result.coverage.completeness + '.'
+    );
+  }
+
+  if (analysisMode === 'bug_hunt' && status === 'partial') {
+    return (
+      claimText + limitsText +
+      '; coverage is ' + result.coverage.completeness +
+      '. No canonical Claim is assigned the root-cause role, so this ' +
+      'bug_hunt remains partial rather than fabricating a causal conclusion.'
     );
   }
 
@@ -425,6 +458,44 @@ function aggregateConfidence({
       structuredClone(item)
     )
   };
+}
+
+function serviceStatusForProjection({
+  mappedStatus,
+  analysisMode,
+  verifiedClaims
+}) {
+  if (mappedStatus !== 'completed') return mappedStatus;
+  if (verifiedClaims.length === 0) return 'partial';
+  if (analysisMode === 'bug_hunt') return 'partial';
+  return 'completed';
+}
+
+function assertSourceRepositoryMatches(
+  repository,
+  sourceRepository
+) {
+  const canonical = repository?.canonical_identity;
+  if (
+    typeof canonical !== 'string' ||
+    !canonical.startsWith('git:github.com/')
+  ) {
+    return;
+  }
+
+  const value = sourceRepository.trim().replace(/\.git$/i, '');
+  if (!/^[^/\s]+\/[^/\s]+$/.test(value)) {
+    throw new TypeError(
+      'sourceRepository must be owner/repository for a GitHub-backed AnalysisResult'
+    );
+  }
+
+  const expected = 'git:github.com/' + value.toLowerCase();
+  if (canonical.toLowerCase() !== expected) {
+    throw new Error(
+      'sourceRepository does not match AnalysisResult repository identity'
+    );
+  }
 }
 
 function mapServiceStatus(status) {
