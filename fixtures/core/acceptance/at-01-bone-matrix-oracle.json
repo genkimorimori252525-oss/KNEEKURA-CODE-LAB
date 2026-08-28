@@ -7,7 +7,9 @@
     "repository": "genkimorimori252525-oss/ysm-2.6.2-forge-mc1.20.1-releaseKaidoku",
     "snapshot_sha": "cdd903691c129ce565d4680ba83c00f2d04993d6",
     "source_format": "mapped-jvm-bytecode",
-    "validation_note": "The pinned repository contains mapped JVM .class files rather than reconstructed Java source. Anchors below were manually validated from class-file constant pools, method descriptors, access flags, and bytecode references."
+    "validation_note": "The pinned repository contains mapped JVM .class files rather than reconstructed Java source. Anchors below were manually validated from class-file constant pools, method descriptors, access flags, and bytecode references.",
+    "tree_sha": "b5d5939eb3937884d772893fdafb28c53fc5fac9",
+    "git_object_verification": "snapshot commit and four anchor blob SHAs revalidated against Git tree metadata"
   },
   "conclusion": {
     "status": "UNKNOWN_NATIVE",
