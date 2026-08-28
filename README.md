@@ -158,7 +158,7 @@ KNEEKURA-LAB の main JSONL trace (`anim` / Molang / entity lifecycle) と、対
 
 人間向け表示の次世代化は `docs/HUMAN_PRESENTATION_V2.md` に従います。KNEEKURA CORE を唯一の解析上の Authority（正しい情報を決める主体）のまま維持し、探索UIや説明図は Canonical Result を読むだけの Presentation 層として分離します。
 
-P0 で境界契約・CORE→Presentation依存禁止・Canonical digest gate・Classic Viewer fallback・OSS provenance 方針を固定しました。P1 では `kneekura.explorer-projection/v1` を追加し、`kneekura.graph/v1` と `core.analysis-result/v1` を変更せず複製した Canonical snapshot の横に、node/edge/Claim/Coverage の一対一で追跡可能な Explorer metadata を生成します。KNEEKURA固有 kind、send/receive、M5/M6、static/runtime、UNKNOWN/FAILED/UNEXPLORED、Evidence/Counterevidence の意味は変換しません。React Flow 等の新UIは P2 以降です。
+P0 で境界契約・CORE→Presentation依存禁止・Canonical digest gate・Classic Viewer fallback・OSS provenance 方針を固定しました。P1 では `kneekura.explorer-projection/v1` を追加し、`kneekura.graph/v1` と `core.analysis-result/v1` を変更せず複製した Canonical snapshot の横に、node/edge/Claim/Coverage の一対一で追跡可能な Explorer metadata を生成します。Graph と Result の repository/snapshot identity が両方存在する場合は一致を必須とし、別runの組み合わせを黙って表示しません。KNEEKURA固有 kind、send/receive、M5/M6、static/runtime、UNKNOWN/FAILED/UNEXPLORED、Evidence/Counterevidence の意味は変換しません。React Flow 等の新UIは P2 以降です。
 
 ## AI / coding agent 向け出力との境界
 
