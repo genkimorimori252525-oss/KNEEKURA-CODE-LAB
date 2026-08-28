@@ -18,7 +18,8 @@
     "test:presentation-p0": "node --test test/human-presentation-v2-p0.test.mjs",
     "test:presentation-p1": "node --test test/human-presentation-v2-p1.test.mjs",
     "explorer:dev": "vite --config packages/human-explorer/vite.config.mjs",
-    "explorer:build": "vite build --config packages/human-explorer/vite.config.mjs"
+    "explorer:build": "vite build --config packages/human-explorer/vite.config.mjs",
+    "test:presentation-p2": "node --test test/human-presentation-v2-p2.test.mjs"
   },
   "engines": {
     "node": ">=20"

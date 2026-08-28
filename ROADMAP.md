@@ -38,6 +38,7 @@
 ## v0.5 — Understand Anything style UX
 - [x] Human Presentation v2 P0 contract / safety boundary
 - [x] Human Presentation v2 P1 Explorer Projection (one-to-one canonical traceability)
+- [x] Human Presentation v2 P2 Explorer Shell (opt-in React Flow + deterministic ELK layout)
 - [x] Understand Anything graph importer (nodes/edges/layers/tour)
 - [ ] architecture layers
 - [ ] guided tours
