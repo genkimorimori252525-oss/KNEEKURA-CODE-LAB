@@ -81,6 +81,21 @@ async function canonicalResult() {
   return result;
 }
 
+test('package exports stable plugin and mailbox consumer subpaths', async () => {
+  const [pluginEntry, mailboxEntry] = await Promise.all([
+    import('kneekura-code-lab/plugin'),
+    import('kneekura-code-lab/mailbox')
+  ]);
+
+  assert.equal(typeof pluginEntry.createCoreEngine, 'function');
+  assert.equal(typeof pluginEntry.createCorePluginAdapter, 'function');
+  assert.equal(typeof mailboxEntry.toJollyResearchMailbox, 'function');
+  assert.equal(
+    mailboxEntry.JOLLY_MAILBOX_ENTRY_SCHEMA,
+    'jolly.research-mailbox-analysis/v1'
+  );
+});
+
 test('Jolly mailbox compact mapping preserves canonical identities and qualifiers', async () => {
   const result = await canonicalResult();
   const entry = toJollyResearchMailbox(result);
