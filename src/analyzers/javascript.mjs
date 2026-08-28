@@ -16,13 +16,17 @@ export async function analyzeJavaScript(
   const src = stripComments(raw);
   const rel = normalizePath(path.relative(root, file));
   const moduleType =
-    file.endsWith('.cjs') ? 'commonjs' : 'esm';
+    file.endsWith('.mjs')
+      ? 'esm'
+      : file.endsWith('.cjs')
+        ? 'commonjs'
+        : null;
 
   const fileNode = builder.node('file', rel, {
     label: path.basename(file),
     path: rel,
     language: 'javascript',
-    moduleType
+    ...(moduleType ? { moduleType } : {})
   });
 
   const imports = [];
@@ -322,6 +326,7 @@ function stripComments(source) {
   let out = '';
   let state = 'code';
   let escaped = false;
+  const templateExpressionDepth = [];
 
   for (let i = 0; i < source.length; i++) {
     const ch = source[i];
@@ -350,8 +355,7 @@ function stripComments(source) {
 
     if (
       state === 'single' ||
-      state === 'double' ||
-      state === 'template'
+      state === 'double'
     ) {
       out += ch;
       if (escaped) {
@@ -364,11 +368,39 @@ function stripComments(source) {
       }
       if (
         (state === 'single' && ch === "'") ||
-        (state === 'double' && ch === '"') ||
-        (state === 'template' && ch === '`')
+        (state === 'double' && ch === '"')
       ) {
         state = 'code';
       }
+      continue;
+    }
+
+    if (state === 'template') {
+      if (escaped) {
+        out += ch === '\n' ? '\n' : ' ';
+        escaped = false;
+        continue;
+      }
+      if (ch === '\\') {
+        out += ' ';
+        escaped = true;
+        continue;
+      }
+      if (ch === '`') {
+        out += ' ';
+        state = 'code';
+        continue;
+      }
+      if (ch === '$' && next === '{') {
+        out += '  ';
+        i += 1;
+        templateExpressionDepth.push(1);
+        state = 'code';
+        continue;
+      }
+
+      // Template raw text is data, not JavaScript code.
+      out += ch === '\n' ? '\n' : ' ';
       continue;
     }
 
@@ -384,12 +416,40 @@ function stripComments(source) {
       state = 'block-comment';
       continue;
     }
-    if (ch === "'") state = 'single';
-    else if (ch === '"') state = 'double';
-    else if (ch === '`') state = 'template';
+    if (ch === "'") {
+      state = 'single';
+      out += ch;
+      continue;
+    }
+    if (ch === '"') {
+      state = 'double';
+      out += ch;
+      continue;
+    }
+    if (ch === '`') {
+      state = 'template';
+      out += ' ';
+      continue;
+    }
+
+    if (templateExpressionDepth.length) {
+      const index = templateExpressionDepth.length - 1;
+      if (ch === '{') {
+        templateExpressionDepth[index] += 1;
+      } else if (ch === '}') {
+        templateExpressionDepth[index] -= 1;
+        out += ch;
+        if (templateExpressionDepth[index] === 0) {
+          templateExpressionDepth.pop();
+          state = 'template';
+        }
+        continue;
+      }
+    }
 
     out += ch;
   }
 
   return out;
 }
+
