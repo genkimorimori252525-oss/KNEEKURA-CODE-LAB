@@ -8,8 +8,10 @@ import { fileURLToPath } from 'node:url';
 import { analyzeInternal } from '../src/core/api/analyze.mjs';
 import {
   createHumanViewerManifest,
-  digestCanonicalAnalysisResult
+  digestCanonicalAnalysisResult,
+  writeHumanViewerBundle
 } from '../src/viewer/bundle.mjs';
+import { loadViewerSources } from '../viewer/loader.mjs';
 import {
   auditCorePresentationBoundary
 } from '../scripts/check-presentation-boundary.mjs';
@@ -147,3 +149,70 @@ test('P0 canonical digest gate proves Viewer projection is non-mutating', async 
     'canonical AnalysisResult must retain its Evidence field'
   );
 });
+
+
+test('P0 Classic Viewer graph-only fallback remains available', async () => {
+  const graph = {
+    schema: 'kneekura.graph/v1',
+    meta: {},
+    nodes: [],
+    edges: []
+  };
+  const requested = [];
+
+  const source = await loadViewerSources({
+    fetchImpl: async url => {
+      requested.push(url);
+      if (url === '/graph.json') {
+        return jsonResponse(200, graph);
+      }
+      return jsonResponse(404, null);
+    }
+  });
+
+  assert.equal(source.mode, 'GRAPH_ONLY');
+  assert.deepEqual(source.graph, graph);
+  assert.deepEqual(requested, [
+    '/viewer-manifest.json',
+    '/analysis-result.json',
+    '/graph.json'
+  ]);
+});
+
+test('P0 Presentation failure is isolated from canonical AnalysisResult', async t => {
+  const run = await canonicalExecution();
+  const original = structuredClone(run.result);
+  const before = digestCanonicalAnalysisResult(run.result);
+  const outDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), 'kneekura-presentation-failure-')
+  );
+  t.after(() =>
+    fs.rm(outDir, { recursive: true, force: true })
+  );
+
+  await assert.rejects(
+    writeHumanViewerBundle({
+      result: run.result,
+      graph: run.state.graph,
+      outDir,
+      resultFile: '../outside-analysis-result.json'
+    }),
+    /must stay inside the Viewer bundle/
+  );
+
+  assert.equal(
+    digestCanonicalAnalysisResult(run.result),
+    before
+  );
+  assert.deepEqual(run.result, original);
+});
+
+function jsonResponse(status, value) {
+  return {
+    status,
+    ok: status >= 200 && status < 300,
+    async json() {
+      return structuredClone(value);
+    }
+  };
+}
