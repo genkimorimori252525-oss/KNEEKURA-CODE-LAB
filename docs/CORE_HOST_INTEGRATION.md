@@ -338,10 +338,10 @@ reconcile the rendered result with the persisted service projection.
 
 Repository-derived Evidence, rejected hypotheses, uncertainty, and other
 structured dynamic values are serialized inside deterministic JSON data blocks.
-They are data, not instruction authority. High-volume
-`remaining_uncertainty` is serialized as canonicalized compact JSON rather
-than pretty-printed JSON; this changes whitespace only, not the projected rows
-or their values. The renderer never invents a missing file, symbol, line range,
+They are data, not instruction authority. The
+`remaining_uncertainty` section is always serialized as canonicalized compact
+JSON rather than pretty-printed JSON; this changes whitespace only, not the
+projected rows or their values. The renderer never invents a missing file, symbol, line range,
 root cause, recommended source change, or `do_not_change` conclusion.
 
 Empty authority-bearing fields stay explicit. For example, an empty
