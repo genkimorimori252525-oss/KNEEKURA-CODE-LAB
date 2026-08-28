@@ -117,7 +117,7 @@ export function displayFamilyForKind(kind) {
   const lower = canonicalKind.toLowerCase();
 
   if (
-    SEMANTIC_DISPLAY_KINDS.has(canonicalKind) ||
+    SEMANTIC_DISPLAY_KINDS.includes(canonicalKind) ||
     lower.includes('molang') ||
     lower.includes('animation') ||
     lower.includes('bone') ||
@@ -342,7 +342,11 @@ function compareCoverageMetadata(a, b) {
 }
 
 function compareText(a, b) {
-  return String(a).localeCompare(String(b));
+  const left = String(a);
+  const right = String(b);
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
 }
 
 function sameSet(a, b) {
