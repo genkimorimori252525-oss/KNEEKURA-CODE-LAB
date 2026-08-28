@@ -18,3 +18,7 @@ export {
   toJollyResearchMailboxCoreExecutionPlan,
   validateJollyResearchMailboxRequest
 } from './adapters/jolly-research-mailbox-request.mjs';
+
+export {
+  runJollyResearchMailboxRequest
+} from './adapters/jolly-research-mailbox-runner.mjs';
