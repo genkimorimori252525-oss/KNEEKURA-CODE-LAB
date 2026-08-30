@@ -401,6 +401,32 @@ export function assertExplorerHierarchy(model, hierarchy) {
       );
     }
     containerIds.add(container.id);
+
+    if (
+      !Array.isArray(container.node_ids) ||
+      !Array.isArray(container.child_container_ids)
+    ) {
+      throw new TypeError(
+        'Explorer hierarchy container arrays are invalid'
+      );
+    }
+    if (
+      new Set(container.node_ids).size !==
+      container.node_ids.length
+    ) {
+      throw new TypeError(
+        'Explorer hierarchy container node IDs must be unique'
+      );
+    }
+    if (
+      new Set(container.child_container_ids).size !==
+      container.child_container_ids.length
+    ) {
+      throw new TypeError(
+        'Explorer hierarchy child container IDs must be unique'
+      );
+    }
+
     for (const nodeId of container.node_ids) {
       if (!modelNodeSet.has(nodeId)) {
         throw new TypeError(
@@ -411,21 +437,130 @@ export function assertExplorerHierarchy(model, hierarchy) {
     }
   }
 
+  const layerIds = new Set();
+  for (const layer of hierarchy.layers) {
+    if (layerIds.has(layer.id)) {
+      throw new TypeError(
+        'Explorer hierarchy layer IDs must be unique'
+      );
+    }
+    layerIds.add(layer.id);
+
+    if (
+      !Array.isArray(layer.node_ids) ||
+      new Set(layer.node_ids).size !== layer.node_ids.length
+    ) {
+      throw new TypeError(
+        'Explorer hierarchy layer node IDs must be unique'
+      );
+    }
+    for (const nodeId of layer.node_ids) {
+      if (!modelNodeSet.has(nodeId)) {
+        throw new TypeError(
+          'Explorer hierarchy layer references foreign node: ' +
+          nodeId
+        );
+      }
+    }
+
+    const familyContainer = explorerContainer(
+      hierarchy,
+      layer.container_id
+    );
+    if (
+      !familyContainer ||
+      familyContainer.kind !== 'layer' ||
+      familyContainer.layer_id !== layer.id ||
+      JSON.stringify(
+        [...familyContainer.node_ids].sort(compareText)
+      ) !==
+        JSON.stringify(
+          [...layer.node_ids].sort(compareText)
+        )
+    ) {
+      throw new TypeError(
+        'Explorer hierarchy layer/container trace mismatch: ' +
+        layer.id
+      );
+    }
+  }
+
+  for (const container of hierarchy.containers) {
+    if (container.id === EXPLORER_ROOT_CONTAINER_ID) {
+      if (container.parent_id !== null) {
+        throw new TypeError(
+          'Explorer hierarchy root parent must be null'
+        );
+      }
+    } else {
+      if (
+        typeof container.parent_id !== 'string' ||
+        !containerIds.has(container.parent_id)
+      ) {
+        throw new TypeError(
+          'Explorer hierarchy container parent is foreign: ' +
+          container.id
+        );
+      }
+      const parent = explorerContainer(
+        hierarchy,
+        container.parent_id
+      );
+      if (!parent.child_container_ids.includes(container.id)) {
+        throw new TypeError(
+          'Explorer hierarchy parent/child trace mismatch: ' +
+          container.id
+        );
+      }
+    }
+
+    for (const childId of container.child_container_ids) {
+      if (!containerIds.has(childId)) {
+        throw new TypeError(
+          'Explorer hierarchy child container is foreign: ' +
+          childId
+        );
+      }
+      const child = explorerContainer(hierarchy, childId);
+      if (child.parent_id !== container.id) {
+        throw new TypeError(
+          'Explorer hierarchy child parent mismatch: ' +
+          childId
+        );
+      }
+    }
+
+    explorerBreadcrumbs(hierarchy, container.id);
+  }
+
   for (const item of hierarchy.node_membership) {
     const layer = hierarchy.layers.find(
       entry => entry.id === item.layer_id
     );
-    if (!layer) {
-      throw new TypeError(
-        'Explorer hierarchy membership references foreign layer'
-      );
-    }
+    const familyContainer = explorerContainer(
+      hierarchy,
+      item.family_container_id
+    );
+    const kindContainer = explorerContainer(
+      hierarchy,
+      item.kind_container_id
+    );
     if (
-      !containerIds.has(item.family_container_id) ||
-      !containerIds.has(item.kind_container_id)
+      !layer ||
+      !familyContainer ||
+      !kindContainer ||
+      familyContainer.kind !== 'layer' ||
+      familyContainer.layer_id !== item.layer_id ||
+      kindContainer.kind !== 'kind' ||
+      kindContainer.parent_id !== familyContainer.id ||
+      kindContainer.layer_id !== item.layer_id ||
+      !layer.node_ids.includes(item.node_id) ||
+      !familyContainer.node_ids.includes(item.node_id) ||
+      !kindContainer.node_ids.includes(item.node_id)
     ) {
       throw new TypeError(
-        'Explorer hierarchy membership references foreign container'
+        'Explorer hierarchy membership trace mismatch: ' +
+        item.node_id
       );
     }
   }

@@ -296,6 +296,62 @@ test('P3 scopes never replace canonical UI node or edge identities', () => {
   }
 });
 
+test('P3 fails closed on foreign and cyclic container metadata', () => {
+  const model = sampleModel();
+  const hierarchy = createExplorerHierarchy(model);
+  const sourceLayer = hierarchy.layers.find(
+    layer => layer.key === 'source'
+  );
+  const family = hierarchy.containers.find(
+    item => item.id === sourceLayer.container_id
+  );
+  const kind = hierarchy.containers.find(
+    item =>
+      item.parent_id === family.id &&
+      item.kind === 'kind'
+  );
+
+  const foreignParent = structuredClone(hierarchy);
+  foreignParent.containers.find(
+    item => item.id === kind.id
+  ).parent_id = 'container:foreign';
+  assert.throws(
+    () => createExplorerScope(model, foreignParent),
+    /parent is foreign/
+  );
+
+  const foreignChild = structuredClone(hierarchy);
+  foreignChild.containers.find(
+    item => item.id === EXPLORER_ROOT_CONTAINER_ID
+  ).child_container_ids.push('container:foreign');
+  assert.throws(
+    () => createExplorerScope(model, foreignChild),
+    /child container is foreign/
+  );
+
+  const cyclic = structuredClone(hierarchy);
+  const cyclicRoot = cyclic.containers.find(
+    item => item.id === EXPLORER_ROOT_CONTAINER_ID
+  );
+  const cyclicFamily = cyclic.containers.find(
+    item => item.id === family.id
+  );
+  const cyclicKind = cyclic.containers.find(
+    item => item.id === kind.id
+  );
+  cyclicRoot.child_container_ids =
+    cyclicRoot.child_container_ids.filter(
+      id => id !== cyclicFamily.id
+    );
+  cyclicFamily.parent_id = cyclicKind.id;
+  cyclicKind.child_container_ids.push(cyclicFamily.id);
+
+  assert.throws(
+    () => createExplorerScope(model, cyclic),
+    /parent cycle/
+  );
+});
+
 test('P3 React shell exposes hierarchy controls without executable text rendering', async () => {
   const app = await fs.readFile(
     path.join(
