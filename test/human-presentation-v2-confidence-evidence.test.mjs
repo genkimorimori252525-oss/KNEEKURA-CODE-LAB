@@ -376,6 +376,67 @@ test('Inspector rejects unavailable Evidence linked through the wrong aggregate 
   );
 });
 
+test('Inspector validates Evidence refs for non-selected Claims too',async()=>{
+  const fx=await fixture();
+  const graph=structuredClone(
+    fx.projection.canonical.graph
+  );
+  const result=structuredClone(
+    fx.projection.canonical.result
+  );
+
+  const otherNode={
+    id:'node:inspector-other',
+    kind:'class',
+    key:'fixture.Other',
+    label:'Other',
+    path:'src/Other.java'
+  };
+  graph.nodes.push(otherNode);
+  const otherCoverage={
+    id:'coverage:inspector-other',
+    node_id:otherNode.id,
+    role:'PRIMARY',
+    status:'ANALYZED'
+  };
+  result.coverage.entries.push(otherCoverage);
+  result.claims.push({
+    schema:'core.claim/v1',
+    id:'claim:inspector-other',
+    type:'HYPOTHESIS',
+    status:'UNRESOLVED',
+    subject:{node_id:otherNode.id},
+    predicate:'fixture.other',
+    object_or_value:null,
+    evidence_links:[{
+      evidence_id:'evidence:foreign-missing',
+      role:'SUPPORT',
+      strength:'INDIRECT'
+    }],
+    counterevidence_links:[],
+    dependency_claim_ids:[],
+    coverage_ref:otherCoverage.id,
+    provenance_refs:[],
+    confidence:{
+      level:'LOW',
+      rationale:'canonical categorical confidence'
+    },
+    verifier_results:[]
+  });
+
+  const rebuilt=createExplorerProjection({
+    graph,
+    result
+  });
+  assert.throws(
+    ()=>createExplorerConfidenceEvidenceInspector(
+      rebuilt,
+      fx.node_id
+    ),
+    /evidence link ref mismatch/
+  );
+});
+
 test('Inspector preserves canonical Claim order and never sorts or scores by confidence',async()=>{
   const fx=await fixture();
   const graph=structuredClone(
@@ -490,22 +551,43 @@ test('Inspector fails closed on node Claim Coverage and duplicate Evidence ident
     /Coverage trace mismatch/
   );
 
-  const duplicate=structuredClone(fx.projection);
-  duplicate.canonical.result.evidence.push(
+  const duplicateResult=structuredClone(
+    fx.projection.canonical.result
+  );
+  duplicateResult.evidence.push(
     structuredClone(
-      duplicate.canonical.result.evidence.find(
+      duplicateResult.evidence.find(
         item=>item.id===fx.evidence_id
       )
     )
   );
-  duplicate.source.analysis_result_digest=
-    fx.projection.source.analysis_result_digest;
+  const duplicateProjection=createExplorerProjection({
+    graph:structuredClone(
+      fx.projection.canonical.graph
+    ),
+    result:duplicateResult
+  });
   assert.throws(
     ()=>createExplorerConfidenceEvidenceInspector(
-      duplicate,
+      duplicateProjection,
       fx.node_id
     ),
-    /source identity\/digest mismatch|Canonical Evidence IDs must be unique/
+    /Canonical Evidence IDs must be unique/
+  );
+
+  const duplicateNodeMeta=structuredClone(
+    fx.projection
+  );
+  duplicateNodeMeta.presentation.nodes[1]=
+    structuredClone(
+      duplicateNodeMeta.presentation.nodes[0]
+    );
+  assert.throws(
+    ()=>createExplorerConfidenceEvidenceInspector(
+      duplicateNodeMeta,
+      fx.node_id
+    ),
+    /Presentation node IDs must be unique|node trace/
   );
 });
 

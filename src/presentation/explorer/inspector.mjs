@@ -275,6 +275,23 @@ function assertInspectorProjection(projection) {
     );
   }
 
+  const presentationNodeById = uniqueMap(
+    projection.presentation.nodes,
+    item => item.node_id,
+    'Presentation node'
+  );
+  const evidenceById = uniqueMap(
+    result.evidence ?? [],
+    item => item.id,
+    'Canonical Evidence'
+  );
+  const evidenceRefs = new Set(
+    result.evidence_refs ?? []
+  );
+  const counterevidenceRefs = new Set(
+    result.counterevidence_refs ?? []
+  );
+
   if (
     projection.presentation.nodes.length !==
       projection.canonical.graph.nodes.length ||
@@ -285,6 +302,15 @@ function assertInspectorProjection(projection) {
   ) {
     throw new TypeError(
       'Confidence/Evidence Inspector trace count mismatch'
+    );
+  }
+
+  if (
+    presentationNodeById.size !==
+      projection.canonical.graph.nodes.length
+  ) {
+    throw new TypeError(
+      'Confidence/Evidence Inspector node trace count mismatch'
     );
   }
 
@@ -312,6 +338,20 @@ function assertInspectorProjection(projection) {
       claim,
       meta,
       meta.canonical_index
+    );
+    resolveEvidenceLinks(
+      claim.id,
+      claim.evidence_links ?? [],
+      'evidence_links',
+      evidenceById,
+      evidenceRefs
+    );
+    resolveEvidenceLinks(
+      claim.id,
+      claim.counterevidence_links ?? [],
+      'counterevidence_links',
+      evidenceById,
+      counterevidenceRefs
     );
   }
 
