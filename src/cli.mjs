@@ -107,7 +107,7 @@ if (cmd === 'scan') {
       } else {
         const rel = requestPath === '/'
           ? 'index.html'
-          : requestPath.replace(/^\\/+/, '');
+          : requestPath.replace(/^\/+/, '');
         target = path.resolve(appRoot, rel);
         if (
           target !== appRoot &&
