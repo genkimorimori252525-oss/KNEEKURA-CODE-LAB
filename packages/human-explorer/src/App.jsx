@@ -16,9 +16,14 @@ import ELK from 'elkjs/lib/elk.bundled.js';
 
 import {
   createExplorerNodeDetail,
-  createExplorerUiModel,
-  searchExplorerNodes
+  createExplorerUiModel
 } from '../../../src/presentation/explorer/ui-model.mjs';
+import {
+  createExplorerHierarchy,
+  createExplorerScope,
+  EXPLORER_ROOT_CONTAINER_ID,
+  searchExplorerScopeNodes
+} from '../../../src/presentation/explorer/hierarchy.mjs';
 import {
   layoutExplorerUiModel
 } from '../../../src/presentation/explorer/layout.mjs';
@@ -38,6 +43,17 @@ function ExplorerCanvas({ projection }) {
     () => createExplorerUiModel(projection),
     [projection]
   );
+  const hierarchy = useMemo(
+    () => createExplorerHierarchy(model),
+    [model]
+  );
+  const [containerId, setContainerId] = useState(
+    EXPLORER_ROOT_CONTAINER_ID
+  );
+  const [enabledLayerIds, setEnabledLayerIds] =
+    useState(() =>
+      hierarchy.layers.map(layer => layer.id)
+    );
   const [layout, setLayout] = useState(null);
   const [layoutError, setLayoutError] = useState(null);
   const [query, setQuery] = useState('');
@@ -46,11 +62,52 @@ function ExplorerCanvas({ projection }) {
   const { fitView } = useReactFlow();
 
   useEffect(() => {
+    setContainerId(EXPLORER_ROOT_CONTAINER_ID);
+    setEnabledLayerIds(
+      hierarchy.layers.map(layer => layer.id)
+    );
+    setSelectedNodeId(null);
+  }, [hierarchy]);
+
+  const scope = useMemo(
+    () => createExplorerScope(model, hierarchy, {
+      container_id: containerId,
+      enabled_layer_ids: enabledLayerIds
+    }),
+    [
+      model,
+      hierarchy,
+      containerId,
+      enabledLayerIds
+    ]
+  );
+
+  const scopedModel = useMemo(
+    () => ({
+      ...model,
+      nodes: scope.nodes,
+      edges: scope.edges
+    }),
+    [model, scope]
+  );
+
+  useEffect(() => {
     let active = true;
     setLayout(null);
     setLayoutError(null);
 
-    layoutExplorerUiModel(model, elk)
+    if (scopedModel.nodes.length === 0) {
+      setLayout({
+        ...scopedModel,
+        nodes: [],
+        edges: []
+      });
+      return () => {
+        active = false;
+      };
+    }
+
+    layoutExplorerUiModel(scopedModel, elk)
       .then(value => {
         if (active) setLayout(value);
       })
@@ -65,19 +122,32 @@ function ExplorerCanvas({ projection }) {
     return () => {
       active = false;
     };
-  }, [model]);
+  }, [scopedModel]);
 
   const matches = useMemo(
-    () => searchExplorerNodes(model, query),
-    [model, query]
+    () => searchExplorerScopeNodes(scope, query),
+    [scope, query]
   );
   const matchSet = useMemo(
     () => new Set(matches),
     [matches]
   );
+  const visibleNodeSet = useMemo(
+    () => new Set(scope.visible_node_ids),
+    [scope.visible_node_ids]
+  );
+
+  useEffect(() => {
+    if (
+      selectedNodeId &&
+      !visibleNodeSet.has(selectedNodeId)
+    ) {
+      setSelectedNodeId(null);
+    }
+  }, [selectedNodeId, visibleNodeSet]);
 
   const visibleNodes = useMemo(() => {
-    const source = layout?.nodes ?? model.nodes;
+    const source = layout?.nodes ?? scope.nodes;
     return source.map(node => ({
       ...node,
       draggable: false,
@@ -87,11 +157,16 @@ function ExplorerCanvas({ projection }) {
           ? 'explorer-node explorer-node-match'
           : 'explorer-node'
     }));
-  }, [layout, model.nodes, matchSet, selectedNodeId]);
+  }, [
+    layout,
+    scope.nodes,
+    matchSet,
+    selectedNodeId
+  ]);
 
   const visibleEdges = useMemo(
-    () => layout?.edges ?? model.edges,
-    [layout, model.edges]
+    () => layout?.edges ?? scope.edges,
+    [layout, scope.edges]
   );
 
   const detail = useMemo(
@@ -105,7 +180,7 @@ function ExplorerCanvas({ projection }) {
   );
 
   function focusNode(nodeId) {
-    if (!nodeId) return;
+    if (!nodeId || !visibleNodeSet.has(nodeId)) return;
     setSelectedNodeId(nodeId);
     queueMicrotask(() => {
       fitView({
@@ -122,13 +197,27 @@ function ExplorerCanvas({ projection }) {
     focusNode(matches[0] ?? null);
   }
 
+  function navigateContainer(nextId) {
+    setContainerId(nextId);
+    setSelectedNodeId(null);
+  }
+
+  function toggleLayer(layerId) {
+    setEnabledLayerIds(current => {
+      const next = current.includes(layerId)
+        ? current.filter(id => id !== layerId)
+        : [...current, layerId];
+      return next.sort();
+    });
+  }
+
   return (
     <div className="explorer-shell">
       <header className="explorer-toolbar">
         <div>
           <strong>KNEEKURA Human Explorer</strong>
           <span className="explorer-subtitle">
-            P2 shell · canonical projection consumer
+            P3 hierarchy · canonical projection consumer
           </span>
         </div>
 
@@ -141,7 +230,7 @@ function ExplorerCanvas({ projection }) {
             onChange={event =>
               setQuery(event.target.value)
             }
-            placeholder="node / kind / id を検索"
+            placeholder="visible node / kind / id を検索"
             aria-label="Explorer node search"
           />
           <button type="submit">
@@ -161,11 +250,20 @@ function ExplorerCanvas({ projection }) {
             })
           }
         >
-          Fit graph
+          Fit scope
         </button>
       </header>
 
       <main className="explorer-main">
+        <HierarchyPanel
+          hierarchy={hierarchy}
+          scope={scope}
+          containerId={containerId}
+          enabledLayerIds={enabledLayerIds}
+          onNavigate={navigateContainer}
+          onToggleLayer={toggleLayer}
+        />
+
         <section className="explorer-canvas">
           {layoutError ? (
             <div
@@ -213,6 +311,100 @@ function ExplorerCanvas({ projection }) {
         </aside>
       </main>
     </div>
+  );
+}
+
+function HierarchyPanel({
+  hierarchy,
+  scope,
+  containerId,
+  enabledLayerIds,
+  onNavigate,
+  onToggleLayer
+}) {
+  const current = hierarchy.containers.find(
+    item => item.id === containerId
+  );
+
+  return (
+    <aside className="explorer-hierarchy">
+      <section>
+        <h2>Layers</h2>
+        <div className="explorer-layer-list">
+          {hierarchy.layers.map(layer => (
+            <label key={layer.id}>
+              <input
+                type="checkbox"
+                checked={enabledLayerIds.includes(
+                  layer.id
+                )}
+                onChange={() =>
+                  onToggleLayer(layer.id)
+                }
+              />
+              <span>{layer.label}</span>
+              <small>{layer.node_ids.length}</small>
+            </label>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <h2>Hierarchy</h2>
+        <nav
+          className="explorer-breadcrumbs"
+          aria-label="Explorer hierarchy breadcrumb"
+        >
+          {scope.breadcrumbs.map((item, index) => (
+            <React.Fragment key={item.id}>
+              {index > 0 ? (
+                <span aria-hidden="true">/</span>
+              ) : null}
+              <button
+                type="button"
+                disabled={item.id === containerId}
+                onClick={() => onNavigate(item.id)}
+              >
+                {item.label}
+              </button>
+            </React.Fragment>
+          ))}
+        </nav>
+
+        {scope.child_containers.length > 0 ? (
+          <div className="explorer-container-list">
+            {scope.child_containers.map(item => (
+              <button
+                type="button"
+                key={item.id}
+                onClick={() => onNavigate(item.id)}
+              >
+                <span>{item.label}</span>
+                <small>{item.node_count} nodes</small>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="explorer-empty">
+            {current?.kind === 'kind'
+              ? 'Canonical nodes in this kind are shown.'
+              : 'No visible child containers.'}
+          </p>
+        )}
+      </section>
+
+      <section className="explorer-scope-stats">
+        <h2>Scope</h2>
+        <dl>
+          <dt>Nodes</dt>
+          <dd>{scope.visible_node_ids.length}</dd>
+          <dt>Edges</dt>
+          <dd>{scope.visible_edge_ids.length}</dd>
+          <dt>Boundary edges hidden</dt>
+          <dd>{scope.hidden_boundary_edge_ids.length}</dd>
+        </dl>
+      </section>
+    </aside>
   );
 }
 

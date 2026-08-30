@@ -1,6 +1,6 @@
 # Human Presentation v2
 
-Status: P0/P1 complete. P2 Explorer Shell contract active.
+Status: P0/P1/P2 complete. P3 architecture hierarchy contract active.
 
 Human Presentation v2 improves human exploration and presentation without changing the authority, schemas, or semantics of KNEEKURA CORE.
 
@@ -467,3 +467,77 @@ Before merge, P2 must prove at least:
 - Explorer build succeeds from pinned package versions
 - P0/P1 tests and repository regression remain green
 - zero `src/core/**` changes
+
+
+## 15. P3 — Architecture Layers, Containers, Drill-down contract
+
+P3 adds deterministic **Presentation-only hierarchy** to the opt-in Human Explorer. It does not alter `kneekura.graph/v1`, `core.analysis-result/v1`, or `kneekura.explorer-projection/v1`.
+
+### P3 hierarchy derivation
+
+The hierarchy is derived only from already-traceable P1/P2 metadata:
+
+1. root container — all canonical UI nodes;
+2. architecture layer — the existing P1 `display_family`;
+3. kind container — the canonical node `canonical_kind` verbatim;
+4. leaf — the canonical node itself.
+
+For the same Explorer UI model, layer order, container IDs, membership, breadcrumbs, and visible scope must be deterministic.
+
+Layer/container IDs are **Presentation identities only**. They are not canonical graph node IDs and must never appear as replacement canonical nodes, Claim subjects, Evidence identities, Coverage identities, or canonical edge endpoints.
+
+### No synthetic React Flow semantics
+
+P3 does not add layer/container records to the React Flow canonical node set. React Flow graph nodes continue to use canonical `node_id` values and graph edges continue to use canonical `edge_id`, endpoints, and `canonical_type`.
+
+Containers are navigation/filter surfaces outside the canonical graph. They may select which canonical nodes are visible; they may not create group nodes inside `canonical.graph.nodes` or connector edges inside `canonical.graph.edges`.
+
+### Layer filtering and boundary edges
+
+Layer selection is UI visibility state only.
+
+An edge is rendered in the current scope only when **both canonical endpoints are visible**. If exactly one endpoint is visible, P3 may report that canonical edge as a hidden boundary edge for UI accounting, but it must not:
+
+- redirect the edge to a container;
+- create a proxy edge;
+- reverse the edge;
+- change its canonical type;
+- infer a new architecture relationship.
+
+An edge with two hidden endpoints is simply outside the current scope.
+
+### Drill-down and breadcrumbs
+
+P3 drill-down follows the deterministic hierarchy:
+
+`All architecture -> display_family -> canonical_kind -> canonical node detail`.
+
+Breadcrumb and Up navigation modify Presentation state only. Selecting a canonical node continues to use the P2 source-traceable detail surface. Search operates only over canonical nodes visible in the current scope and treats labels/IDs/kinds as inert strings.
+
+### Failure isolation and security
+
+Invalid hierarchy membership, foreign layer/container IDs, parent cycles, foreign node IDs, or an edge whose canonical identity/endpoints/type no longer match must fail the Presentation path closed.
+
+Repository-controlled text remains inert data. P3 must not introduce `dangerouslySetInnerHTML`, executable Markdown/HTML, `eval`, string-generated code, script URLs, or instruction authority.
+
+Hierarchy/layout/navigation failures must not mutate the Explorer Projection, canonical graph, canonical AnalysisResult, Claim/Evidence/Coverage data, or AnalysisResult status.
+
+### Classic Viewer and P4 boundary
+
+Classic `serve` remains the default Viewer. P3 remains available only through the explicit Explorer build/projection/serve path.
+
+P4 KNEEKURA-specific semantic visualization remains deferred. P3 architecture layers are generic Presentation organization; they must not encode M5/M6 conclusions, YSM rendering semantics, packet success/failure, Evidence authority, or domain-specific truth into layer/container membership.
+
+### P3 acceptance subset
+
+Before merge, P3 must prove at least:
+
+- deterministic root/layer/kind hierarchy for identical UI input;
+- one-to-one canonical node membership with no synthetic React Flow node identities;
+- canonical edge IDs/endpoints/types remain unchanged in every visible scope;
+- boundary-crossing edges are hidden rather than rewired;
+- layer/container/breadcrumb state does not mutate canonical inputs;
+- scoped search keeps repository-controlled text inert;
+- P0/P1/P2 Presentation guards and full repository regression remain green;
+- `src/core/**` remains unchanged;
+- Classic Viewer remains default and P4 stays independently implementable.
