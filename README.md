@@ -4,6 +4,39 @@ Minecraft / Forge Mod のコードを「普通の Java」ではなく、**Mod �
 
 初版は依存ゼロの Node.js 20+ で動きます。**第一級解析対象は Minecraft 1.20.1 + Forge 47.x + Java 17**。解析器/Coreでは CodeGraph や Understand Anything を fork して固定化せず、出力 adapter を優先します。Human Presentation v2 の UI/表示層だけは、固定commit・ライセンス・変更履歴を管理する限定的な vendoring 例外を利用できます。
 
+## AI-assisted human analysis
+
+このリポジトリの**人間用コード分析は AI 介入を前提**にしています。目標は「AIなしでも意味理解を完結させること」ではありません。
+
+KNEEKURA CORE / 静的解析 / runtime evidence / imported analyzer は、再現可能な構造・Evidence・Coverage・provenance を提供します。その上で ChatGPT 等の AI Semantic Author が source を直接読み、architecture、subsystem、concept、guided tour、読み順などを人間向けに構成します。
+
+```text
+deterministic/static/runtime evidence
+              +
+       direct AI source reading
+              ↓
+       AI Semantic Author
+              ↓
+      typed human-analysis IR
+              ↓
+ self-contained HTML / ZIP guide
+```
+
+この構造は Understand Anything の「静的構造 + AI/agent semantic analysis」と、Archify の「AI が typed IR を author し deterministic renderer で portable artifact にする」考え方、そして KNEEKURA の canonical Evidence / Coverage / UNKNOWN / runtime traceability を組み合わせるものです。
+
+### ChatGPT 等へ「人間用にコード分析して」と依頼した場合
+
+原則として**会話だけで説明して終わりません**。実際に開ける成果物を作ります。
+
+- 第一候補: 自己完結の offline `index.html`
+- 保存・複数ファイル用: ZIP companion bundle
+- 可能なら architecture map / guided tour / searchable graph / source references / coverage gaps を含める
+- 直接ファイル生成できない環境では、同じbundleを作る実行コードを渡す
+
+言語scannerが不足していても人間用分析を中止しません。AIがsourceを直接読み、未対応部分を `COVERAGE_GAP`、AIによる意味づけを `AI_INTERPRETATION` と明示して成果物を作ります。scannerが存在しないのにcanonical factとして扱うことだけは禁止です。
+
+正式な契約は [`docs/AI_ASSISTED_HUMAN_ANALYSIS.md`](docs/AI_ASSISTED_HUMAN_ANALYSIS.md)、AI向け実行指示は [`AGENTS.md`](AGENTS.md)、machine-readable default は [`config/human-analysis-delivery.v1.json`](config/human-analysis-delivery.v1.json) を参照してください。
+
 ## できること
 
 - Java / JSON / `mods.toml` を再帰走査
@@ -156,7 +189,7 @@ KNEEKURA-LAB の main JSONL trace (`anim` / Molang / entity lifecycle) と、対
 
 ## Human Presentation v2
 
-人間向け表示の次世代化は `docs/HUMAN_PRESENTATION_V2.md` に従います。KNEEKURA CORE を唯一の解析上の Authority（正しい情報を決める主体）のまま維持し、探索UIや説明図は Canonical Result を読むだけの Presentation 層として分離します。
+人間向け表示の次世代化は `docs/HUMAN_PRESENTATION_V2.md` に従います。**Human Presentation v2 の deterministic adapter 内では** KNEEKURA CORE を canonical evidence の Authority として維持し、Explorer / Ask-Graph / Inspector は Canonical Result を勝手に書き換えません。一方、KNEEKURA-CODE-LAB 全体の人間用分析は AI-assisted by design であり、その上位に AI Semantic Author を置いて source 読解・architecture grouping・guided explanation・artifact authoring を行います。
 
 P0 で境界契約・CORE→Presentation依存禁止・Canonical digest gate・Classic Viewer fallback・OSS provenance 方針を固定しました。P1 では `kneekura.explorer-projection/v1` を追加し、`kneekura.graph/v1` と `core.analysis-result/v1` を変更せず複製した Canonical snapshot の横に、node/edge/Claim/Coverage の一対一で追跡可能な Explorer metadata を生成します。Graph と Result の repository/snapshot identity が両方存在する場合は一致を必須とし、別runの組み合わせを黙って表示しません。KNEEKURA固有 kind、send/receive、M5/M6、static/runtime、UNKNOWN/FAILED/UNEXPLORED、Evidence/Counterevidence の意味は変換しません。React Flow 等の新UIは P2 以降です。
 

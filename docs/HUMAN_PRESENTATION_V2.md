@@ -939,3 +939,55 @@ Repository/runtime/external text in Claim/object/confidence/link rationale/Cover
 The Inspector does not calculate confidence scores, rank Claims/Evidence, merge support with Counterevidence, infer support from provider/trust class, fetch missing Evidence, generate conclusions, create/verify/promote Claims, reinterpret Coverage/UNKNOWN, or modify CORE/Ask-Graph/plugin/mailbox/canonical artifacts.
 
 `src/core/**` remains unchanged. Classic `serve` remains default. P0-P4, Guided Tours, Change Impact, and Ask-Graph remain intact. With this item complete, ROADMAP v0.5 has no remaining unchecked Human Presentation items.
+
+
+## 21. AI Semantic Authoring & artifact-first delivery
+
+Human Presentation v2 P0-P4 / Guided Tours / Change Impact / Ask-Graph / Confidence-Evidence Inspector are deterministic, traceable evidence/presentation surfaces. They deliberately do not manufacture semantic conclusions.
+
+That boundary does **not** mean KNEEKURA-CODE-LAB intends human-oriented analysis to be AI-independent.
+
+For human-oriented code analysis, an **AI Semantic Author** is a separate first-class layer above the deterministic contracts:
+
+```text
+CORE / deterministic analyzers / runtime evidence / imported analyzers
+                              ↓
+                Human Presentation / Ask-Graph
+                              ↓
+        AI Semantic Author + direct source inspection
+                              ↓
+                 typed Human Analysis IR
+                              ↓
+          portable human guide (HTML + ZIP)
+```
+
+### Authority split
+
+- `CANONICAL_FACT`: canonical/static/runtime/imported evidence remains governed by its existing KNEEKURA contract.
+- `AI_INTERPRETATION`: the AI may author architecture names, subsystem groupings, concepts, summaries, guided tours, suggested reading order and semantic explanations.
+- `COVERAGE_GAP`: deterministic analyzer/source coverage is incomplete.
+- `UNKNOWN`: available evidence does not resolve the matter.
+
+AI interpretation is expected and useful. It is not silently promoted into canonical Graph/AnalysisResult. Material AI interpretation should retain source paths/ranges or canonical IDs where possible.
+
+### Missing language support
+
+A missing language-specific deterministic scanner does not block human analysis. The AI may inspect source directly and produce the requested guide, while explicitly reporting the deterministic coverage gap and labeling source-read semantic conclusions as `AI_INTERPRETATION`.
+
+For example, a TypeScript-heavy repository can receive a useful human guide before a first-class TypeScript scanner exists. The artifact must not claim that CORE generated TypeScript call/class relationships that CORE did not actually derive.
+
+### Default ChatGPT / agent delivery
+
+When a user asks for human-oriented code analysis, the normal result is an **artifact**, not only conversational prose.
+
+Preferred output:
+
+1. self-contained offline HTML as the primary one-click guide;
+2. ZIP companion bundle for supporting IR/source/coverage files;
+3. a short chat message that links the artifacts and states major coverage gaps.
+
+If the environment cannot create files, the fallback is executable generator code that creates the same bundle. A long prose-only explanation is not the silent fallback.
+
+The normative behavior is defined in `docs/AI_ASSISTED_HUMAN_ANALYSIS.md`, root `AGENTS.md`, and `config/human-analysis-delivery.v1.json`.
+
+This layer takes complementary inspiration from Understand Anything (static structure + AI/agent semantic analysis + knowledge graph/tours) and Archify (AI-authored typed IR + deterministic portable rendering), while retaining KNEEKURA-native Evidence/Coverage/UNKNOWN/runtime/canonical traceability.
