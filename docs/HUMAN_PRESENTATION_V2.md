@@ -1,6 +1,6 @@
 # Human Presentation v2
 
-Status: P0 complete. P1 Explorer Projection contract active.
+Status: P0/P1 complete. P2 Explorer Shell contract active.
 
 Human Presentation v2 improves human exploration and presentation without changing the authority, schemas, or semantics of KNEEKURA CORE.
 
@@ -368,3 +368,102 @@ P1 must cover the following Presentation acceptance invariants before merge:
 - PT-11 KNEEKURA-specific node kinds preserved
 - PT-12 every Presentation graph item is source-traceable
 
+
+
+## 14. P2 — Explorer Shell contract
+
+P2 adds the first interactive Human Explorer shell on top of `kneekura.explorer-projection/v1`. It is an **opt-in Presentation application**, not a replacement analysis model and not the default Viewer.
+
+### P2 stack and dependency boundary
+
+The shell may use Presentation-only UI/runtime dependencies:
+
+- React
+- React DOM
+- React Flow / `@xyflow/react`
+- ELK-compatible automatic layout
+
+Those dependencies must stay outside `src/core/**`. Removing the Explorer package must leave CORE analysis, Mailbox/AI surfaces, and the Classic Viewer operational.
+
+The P2 shell consumes an already-created Explorer Projection. It does not call analyzers, acquire Evidence, verify Claims, or write UI state back into canonical data.
+
+### P2 UI-only state
+
+The following are Presentation state only:
+
+- viewport position and zoom
+- selected node
+- search query and matched-node focus
+- fit-view requests
+- layout positions
+- minimap state
+- transient UI errors
+
+None of these may change canonical node IDs, edge IDs, node kinds, edge types, Claim status, Evidence links, Counterevidence, Coverage, Unknowns, or AnalysisResult status.
+
+### P2 traceability rules
+
+Every React Flow node must use the canonical `node_id` as its React Flow `id`.
+
+Every React Flow edge must use the canonical `edge_id` as its React Flow `id`, with `source` and `target` copied from the canonical endpoints and `canonical_type` retained in edge data.
+
+Layout is geometry only. ELK output may assign `x`/`y` coordinates but may not synthesize canonical nodes or edges, merge identities, reverse an edge, or reinterpret its type.
+
+A failed layout must fail the Explorer rendering path without mutating `projection.canonical` or the original AnalysisResult.
+
+### P2 baseline interaction
+
+P2 provides only the shell-level interactions needed to establish the Explorer runtime:
+
+- pan and zoom
+- fit view
+- MiniMap
+- text search over inert Presentation labels/IDs/kinds
+- focus the selected/search-matched canonical node
+- node selection
+- a detail surface that exposes source-traceable canonical identity and generic Presentation metadata
+
+P2 does not define architecture layers, hierarchy containers, semantic zoom, guided tours, or specialized KNEEKURA domain rendering.
+
+### P2 security rule
+
+Repository-controlled labels, keys, IDs, predicates, and other displayed text are untrusted data.
+
+The React shell must render them as ordinary text values. It must not use `dangerouslySetInnerHTML`, execute Markdown/HTML from repository content, evaluate strings, create script URLs from repository data, or treat repository prose as instructions.
+
+Search normalization may compare text but may not reinterpret it as code.
+
+### Classic Viewer coexistence
+
+The existing `node src/cli.mjs serve ...` path remains the Classic Viewer and remains unchanged in meaning.
+
+Explorer build/projection/serve commands must be explicit opt-in commands. P2 must not make Explorer the default Viewer and must not remove the Classic fallback.
+
+### P2 failure isolation
+
+Explorer errors are Presentation errors only.
+
+A missing Explorer build, failed fetch, failed React render, or failed layout must not overwrite an existing `core.analysis-result/v1` status. The canonical result digest must remain unchanged for the same input.
+
+### P2 deferrals
+
+The following remain outside P2:
+
+- P3: architecture Layers, containers, drill-down and hierarchical exploration
+- P4: KNEEKURA-specific semantic visualization
+- later: Evidence inspector UX, semantic zoom, Guided Tours, Archify adapter/export, and default-viewer migration
+
+### P2 acceptance subset
+
+Before merge, P2 must prove at least:
+
+- React Flow node/edge IDs remain canonical IDs
+- endpoints and canonical edge types remain traceable
+- deterministic sorted layout input and stable layout output mapping
+- search/selection state is Presentation-only
+- repository-controlled text is rendered without HTML/script execution paths
+- projection/result digest and structure are unchanged by UI-model/layout preparation
+- Classic Viewer remains the existing default path
+- Explorer build succeeds from pinned package versions
+- P0/P1 tests and repository regression remain green
+- zero `src/core/**` changes

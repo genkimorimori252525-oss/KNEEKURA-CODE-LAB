@@ -172,3 +172,21 @@ Coding agent から KNEEKURA の解析思想を利用する場合は、共有キ
 Agent-facing contract では Root Cause / Evidence / Recommended Changes / Do Not Change / Rejected Hypotheses / Verification Plan を圧縮して返し、依頼元 repository は read-only とします。
 
 **Same analysis philosophy, different renderer.**
+
+
+### Human Explorer P2（opt-in）
+
+P2 の React Flow Explorer は Classic Viewer を置き換えません。既存の `node src/cli.mjs serve ...` は引き続き Classic Viewer の既定経路です。
+
+Explorer を使う場合だけ、明示的に次を実行します。
+
+```bash
+npm install --no-audit --no-fund --package-lock=false
+npm run explorer:build
+node src/cli.mjs explorer-projection --result dist/analysis-result.json --graph dist/graph.json --out dist/explorer-projection.json
+node src/cli.mjs serve-explorer --projection dist/explorer-projection.json --port 8790
+```
+
+Explorer は `kneekura.explorer-projection/v1` を読む Presentation UI です。React Flow の node/edge ID は canonical ID をそのまま使い、ELK は座標だけを決めます。検索・選択・viewport は UI 状態であり、AnalysisResult / Evidence / Claim / Coverage には書き戻しません。
+
+P2 の範囲は shell（pan/zoom、fit view、MiniMap、検索/focus、selection/detail）までです。Layers + drill-down は P3、KNEEKURA 固有の semantic visualization は P4 で実装します。
