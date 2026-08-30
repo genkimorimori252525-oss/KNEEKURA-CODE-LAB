@@ -215,7 +215,7 @@ test('change impact is deterministic and non-mutating',()=>{
   assert.deepEqual(model,m);
   assert.match(
     first.planner_fingerprint,
-    /^[a-f0-9]{64}$/
+    /^sha256:[a-f0-9]{64}$/
   );
 });
 
@@ -312,6 +312,38 @@ test('change impact UI uses investigation-scope language and keeps repository te
       'forbidden impact rendering path: '+forbidden
     );
   }
+});
+
+test('change impact preserves CORE ScopeDecision order and viewport includes known boundaries',async()=>{
+  const {projection,model}=fixture();
+  const impact=createExplorerChangeImpact(
+    projection,model,'node:changed',
+    {maxDepth:2,maxItems:20}
+  );
+  assert.deepEqual(
+    impact.decisions.map(item=>[
+      item.action,
+      item.node_id,
+      item.depth
+    ]),
+    [
+      ['INCLUDE','node:changed',0],
+      ['EXPAND','node:caller',1],
+      ['EXPAND','node:upstream',2]
+    ]
+  );
+
+  const app=await fs.readFile(
+    path.join(
+      ROOT,
+      'packages/human-explorer/src/App.jsx'
+    ),
+    'utf8'
+  );
+  assert.match(
+    app,
+    /\.\.\.impactModel\.selected_node_ids,[\s\S]*\.\.\.impactModel\.boundary_node_ids/
+  );
 });
 
 test('change impact adapter uses CORE planner authority instead of a Presentation adjacency traversal',async()=>{

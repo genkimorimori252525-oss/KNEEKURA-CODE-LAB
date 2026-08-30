@@ -366,7 +366,7 @@ test('guided tours remain Presentation-only, CI-covered, Classic-default, and la
   assert.equal(pkg.scripts.serve,'node src/cli.mjs serve');
   assert.match(cli,/cmd === 'serve'/);
   assert.match(road,/- \[x\] guided tours/);
-  assert.match(road,/- \[ \] change impact view/);
+  assert.match(road,/- \[x\] change impact view/);
   assert.match(road,/- \[ \] ask-graph adapter for AI agents/);
   assert.match(road,/- \[ \] confidence\/evidence inspector/);
   assert.match(doc,/Guided Tours Presentation contract/);

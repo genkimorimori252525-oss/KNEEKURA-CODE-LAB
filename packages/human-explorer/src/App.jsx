@@ -446,12 +446,16 @@ function ExplorerCanvas({ projection }) {
     const layoutNodeSet = new Set(
       layout.nodes.map(node => node.id)
     );
-    const visibleImpactNodes =
-      impactModel.selected_node_ids.filter(
-        nodeId =>
-          visibleNodeSet.has(nodeId) &&
-          layoutNodeSet.has(nodeId)
-      );
+    const visibleImpactNodes = [
+      ...new Set([
+        ...impactModel.selected_node_ids,
+        ...impactModel.boundary_node_ids
+      ])
+    ].filter(
+      nodeId =>
+        visibleNodeSet.has(nodeId) &&
+        layoutNodeSet.has(nodeId)
+    );
     if (visibleImpactNodes.length === 0) return;
     queueMicrotask(() => {
       fitView({

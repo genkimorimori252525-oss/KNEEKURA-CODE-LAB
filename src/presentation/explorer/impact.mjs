@@ -135,6 +135,7 @@ export function createExplorerChangeImpact(
     item => item.id,
     'IMPACT scope item'
   );
+  const itemByNodeId = new Map();
   const selectedNodeIds = [];
   const boundaryNodeIds = [];
   const selected = [];
@@ -160,6 +161,13 @@ export function createExplorerChangeImpact(
         String(item.id)
       );
     }
+    if (itemByNodeId.has(item.node_id)) {
+      throw new TypeError(
+        'Change impact scope node IDs must be unique: ' +
+        item.node_id
+      );
+    }
+    itemByNodeId.set(item.node_id, item);
 
     const view = {
       item_id: item.id,
@@ -219,16 +227,73 @@ export function createExplorerChangeImpact(
       );
     }
 
+    if (
+      decision.planner_id !== SCOPE_PLANNER_ID ||
+      decision.planner_version !==
+        SCOPE_PLANNER_VERSION ||
+      !Number.isInteger(decision.depth) ||
+      decision.depth < 0
+    ) {
+      throw new TypeError(
+        'Change impact ScopeDecision metadata mismatch: ' +
+        String(decision.id)
+      );
+    }
+
+    const isSelected =
+      scope.selected_ids.includes(decision.item_id);
+    const isBoundary =
+      scope.boundary_ids.includes(decision.item_id);
+    if (
+      decision.action === 'INCLUDE' &&
+      (!isSelected || decision.causal_edge_id != null)
+    ) {
+      throw new TypeError(
+        'Change impact INCLUDE decision semantics mismatch: ' +
+        String(decision.id)
+      );
+    }
+    if (
+      decision.action === 'EXPAND' &&
+      !isSelected
+    ) {
+      throw new TypeError(
+        'Change impact EXPAND decision is not selected: ' +
+        String(decision.id)
+      );
+    }
+    if (
+      decision.action === 'EXCLUDE' &&
+      !isBoundary
+    ) {
+      throw new TypeError(
+        'Change impact EXCLUDE decision is not boundary: ' +
+        String(decision.id)
+      );
+    }
+
     let causal = null;
     if (decision.causal_edge_id != null) {
       const edge = canonicalEdgeById.get(
         decision.causal_edge_id
       );
+      const causalTarget = edge
+        ? itemByNodeId.get(edge.to)
+        : null;
       if (
         !edge ||
         edge.type !== decision.causal_edge_type ||
         edge.from !== item.node_id ||
-        !isStrongSemanticEdge(edge)
+        !isStrongSemanticEdge(edge) ||
+        !causalTarget ||
+        !scope.selected_ids.includes(
+          causalTarget.id
+        ) ||
+        !Number.isInteger(causalTarget.depth) ||
+        causalTarget.depth >= decision.depth ||
+        !['EXPAND', 'EXCLUDE'].includes(
+          decision.action
+        )
       ) {
         throw new TypeError(
           'Change impact causal edge trace mismatch: ' +
@@ -280,7 +345,6 @@ export function createExplorerChangeImpact(
 
   selected.sort(compareImpactItems);
   boundary.sort(compareImpactItems);
-  decisions.sort(compareDecisions);
   selectedNodeIds.sort(compareText);
   boundaryNodeIds.sort(compareText);
 
@@ -408,12 +472,6 @@ function compareImpactItems(a, b) {
   );
 }
 
-function compareDecisions(a, b) {
-  return (
-    (a.depth ?? 0) - (b.depth ?? 0) ||
-    compareText(a.decision_id, b.decision_id)
-  );
-}
 
 function compareText(a, b) {
   const left = String(a);
