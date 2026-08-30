@@ -41,6 +41,7 @@
 - [x] Human Presentation v2 P2 Explorer Shell (opt-in React Flow + deterministic ELK layout)
 - [x] Understand Anything graph importer (nodes/edges/layers/tour)
 - [x] Human Presentation v2 P3 architecture layers / containers / drill-down
+- [x] Human Presentation v2 P4 KNEEKURA semantic visualization
 - [ ] guided tours
 - [ ] change impact view
 - [ ] ask-graph adapter for AI agents

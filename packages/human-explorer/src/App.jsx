@@ -25,6 +25,12 @@ import {
   searchExplorerScopeNodes
 } from '../../../src/presentation/explorer/hierarchy.mjs';
 import {
+  createExplorerSemanticEdgeDetail,
+  createExplorerSemanticModel,
+  createExplorerSemanticNodeDetail,
+  summarizeExplorerSemanticScope
+} from '../../../src/presentation/explorer/semantic.mjs';
+import {
   layoutExplorerUiModel
 } from '../../../src/presentation/explorer/layout.mjs';
 
@@ -47,6 +53,31 @@ function ExplorerCanvas({ projection }) {
     () => createExplorerHierarchy(model),
     [model]
   );
+  const semanticModel = useMemo(
+    () => createExplorerSemanticModel(
+      projection,
+      model
+    ),
+    [projection, model]
+  );
+  const semanticNodeById = useMemo(
+    () => new Map(
+      semanticModel.nodes.map(item => [
+        item.node_id,
+        item
+      ])
+    ),
+    [semanticModel]
+  );
+  const semanticEdgeById = useMemo(
+    () => new Map(
+      semanticModel.edges.map(item => [
+        item.edge_id,
+        item
+      ])
+    ),
+    [semanticModel]
+  );
   const [containerId, setContainerId] = useState(
     EXPLORER_ROOT_CONTAINER_ID
   );
@@ -59,6 +90,8 @@ function ExplorerCanvas({ projection }) {
   const [query, setQuery] = useState('');
   const [selectedNodeId, setSelectedNodeId] =
     useState(null);
+  const [selectedEdgeId, setSelectedEdgeId] =
+    useState(null);
   const { fitView } = useReactFlow();
 
   useEffect(() => {
@@ -67,6 +100,7 @@ function ExplorerCanvas({ projection }) {
       hierarchy.layers.map(layer => layer.id)
     );
     setSelectedNodeId(null);
+    setSelectedEdgeId(null);
   }, [hierarchy]);
 
   const scope = useMemo(
@@ -89,6 +123,13 @@ function ExplorerCanvas({ projection }) {
       edges: scope.edges
     }),
     [model, scope]
+  );
+  const semanticScopeSummary = useMemo(
+    () => summarizeExplorerSemanticScope(
+      semanticModel,
+      scope
+    ),
+    [semanticModel, scope]
   );
 
   useEffect(() => {
@@ -146,28 +187,73 @@ function ExplorerCanvas({ projection }) {
     }
   }, [selectedNodeId, visibleNodeSet]);
 
+  useEffect(() => {
+    if (
+      selectedEdgeId &&
+      !scope.visible_edge_ids.includes(
+        selectedEdgeId
+      )
+    ) {
+      setSelectedEdgeId(null);
+    }
+  }, [selectedEdgeId, scope.visible_edge_ids]);
+
   const visibleNodes = useMemo(() => {
     const source = layout?.nodes ?? scope.nodes;
-    return source.map(node => ({
-      ...node,
-      draggable: false,
-      className: node.id === selectedNodeId
-        ? 'explorer-node explorer-node-selected'
-        : matchSet.has(node.id)
-          ? 'explorer-node explorer-node-match'
-          : 'explorer-node'
-    }));
+    return source.map(node => {
+      const semantic =
+        semanticNodeById.get(node.id);
+      const classes = [
+        'explorer-node',
+        semantic
+          ? 'explorer-node-domain-' +
+            semantic.domain
+          : null,
+        node.id === selectedNodeId
+          ? 'explorer-node-selected'
+          : null,
+        matchSet.has(node.id)
+          ? 'explorer-node-match'
+          : null
+      ].filter(Boolean);
+
+      return {
+        ...node,
+        draggable: false,
+        className: classes.join(' ')
+      };
+    });
   }, [
     layout,
     scope.nodes,
     matchSet,
-    selectedNodeId
+    selectedNodeId,
+    semanticNodeById
   ]);
 
-  const visibleEdges = useMemo(
-    () => layout?.edges ?? scope.edges,
-    [layout, scope.edges]
-  );
+  const visibleEdges = useMemo(() => {
+    const source = layout?.edges ?? scope.edges;
+    return source.map(edge => {
+      const semantic =
+        semanticEdgeById.get(edge.id);
+      return {
+        ...edge,
+        className: semantic
+          ? 'explorer-edge explorer-edge-domain-' +
+            semantic.domain
+          : 'explorer-edge',
+        data: {
+          ...edge.data,
+          semantic_domain:
+            semantic?.domain ?? 'canonical'
+        }
+      };
+    });
+  }, [
+    layout,
+    scope.edges,
+    semanticEdgeById
+  ]);
 
   const detail = useMemo(
     () => selectedNodeId
@@ -178,10 +264,39 @@ function ExplorerCanvas({ projection }) {
       : null,
     [projection, selectedNodeId]
   );
+  const semanticNodeDetail = useMemo(
+    () => selectedNodeId
+      ? createExplorerSemanticNodeDetail(
+          projection,
+          semanticModel,
+          selectedNodeId
+        )
+      : null,
+    [
+      projection,
+      semanticModel,
+      selectedNodeId
+    ]
+  );
+  const edgeDetail = useMemo(
+    () => selectedEdgeId
+      ? createExplorerSemanticEdgeDetail(
+          projection,
+          semanticModel,
+          selectedEdgeId
+        )
+      : null,
+    [
+      projection,
+      semanticModel,
+      selectedEdgeId
+    ]
+  );
 
   function focusNode(nodeId) {
     if (!nodeId || !visibleNodeSet.has(nodeId)) return;
     setSelectedNodeId(nodeId);
+    setSelectedEdgeId(null);
     queueMicrotask(() => {
       fitView({
         nodes: [{ id: nodeId }],
@@ -200,6 +315,7 @@ function ExplorerCanvas({ projection }) {
   function navigateContainer(nextId) {
     setContainerId(nextId);
     setSelectedNodeId(null);
+    setSelectedEdgeId(null);
   }
 
   function toggleLayer(layerId) {
@@ -258,6 +374,8 @@ function ExplorerCanvas({ projection }) {
         <HierarchyPanel
           hierarchy={hierarchy}
           scope={scope}
+          semanticModel={semanticModel}
+          semanticScopeSummary={semanticScopeSummary}
           containerId={containerId}
           enabledLayerIds={enabledLayerIds}
           onNavigate={navigateContainer}
@@ -283,12 +401,18 @@ function ExplorerCanvas({ projection }) {
             maxZoom={2.5}
             nodesConnectable={false}
             elementsSelectable
-            onNodeClick={(_, node) =>
-              setSelectedNodeId(node.id)
-            }
-            onPaneClick={() =>
-              setSelectedNodeId(null)
-            }
+            onNodeClick={(_, node) => {
+              setSelectedNodeId(node.id);
+              setSelectedEdgeId(null);
+            }}
+            onEdgeClick={(_, edge) => {
+              setSelectedEdgeId(edge.id);
+              setSelectedNodeId(null);
+            }}
+            onPaneClick={() => {
+              setSelectedNodeId(null);
+              setSelectedEdgeId(null);
+            }}
           >
             <MiniMap
               pannable
@@ -301,11 +425,16 @@ function ExplorerCanvas({ projection }) {
 
         <aside className="explorer-detail">
           <h2>Selection</h2>
-          {detail ? (
-            <NodeDetail detail={detail} />
+          {edgeDetail ? (
+            <EdgeDetail detail={edgeDetail} />
+          ) : detail ? (
+            <NodeDetail
+              detail={detail}
+              semantic={semanticNodeDetail}
+            />
           ) : (
             <p className="explorer-empty">
-              Select a canonical node.
+              Select a canonical node or edge.
             </p>
           )}
         </aside>
@@ -317,6 +446,8 @@ function ExplorerCanvas({ projection }) {
 function HierarchyPanel({
   hierarchy,
   scope,
+  semanticModel,
+  semanticScopeSummary,
   containerId,
   enabledLayerIds,
   onNavigate,
@@ -393,6 +524,14 @@ function HierarchyPanel({
         )}
       </section>
 
+      <section>
+        <h2>KNEEKURA semantics</h2>
+        <SemanticLegend
+          semanticModel={semanticModel}
+          summary={semanticScopeSummary}
+        />
+      </section>
+
       <section className="explorer-scope-stats">
         <h2>Scope</h2>
         <dl>
@@ -408,7 +547,7 @@ function HierarchyPanel({
   );
 }
 
-function NodeDetail({ detail }) {
+function NodeDetail({ detail, semantic }) {
   return (
     <div className="explorer-detail-body">
       <dl>
@@ -420,6 +559,21 @@ function NodeDetail({ detail }) {
         <dd>{detail.canonical_kind}</dd>
         <dt>Display family</dt>
         <dd>{detail.display_family}</dd>
+        <dt>Semantic domain</dt>
+        <dd>
+          <SemanticBadge
+            label={
+              semantic?.decoration?.domain ??
+              'canonical'
+            }
+            tone="neutral"
+          />
+        </dd>
+        <dt>Runtime observation</dt>
+        <dd>
+          {semantic?.decoration
+            ?.runtime_observation ?? 'n/a'}
+        </dd>
         <dt>Relations</dt>
         <dd>{detail.relations.length}</dd>
         <dt>Claims</dt>
@@ -446,16 +600,134 @@ function NodeDetail({ detail }) {
         ))}
       </ul>
 
-      <h3>Claims</h3>
-      <ul>
-        {detail.claims.map(item => (
+      <h3>Claim / Evidence trace</h3>
+      <ul className="explorer-semantic-trace">
+        {(semantic?.claims ?? []).map(item => (
           <li key={item.claim_id}>
-            {item.claim_id} · {item.type}
+            <div>
+              <code>{item.claim_id}</code>
+              {' · '}
+              <SemanticBadge
+                label={item.status}
+                tone={item.status_tone}
+              />
+            </div>
+            <div>{item.type}</div>
+            <pre>{JSON.stringify({
+              evidence_links: item.evidence_links,
+              counterevidence_links:
+                item.counterevidence_links,
+              coverage_ref: item.coverage_ref
+            }, null, 2)}</pre>
+          </li>
+        ))}
+      </ul>
+
+      <h3>Coverage trace</h3>
+      <ul className="explorer-semantic-trace">
+        {(semantic?.coverage ?? []).map(item => (
+          <li key={item.coverage_id}>
+            <code>{item.coverage_id}</code>
             {' · '}
-            {item.status}
+            <SemanticBadge
+              label={item.status}
+              tone={item.status_tone}
+            />
+            {' · '}
+            {item.role}
           </li>
         ))}
       </ul>
     </div>
+  );
+}
+
+function EdgeDetail({ detail }) {
+  const semantic = detail.decoration;
+
+  return (
+    <div className="explorer-detail-body">
+      <dl>
+        <dt>Canonical ID</dt>
+        <dd>{detail.edge_id}</dd>
+        <dt>Canonical type</dt>
+        <dd>{semantic.canonical_type}</dd>
+        <dt>Source</dt>
+        <dd>{semantic.source}</dd>
+        <dt>Target</dt>
+        <dd>{semantic.target}</dd>
+        <dt>Semantic domain</dt>
+        <dd>
+          <SemanticBadge
+            label={semantic.domain}
+            tone="neutral"
+          />
+        </dd>
+        <dt>Runtime observation</dt>
+        <dd>
+          {semantic.runtime_observation ?? 'n/a'}
+        </dd>
+        <dt>Transport stage</dt>
+        <dd>{semantic.transport_stage ?? 'n/a'}</dd>
+      </dl>
+
+      <h3>Canonical edge</h3>
+      <pre>{JSON.stringify(
+        detail.canonical_edge,
+        null,
+        2
+      )}</pre>
+    </div>
+  );
+}
+
+function SemanticLegend({
+  semanticModel,
+  summary
+}) {
+  return (
+    <div className="explorer-semantic-legend">
+      <div className="explorer-analysis-status">
+        <span>Analysis</span>
+        <SemanticBadge
+          label={
+            semanticModel.analysis.status ??
+            'UNKNOWN'
+          }
+          tone={semanticModel.analysis.status_tone}
+        />
+        <small>
+          unknowns {semanticModel.analysis.unknown_count}
+        </small>
+      </div>
+      <div className="explorer-semantic-domain-list">
+        {summary.node_domains.map(item => (
+          <div key={item.domain}>
+            <span
+              className={
+                'explorer-domain-dot ' +
+                'explorer-domain-dot-' +
+                item.domain
+              }
+            />
+            <span>{item.domain}</span>
+            <small>{item.count}</small>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SemanticBadge({ label, tone }) {
+  return (
+    <span
+      className={
+        'explorer-semantic-badge ' +
+        'explorer-semantic-badge-' + tone
+      }
+    >
+      {String(label)}
+    </span>
   );
 }
