@@ -45,4 +45,4 @@
 - [x] guided tours
 - [x] change impact view
 - [x] ask-graph adapter for AI agents
-- [ ] confidence/evidence inspector
+- [x] confidence/evidence inspector
