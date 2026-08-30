@@ -22,6 +22,7 @@ jobs:
       - run: npm run test:presentation-guided-tour
       - run: npm run test:presentation-change-impact
       - run: npm run test:presentation-ask-graph
+      - run: npm run test:presentation-confidence-evidence
       - run: npm run explorer:build
       - run: node src/cli.mjs scan fixtures/forge-mini --understand fixtures/understand-anything --out dist/graph.json
       - run: node src/cli.mjs workspace --repo tlm=fixtures/workspace/tlm --repo ysm=fixtures/workspace/ysm --out dist/workspace.json
