@@ -552,3 +552,89 @@ input {
   gap: 6px;
   flex-wrap: wrap;
 }
+
+
+/* Change impact is a Presentation overlay over exact CORE IMPACT scope.
+   Fixed classes never derive from repository-controlled labels/reasons. */
+.explorer-node-impact-seed {
+  outline: 4px solid #f0f6fc;
+  outline-offset: 4px;
+}
+
+.explorer-node-impact-scope {
+  outline: 3px solid #2f81f7;
+  outline-offset: 3px;
+}
+
+.explorer-node-impact-boundary {
+  outline: 3px dashed #d29922;
+  outline-offset: 3px;
+}
+
+.explorer-edge-impact-causal path {
+  stroke-width: 4px;
+}
+
+.explorer-impact-panel {
+  display: grid;
+  gap: 9px;
+}
+
+.explorer-impact-panel button + button {
+  margin-top: -3px;
+}
+
+.explorer-impact-disclaimer {
+  margin: 0;
+  padding: 8px;
+  border: 1px solid #d29922;
+  border-radius: 8px;
+  background: #161b22;
+  font-size: 12px;
+}
+
+.explorer-impact-depth {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.explorer-impact-depth select {
+  min-width: 72px;
+}
+
+.explorer-impact-panel dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 8px;
+  margin: 0;
+}
+
+.explorer-impact-panel dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.explorer-impact-panel details {
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  padding: 7px;
+}
+
+.explorer-impact-panel summary {
+  cursor: pointer;
+}
+
+.explorer-impact-decisions {
+  display: grid;
+  gap: 8px;
+  padding-left: 0;
+  list-style: none;
+}
+
+.explorer-impact-decisions li {
+  padding: 7px;
+  border: 1px solid #30363d;
+  border-radius: 7px;
+  background: #0d1117;
+}
