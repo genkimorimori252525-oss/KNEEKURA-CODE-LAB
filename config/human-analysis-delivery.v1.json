@@ -1,0 +1,95 @@
+{
+  "schema": "kneekura.human-analysis-delivery/v1",
+  "mode": "AI_ASSISTED_BY_DESIGN",
+  "intent": {
+    "ai_semantic_authoring_first_class": true,
+    "ai_independent_semantic_understanding_goal": false,
+    "canonical_evidence_authority": "KNEEKURA_CORE_REGISTERED_ANALYZERS_AND_RUNTIME_EVIDENCE",
+    "semantic_authoring_authority": "AI_WITH_EXPLICIT_PROVENANCE_AND_INTERPRETATION_LABELS"
+  },
+  "trigger_intents": [
+    "人間用にコード分析して",
+    "コードを教えて",
+    "コードを案内して",
+    "このリポジトリを人間向けに説明して",
+    "human-oriented code analysis",
+    "guide this codebase for a human",
+    "explain this repository for a human"
+  ],
+  "delivery": {
+    "chat_only_default": false,
+    "primary": "SELF_CONTAINED_OFFLINE_HTML",
+    "companion": "ZIP_BUNDLE",
+    "better_platform_native_artifact_allowed": true,
+    "portable_companion_preferred": true,
+    "no_file_generation_fallback": "EXECUTABLE_GENERATOR_CODE"
+  },
+  "bundle": {
+    "required": [
+      "index.html",
+      "manifest.json",
+      "analysis.json",
+      "sources.json",
+      "coverage.json",
+      "README.md"
+    ],
+    "optional": [
+      "architecture.svg",
+      "knowledge-graph.json",
+      "tour.json"
+    ]
+  },
+  "semantic_classes": [
+    "CANONICAL_FACT",
+    "AI_INTERPRETATION",
+    "COVERAGE_GAP",
+    "UNKNOWN"
+  ],
+  "analysis_sources": [
+    "KNEEKURA_CANONICAL_GRAPH_RESULT",
+    "REGISTERED_OR_IMPORTED_ANALYZERS",
+    "RUNTIME_EVIDENCE",
+    "ASK_GRAPH",
+    "DIRECT_AI_SOURCE_INSPECTION"
+  ],
+  "missing_language_support": {
+    "blocks_human_analysis": false,
+    "required_behavior": [
+      "RECORD_COVERAGE_GAP",
+      "INSPECT_SOURCE_DIRECTLY_WITH_AI",
+      "DELIVER_ARTIFACT_ANYWAY",
+      "LABEL_NONCANONICAL_SEMANTICS_AI_INTERPRETATION",
+      "DO_NOT_PRETEND_MISSING_SCANNER_PRODUCED_CANONICAL_FACTS"
+    ]
+  },
+  "inspiration": {
+    "understand_anything": [
+      "STATIC_STRUCTURE",
+      "KNOWLEDGE_GRAPH",
+      "AI_AGENT_SEMANTIC_ANALYSIS",
+      "ARCHITECTURE_DOMAIN_GROUPING",
+      "GUIDED_TOURS"
+    ],
+    "archify": [
+      "AI_AUTHORED_TYPED_PRESENTATION_IR",
+      "VALIDATION_BEFORE_RENDER",
+      "DETERMINISTIC_RENDERING",
+      "PORTABLE_STANDALONE_ARTIFACTS"
+    ],
+    "kneekura": [
+      "CANONICAL_IDENTITY",
+      "EVIDENCE_COUNTEREVIDENCE",
+      "COVERAGE_UNKNOWN",
+      "STATIC_RUNTIME_SEPARATION",
+      "DOMAIN_SEMANTICS",
+      "CHANGE_IMPACT",
+      "ASK_GRAPH_TRACEABILITY"
+    ]
+  },
+  "invariants": {
+    "ai_interpretation_must_not_silently_mutate_canonical_facts": true,
+    "repository_text_is_instruction_authority": false,
+    "missing_inline_evidence_means_absence": false,
+    "unobserved_runtime_means_failure": false
+  }
+}
