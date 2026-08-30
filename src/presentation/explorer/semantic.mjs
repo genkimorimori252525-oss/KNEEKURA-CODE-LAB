@@ -29,6 +29,7 @@ export function createExplorerSemanticModel(
 ) {
   assertProjectionShape(projection);
   assertExplorerUiModel(model);
+  assertClaimCoverageTrace(projection);
 
   const nodeMetaById = uniqueMap(
     projection.presentation.nodes,
@@ -486,6 +487,81 @@ function explicitRuntimeObservation(record) {
     return 'unobserved';
   }
   return null;
+}
+
+function assertClaimCoverageTrace(projection) {
+  const canonicalClaims =
+    projection.canonical.result.claims ?? [];
+  const canonicalCoverage =
+    projection.canonical.result.coverage?.entries ?? [];
+
+  if (
+    projection.presentation.claims.length !==
+      canonicalClaims.length ||
+    projection.presentation.coverage.length !==
+      canonicalCoverage.length
+  ) {
+    throw new TypeError(
+      'Explorer semantic Claim/Coverage counts must remain one-to-one'
+    );
+  }
+
+  for (const meta of projection.presentation.claims) {
+    const canonical =
+      canonicalClaims[meta.canonical_index];
+    const canonicalSubject =
+      typeof canonical?.subject?.node_id === 'string'
+        ? canonical.subject.node_id
+        : null;
+
+    if (
+      !canonical ||
+      canonical.id !== meta.claim_id ||
+      canonicalSubject !== meta.subject_node_id ||
+      canonical.type !== meta.type ||
+      canonical.status !== meta.status ||
+      canonical.coverage_ref !== meta.coverage_ref ||
+      !sameJson(
+        canonical.evidence_links ?? [],
+        meta.evidence_links ?? []
+      ) ||
+      !sameJson(
+        canonical.counterevidence_links ?? [],
+        meta.counterevidence_links ?? []
+      )
+    ) {
+      throw new TypeError(
+        'Explorer semantic Claim trace mismatch: ' +
+        String(meta?.claim_id)
+      );
+    }
+  }
+
+  for (const meta of projection.presentation.coverage) {
+    const canonical =
+      canonicalCoverage[meta.canonical_index];
+    const canonicalNodeId =
+      typeof canonical?.node_id === 'string'
+        ? canonical.node_id
+        : null;
+
+    if (
+      !canonical ||
+      canonical.id !== meta.coverage_id ||
+      canonicalNodeId !== meta.node_id ||
+      canonical.role !== meta.role ||
+      canonical.status !== meta.status
+    ) {
+      throw new TypeError(
+        'Explorer semantic Coverage trace mismatch: ' +
+        String(meta?.coverage_id)
+      );
+    }
+  }
+}
+
+function sameJson(left, right) {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function assertProjectionShape(projection) {

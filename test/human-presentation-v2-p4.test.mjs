@@ -158,7 +158,55 @@ function fixture() {
         status: 'PARTIAL',
         unknowns: [
           { id: 'unknown:m6', status: 'UNKNOWN' }
-        ]
+        ],
+        claims: [
+          {
+            id: 'claim:molang',
+            subject: {
+              node_id: 'node:molang'
+            },
+            type: 'RUNTIME_REACHABILITY',
+            status: 'UNRESOLVED',
+            evidence_links: ['evidence:send'],
+            counterevidence_links: [
+              'evidence:missing-m6'
+            ],
+            coverage_ref: 'coverage:molang'
+          },
+          {
+            id: 'claim:bone',
+            subject: {
+              node_id: 'node:bone'
+            },
+            type: 'YSM_BONE',
+            status: 'VERIFIED_WITH_LIMITS',
+            evidence_links: ['evidence:palette'],
+            counterevidence_links: [],
+            coverage_ref: 'coverage:bone'
+          }
+        ],
+        coverage: {
+          entries: [
+            {
+              id: 'coverage:class',
+              node_id: 'node:class',
+              role: 'primary',
+              status: 'ANALYZED'
+            },
+            {
+              id: 'coverage:molang',
+              node_id: 'node:molang',
+              role: 'primary',
+              status: 'UNEXPLORED'
+            },
+            {
+              id: 'coverage:bone',
+              node_id: 'node:bone',
+              role: 'primary',
+              status: 'FAILED'
+            }
+          ]
+        }
       }
     },
     presentation: {
@@ -517,6 +565,42 @@ test('P4 semantic derivation is deterministic, non-mutating, and fails closed on
       badModel
     ),
     /edge trace mismatch/
+  );
+});
+
+test('P4 fails closed if Claim Evidence or Coverage Presentation metadata drifts from canonical result', () => {
+  const { projection, model } = fixture();
+
+  const badClaim = structuredClone(projection);
+  badClaim.presentation.claims[0].status = 'VERIFIED';
+  assert.throws(
+    () => createExplorerSemanticModel(
+      badClaim,
+      model
+    ),
+    /Claim trace mismatch/
+  );
+
+  const badEvidence = structuredClone(projection);
+  badEvidence.presentation.claims[0]
+    .evidence_links.push('evidence:invented');
+  assert.throws(
+    () => createExplorerSemanticModel(
+      badEvidence,
+      model
+    ),
+    /Claim trace mismatch/
+  );
+
+  const badCoverage = structuredClone(projection);
+  badCoverage.presentation.coverage[0].status =
+    'FAILED';
+  assert.throws(
+    () => createExplorerSemanticModel(
+      badCoverage,
+      model
+    ),
+    /Coverage trace mismatch/
   );
 });
 
