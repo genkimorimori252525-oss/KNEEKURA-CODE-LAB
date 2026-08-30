@@ -848,7 +848,7 @@ Ask-Graph supports exactly these v1 operations:
    - typed lookup prevents a colliding string from being silently reinterpreted as another canonical object type.
 
 6. `NODE_CONTEXT`
-   - composes bounded exact one-hop neighbors, Claims whose canonical subject node ID exactly matches, Coverage entries whose canonical node ID exactly matches, and Claim Evidence/counterevidence refs;
+   - composes bounded exact one-hop neighbors, Claims whose canonical subject node ID exactly matches, Coverage entries whose canonical node ID exactly matches, and Claim Evidence/counterevidence links copied verbatim with only their source collection named as Presentation metadata;
    - it does not inline full Evidence bodies; an agent must request an exact Evidence ID through `GET_REF`.
 
 ### Bounds and truncation
@@ -870,7 +870,7 @@ Adapter construction fails closed unless:
 - projection source analysis/session/snapshot identity matches the canonical result;
 - the stored AnalysisResult digest matches a freshly computed canonical digest;
 - Presentation node/edge/Claim/Coverage counts match canonical counts;
-- every Presentation canonical index/ID/kind/endpoints/type/status/link identity still matches its canonical source.
+- every Presentation canonical index/ID/kind/endpoints/type/status/link identity still matches its canonical source, including Claim subject node IDs and Coverage node IDs.
 
 The adapter clones and freezes its input snapshot so later caller mutation cannot silently change the agent's retrieval source.
 

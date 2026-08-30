@@ -429,10 +429,8 @@ function nodeContext(
     for (const link of claim.evidence_links ?? []) {
       evidenceLinks.push({
         claim_id: claim.id,
-        relation: 'SUPPORT_OR_CONTEXT',
-        evidence_id: link.evidence_id,
-        role: link.role,
-        strength: link.strength
+        source_field: 'evidence_links',
+        link: structuredClone(link)
       });
     }
     for (
@@ -440,18 +438,22 @@ function nodeContext(
     ) {
       evidenceLinks.push({
         claim_id: claim.id,
-        relation: 'COUNTEREVIDENCE',
-        evidence_id: link.evidence_id,
-        role: link.role,
-        strength: link.strength
+        source_field: 'counterevidence_links',
+        link: structuredClone(link)
       });
     }
   }
   evidenceLinks.sort(
     (a, b) =>
       compareText(a.claim_id, b.claim_id) ||
-      compareText(a.evidence_id, b.evidence_id) ||
-      compareText(a.relation, b.relation)
+      compareText(
+        a.link?.evidence_id,
+        b.link?.evidence_id
+      ) ||
+      compareText(
+        a.source_field,
+        b.source_field
+      )
   );
   const evidenceCollection = bounded(
     evidenceLinks,
@@ -685,6 +687,10 @@ function assertAskGraphProjection(projection) {
     result
   );
   if (
+    projection.source?.graph_schema !==
+      projection.canonical.graph.schema ||
+    projection.source?.analysis_result_schema !==
+      result.schema ||
     projection.source?.analysis_result_digest !==
       digest ||
     projection.source?.analysis_id !==
@@ -815,6 +821,12 @@ function assertAskGraphProjection(projection) {
       meta.canonical_index !== i ||
       meta.type !== claim.type ||
       meta.status !== claim.status ||
+      meta.subject_node_id !==
+        (
+          typeof claim?.subject?.node_id === 'string'
+            ? claim.subject.node_id
+            : null
+        ) ||
       meta.coverage_ref !== claim.coverage_ref ||
       JSON.stringify(meta.evidence_links) !==
         JSON.stringify(claim.evidence_links ?? []) ||
@@ -839,6 +851,12 @@ function assertAskGraphProjection(projection) {
     if (
       !meta ||
       meta.canonical_index !== i ||
+      meta.node_id !==
+        (
+          typeof entry?.node_id === 'string'
+            ? entry.node_id
+            : null
+        ) ||
       meta.role !== entry.role ||
       meta.status !== entry.status
     ) {

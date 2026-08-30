@@ -490,6 +490,31 @@ test('Ask-Graph fails closed on projection trace drift',async()=>{
     ()=>createAskGraphAdapter(claimDrift),
     /claim trace mismatch/
   );
+
+  const claimSubjectDrift=structuredClone(projection);
+  claimSubjectDrift.presentation.claims.find(item=>
+    item.claim_id==='claim:ask-alpha'
+  ).subject_node_id='node:ask-beta';
+  assert.throws(
+    ()=>createAskGraphAdapter(claimSubjectDrift),
+    /claim trace mismatch/
+  );
+
+  const coverageNodeDrift=structuredClone(projection);
+  coverageNodeDrift.presentation.coverage.find(item=>
+    item.coverage_id==='coverage:ask-alpha'
+  ).node_id='node:ask-beta';
+  assert.throws(
+    ()=>createAskGraphAdapter(coverageNodeDrift),
+    /coverage trace mismatch/
+  );
+
+  const sourceSchemaDrift=structuredClone(projection);
+  sourceSchemaDrift.source.graph_schema='invented.graph/v9';
+  assert.throws(
+    ()=>createAskGraphAdapter(sourceSchemaDrift),
+    /source identity\/digest mismatch/
+  );
 });
 
 test('Ask-Graph rejects prompt-like or unknown query fields and never executes repository data',async()=>{
@@ -546,6 +571,11 @@ test('Ask-Graph rejects prompt-like or unknown query fields and never executes r
       'forbidden Ask-Graph execution path: '+forbidden
     );
   }
+  assert.equal(
+    source.includes('SUPPORT_OR_CONTEXT'),
+    false,
+    'Ask-Graph must not synthesize evidence-link semantics'
+  );
 });
 
 test('Ask-Graph package entrypoint is explicit and does not change plugin/mailbox or later roadmap boundaries',async()=>{
