@@ -25,7 +25,8 @@
     "test:presentation-p4": "node --test test/human-presentation-v2-p4.test.mjs",
     "test:presentation-guided-tour": "node --test test/human-presentation-v2-guided-tour.test.mjs",
     "test:presentation-change-impact": "node --test test/human-presentation-v2-change-impact.test.mjs",
-    "test:presentation-ask-graph": "node --test test/human-presentation-v2-ask-graph.test.mjs"
+    "test:presentation-ask-graph": "node --test test/human-presentation-v2-ask-graph.test.mjs",
+    "test:presentation-confidence-evidence": "node --test test/human-presentation-v2-confidence-evidence.test.mjs"
   },
   "engines": {
     "node": ">=20"

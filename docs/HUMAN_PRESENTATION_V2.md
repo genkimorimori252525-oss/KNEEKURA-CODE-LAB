@@ -1,6 +1,6 @@
 # Human Presentation v2
 
-Status: P0/P1/P2/P3/P4/Guided Tours/Change Impact complete. Ask-Graph Agent Adapter contract active.
+Status: P0/P1/P2/P3/P4/Guided Tours/Change Impact/Ask-Graph complete. Confidence/Evidence Inspector contract active.
 
 Human Presentation v2 improves human exploration and presentation without changing the authority, schemas, or semantics of KNEEKURA CORE.
 
@@ -912,3 +912,30 @@ Ask-Graph does not replace:
 - a future confidence/evidence inspector.
 
 `src/core/**` remains unchanged. Classic `serve` remains the default Viewer. The final remaining ROADMAP item after Ask-Graph is confidence/evidence inspector.
+
+
+## 20. Confidence/Evidence Inspector contract
+
+Confidence/Evidence Inspector is the final ROADMAP v0.5 Human Presentation item. It improves human inspection of the exact canonical Claim/Evidence/Coverage state already present in the Explorer Projection.
+
+It is **Presentation-only**. It does not calculate confidence, rank Evidence, infer which Evidence is more persuasive, or produce a new conclusion.
+
+For the selected exact canonical node, it preserves canonical Claim ID/type/status/subject/predicate/object, categorical confidence level and exact rationale, Coverage reference/record, Evidence links, Counterevidence links, dependency Claim IDs, provenance refs, verifier results, and unresolved reason when present.
+
+No numeric confidence score is created. Claim order remains canonical AnalysisResult order and is never sorted by confidence or Evidence amount.
+
+Evidence and Counterevidence remain separate canonical collections and preserve link ID/role/strength/rationale/order. Inline Evidence may expose exact ID/kind/observation/provenance/integrity/trust/provider metadata; these are trace fields, not ranking signals.
+
+A valid linked Evidence ref without an inline body is represented as `UNAVAILABLE_INLINE`. This means only that the EvidenceRecord body is not present in this Presentation snapshot. It must never mean absent, unsupported, disproven, low-confidence, or exhaustive negative search.
+
+A link that is neither an inline canonical EvidenceRecord nor a member of the corresponding canonical aggregate Evidence/counterevidence refs fails closed.
+
+The referenced Coverage record, node Coverage, verifier results, dependency Claim IDs and provenance refs remain exact context. Presentation cannot change Claim status or Coverage meaning.
+
+Inspector construction fails closed on projection schema/source digest or identity drift, node/Claim/Coverage trace drift, and invalid Evidence-link refs.
+
+Repository/runtime/external text in Claim/object/confidence/link rationale/Coverage/Evidence/provenance remains inert React text or JSON data.
+
+The Inspector does not calculate confidence scores, rank Claims/Evidence, merge support with Counterevidence, infer support from provider/trust class, fetch missing Evidence, generate conclusions, create/verify/promote Claims, reinterpret Coverage/UNKNOWN, or modify CORE/Ask-Graph/plugin/mailbox/canonical artifacts.
+
+`src/core/**` remains unchanged. Classic `serve` remains default. P0-P4, Guided Tours, Change Impact, and Ask-Graph remain intact. With this item complete, ROADMAP v0.5 has no remaining unchecked Human Presentation items.
