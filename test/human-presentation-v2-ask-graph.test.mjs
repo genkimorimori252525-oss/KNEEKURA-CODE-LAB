@@ -38,6 +38,7 @@ async function buildFixture() {
     schema: 'core.analysis-request/v1',
     repository: FORGE_FIXTURE,
     mode: 'TRACE',
+    policy: 'balanced',
     question:
       'Build deterministic Ask-Graph fixture context.',
     scope: {
