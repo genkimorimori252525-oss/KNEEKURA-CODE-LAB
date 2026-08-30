@@ -1,6 +1,6 @@
 # Human Presentation v2
 
-Status: P0/P1/P2 complete. P3 architecture hierarchy contract active.
+Status: P0/P1/P2/P3 complete. P4 semantic visualization contract active.
 
 Human Presentation v2 improves human exploration and presentation without changing the authority, schemas, or semantics of KNEEKURA CORE.
 
@@ -541,3 +541,100 @@ Before merge, P3 must prove at least:
 - P0/P1/P2 Presentation guards and full repository regression remain green;
 - `src/core/**` remains unchanged;
 - Classic Viewer remains default and P4 stays independently implementable.
+
+
+## 16. P4 — KNEEKURA Semantic Visualization contract
+
+P4 makes **existing KNEEKURA canonical semantics easier to distinguish in the opt-in Explorer**. It is a Presentation-only decoration layer over the merged P1-P3 stack. P4 does not add analyzers, Evidence, Claims, Coverage entries, graph nodes, graph edges, transport stages, runtime observations, or YSM conclusions.
+
+### Allowed P4 inputs
+
+P4 may consume only signals that already exist in the Explorer Projection or its detached canonical snapshots:
+
+- exact canonical node `kind` and P1 `display_family`;
+- exact canonical edge `id`, `from`, `to`, and `type`;
+- explicit canonical `runtimeObservation` / `runtime_observed` flags when present;
+- explicit canonical `transport_stage` such as M0-M6 when present;
+- exact Claim `status`, `evidence_links`, `counterevidence_links`, and `coverage_ref`;
+- exact Coverage `role` and `status`;
+- exact AnalysisResult `status` and existing UNKNOWN records.
+
+P4 must not fill a missing signal from naming, adjacency, UI layout, later-stage observation, or visual proximity.
+
+### Fixed Presentation domains
+
+P4 may map canonical kinds/types to a fixed set of **visual domains**:
+
+- source
+- Forge
+- network
+- runtime
+- Molang
+- animation
+- bone
+- resource
+- generic semantic
+- external
+- canonical fallback
+
+These domain names are Presentation tokens only. They do not replace `canonical_kind`, `canonical_type`, Claim type/status, Coverage status, or Evidence authority.
+
+Repository-controlled labels never become CSS selectors, class names, executable markup, or semantic-domain names. Unknown/unrecognized kinds fall back to the fixed `canonical` token.
+
+### Runtime and M0-M6 rules
+
+Runtime visualization follows the existing KNEEKURA evidence contract exactly:
+
+- `runtimeObservation=true` may be shown as observed;
+- `runtimeObservation=false` may be shown as unobserved;
+- **unobserved is not failed**;
+- a later M-stage must not visually fill or imply an earlier missing stage;
+- M5 and M6 remain distinct;
+- M5 must not be styled or labeled as proof that YSM applied the Molang value;
+- `ysm_state_correlated` must not be promoted to M6;
+- command failure evidence must not be converted into a successful M4 token.
+
+A transport-stage badge may be shown only when the canonical edge already carries that exact `transport_stage`.
+
+### Claim, Evidence, Counterevidence and Coverage
+
+Node detail may add visual badges around exact Claim/Coverage statuses, but the original status string remains visible.
+
+P4 may use fixed UI tones for readability, for example FAILED, unresolved/unknown/unexplored, verified-with-limits/partial, verified, and analyzed. The tone is not a new canonical status and must never be written back.
+
+Evidence and Counterevidence links displayed by P4 are copied from the existing Presentation Claim metadata. P4 must not rank, merge, discard, or synthesize those links.
+
+### Edge inspection
+
+P4 may allow selecting a canonical edge. The detail surface must show the same canonical edge ID, source, target and type plus direct runtime/stage decoration when present.
+
+Edge color/style never changes the edge identity, endpoints, direction, canonical type, or Evidence meaning.
+
+### Failure isolation and security
+
+Semantic decoration must fail closed on a canonical/UI identity mismatch.
+
+Repository-controlled strings remain inert React text/JSON data. P4 must not introduce executable HTML/Markdown, `dangerouslySetInnerHTML`, `innerHTML`, `eval`, generated functions, script URLs, or repository-text-driven CSS selectors.
+
+A decoration/render failure is a Presentation failure only and must not mutate the Explorer Projection, canonical graph, AnalysisResult, Evidence, Claim, Coverage, UNKNOWN, warning, or failure state.
+
+### Scope exclusions
+
+Classic `serve` remains the default Viewer. P4 remains opt-in through the Explorer path.
+
+**Render Pack and pixel-parity work are explicitly outside P4.** Minecraft/YSM runtime capture, offline Render Pack compilation, shader/sampler replay, authoritative-vs-predicted rendering, and golden pixel comparison belong to the separate KNEEKURA-LAB / offline Viewer fidelity work. P4 may visualize CODE-LAB evidence about those concepts only when such canonical evidence already exists; it does not implement rendering parity.
+
+### P4 acceptance subset
+
+Before merge, P4 must prove at least:
+
+- fixed-domain visualization never replaces canonical node/edge identities;
+- canonical edge endpoints/type and exact M-stage remain source-traceable;
+- unobserved is visually distinct from failed;
+- M5 and M6 stay separate and no missing stage is filled;
+- Claim status, Evidence, Counterevidence and Coverage remain exact and visible;
+- hostile repository labels remain inert and cannot influence executable styling;
+- P0-P3 Presentation guards and full repository regression remain green;
+- `src/core/**` remains unchanged;
+- Classic Viewer remains default;
+- Render Pack/pixel-parity work remains separately implementable.
