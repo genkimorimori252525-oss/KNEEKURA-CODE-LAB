@@ -367,7 +367,7 @@ test('guided tours remain Presentation-only, CI-covered, Classic-default, and la
   assert.match(cli,/cmd === 'serve'/);
   assert.match(road,/- \[x\] guided tours/);
   assert.match(road,/- \[x\] change impact view/);
-  assert.match(road,/- \[ \] ask-graph adapter for AI agents/);
+  assert.match(road,/- \[x\] ask-graph adapter for AI agents/);
   assert.match(road,/- \[ \] confidence\/evidence inspector/);
   assert.match(doc,/Guided Tours Presentation contract/);
   assert.match(doc,/Tour text is repository-controlled inert data/);
