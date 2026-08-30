@@ -1,6 +1,6 @@
 # Human Presentation v2
 
-Status: P0/P1/P2/P3/P4 complete. Guided Tours contract active.
+Status: P0/P1/P2/P3/P4/Guided Tours complete. Change Impact View contract active.
 
 Human Presentation v2 improves human exploration and presentation without changing the authority, schemas, or semantics of KNEEKURA CORE.
 
@@ -695,3 +695,88 @@ The following ROADMAP items remain separate after Guided Tours:
 - confidence/evidence inspector.
 
 Guided Tours also do not implement Render Pack generation, Minecraft/YSM rendering, shader replay, pixel parity, or Evidence ranking.
+
+
+## 18. Change Impact View Presentation contract
+
+Change Impact View implements the next ROADMAP v0.5 item after Guided Tours. It visualizes the **existing deterministic CORE IMPACT scope planner** in the opt-in Explorer.
+
+The view is an **investigation scope, not a verified breakage claim**. A node appearing in the impact scope means CORE selected it for reverse dependency/propagation investigation under the requested bounds. It does not mean the change is proven to break that node.
+
+### Analysis authority
+
+The only impact-expansion authority is the existing stable CORE contract:
+
+`planScope(canonicalGraph, { mode: "IMPACT", seeds: [{ kind: "GRAPH_NODE", value: exactCanonicalNodeId }] }, bounds)`
+
+Presentation must not implement its own adjacency traversal, infer impact from visual proximity, promote arbitrary graph edges, or reinterpret an excluded edge as causal.
+
+CORE IMPACT semantics remain authoritative:
+
+- traversal is reverse-only over incoming canonical graph edges;
+- allowed edges pass CORE `isStrongSemanticEdge`;
+- correlated/co-change/similar relationships are excluded;
+- confidence below CORE's strong-edge threshold is excluded;
+- ScopeDecision `causal_edge_id` / `causal_edge_type` remain exact canonical edge identities;
+- the seed is an exact canonical GRAPH_NODE, not fuzzy text search.
+
+### Bounds and incomplete scope
+
+The Explorer exposes a bounded depth control. The Presentation adapter also applies a fixed item ceiling to keep the interactive view bounded.
+
+CORE planner boundaries remain visible:
+
+- `DEPTH_HORIZON` means a known candidate lies beyond the requested depth;
+- `BUDGET_EXHAUSTED` means a known candidate was excluded by the item ceiling;
+- boundary items remain `UNEXPLORED`;
+- neither reason means failure, safety, or no impact.
+
+The view must preserve `universe_enumerable`, `closure`, selected roles/depths, boundary reason/reason_code, and exact ScopeDecision reason/cause/depth.
+
+### Canonical traceability
+
+Every selected or boundary node must still match the P1 Presentation node and P2 UI canonical node identity/kind.
+
+Every displayed causal edge must still match:
+
+- canonical edge ID;
+- canonical source and target;
+- canonical type;
+- P1 Presentation edge identity/endpoints/type;
+- P2 UI edge identity/endpoints/type;
+- CORE strong-semantic eligibility.
+
+For reverse IMPACT expansion, the ScopeDecision item node must remain the canonical `from` endpoint of its causal incoming edge. Any mismatch fails the Presentation path closed.
+
+### Explorer interaction
+
+Impact mode is opt-in. A canonical node must be selected before starting it.
+
+Starting impact snapshots the existing container/layers/node/edge selection and temporarily switches UI scope to Root with all P3 layers enabled. The exact seed, selected impact-scope nodes, canonical causal edges, and known unexplored boundary nodes receive fixed Presentation-only highlight classes.
+
+Changing depth recomputes through CORE `planScope`. “Recompute from selected” replaces the exact seed with the currently selected canonical node. Exit restores the UI state captured before impact mode.
+
+Guided Tour and Change Impact are mutually exclusive interactive modes to avoid two systems competing for viewport/scope ownership.
+
+### Text and security
+
+Repository-controlled node labels, paths, and any planner reason text are inert data. They do not become instructions, HTML/Markdown execution, CSS selectors, or navigation authority.
+
+Change Impact must not introduce `dangerouslySetInnerHTML`, `innerHTML`, `eval`, generated functions, script URLs, or repository-text-driven class names.
+
+### Non-goals
+
+Change Impact View does not:
+
+- synthesize a change-impact narrative;
+- create or verify a Claim;
+- state that a selected scope item will break;
+- acquire new Evidence;
+- reinterpret Coverage;
+- mutate the canonical graph or AnalysisResult;
+- change CORE planner edge eligibility;
+- implement cross-snapshot invalidation itself.
+
+Those are CORE/agent analysis concerns. This milestone only presents the deterministic IMPACT investigation scope already defined by CORE.
+
+`src/core/**` remains unchanged. Classic `serve` remains the default Viewer. Guided Tours and P0-P4 remain intact. The remaining ROADMAP items, ask-graph adapter for AI agents and confidence/evidence inspector, stay separate.

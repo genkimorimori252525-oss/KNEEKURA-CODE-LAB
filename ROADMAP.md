@@ -43,6 +43,6 @@
 - [x] Human Presentation v2 P3 architecture layers / containers / drill-down
 - [x] Human Presentation v2 P4 KNEEKURA semantic visualization
 - [x] guided tours
-- [ ] change impact view
+- [x] change impact view
 - [ ] ask-graph adapter for AI agents
 - [ ] confidence/evidence inspector

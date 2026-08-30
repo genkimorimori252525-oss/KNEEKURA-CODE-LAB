@@ -42,6 +42,10 @@ import {
   moveGuidedTour,
   startGuidedTour
 } from '../../../src/presentation/explorer/tour.mjs';
+import {
+  CHANGE_IMPACT_MAX_ITEMS,
+  createExplorerChangeImpact
+} from '../../../src/presentation/explorer/impact.mjs';
 
 const elk = new ELK();
 
@@ -113,6 +117,10 @@ function ExplorerCanvas({ projection }) {
       createGuidedTourPlayback(guidedTour)
     );
   const tourReturnStateRef = useRef(null);
+  const [impactSeedNodeId, setImpactSeedNodeId] =
+    useState(null);
+  const [impactDepth, setImpactDepth] = useState(3);
+  const impactReturnStateRef = useRef(null);
   const { fitView } = useReactFlow();
 
   useEffect(() => {
@@ -126,6 +134,9 @@ function ExplorerCanvas({ projection }) {
       createGuidedTourPlayback(guidedTour)
     );
     tourReturnStateRef.current = null;
+    setImpactSeedNodeId(null);
+    setImpactDepth(3);
+    impactReturnStateRef.current = null;
   }, [hierarchy, guidedTour]);
 
   const scope = useMemo(
@@ -202,6 +213,43 @@ function ExplorerCanvas({ projection }) {
     () => new Set(scope.visible_node_ids),
     [scope.visible_node_ids]
   );
+  const impactModel = useMemo(
+    () => impactSeedNodeId
+      ? createExplorerChangeImpact(
+          projection,
+          model,
+          impactSeedNodeId,
+          {
+            maxDepth: impactDepth,
+            maxItems: CHANGE_IMPACT_MAX_ITEMS
+          }
+        )
+      : null,
+    [
+      projection,
+      model,
+      impactSeedNodeId,
+      impactDepth
+    ]
+  );
+  const impactSelectedSet = useMemo(
+    () => new Set(
+      impactModel?.selected_node_ids ?? []
+    ),
+    [impactModel]
+  );
+  const impactBoundarySet = useMemo(
+    () => new Set(
+      impactModel?.boundary_node_ids ?? []
+    ),
+    [impactModel]
+  );
+  const impactCausalEdgeSet = useMemo(
+    () => new Set(
+      impactModel?.causal_edge_ids ?? []
+    ),
+    [impactModel]
+  );
 
   useEffect(() => {
     if (
@@ -256,6 +304,14 @@ function ExplorerCanvas({ projection }) {
           : null,
         tourHighlightSet.has(node.id)
           ? 'explorer-node-tour-highlight'
+          : null,
+        node.id === impactSeedNodeId
+          ? 'explorer-node-impact-seed'
+          : impactSelectedSet.has(node.id)
+            ? 'explorer-node-impact-scope'
+            : null,
+        impactBoundarySet.has(node.id)
+          ? 'explorer-node-impact-boundary'
           : null
       ].filter(Boolean);
 
@@ -271,7 +327,10 @@ function ExplorerCanvas({ projection }) {
     matchSet,
     selectedNodeId,
     semanticNodeById,
-    tourHighlightSet
+    tourHighlightSet,
+    impactSeedNodeId,
+    impactSelectedSet,
+    impactBoundarySet
   ]);
 
   const visibleEdges = useMemo(() => {
@@ -281,10 +340,15 @@ function ExplorerCanvas({ projection }) {
         semanticEdgeById.get(edge.id);
       return {
         ...edge,
-        className: semantic
-          ? 'explorer-edge explorer-edge-domain-' +
-            semantic.domain
-          : 'explorer-edge',
+        className: [
+          semantic
+            ? 'explorer-edge explorer-edge-domain-' +
+              semantic.domain
+            : 'explorer-edge',
+          impactCausalEdgeSet.has(edge.id)
+            ? 'explorer-edge-impact-causal'
+            : null
+        ].filter(Boolean).join(' '),
         data: {
           ...edge.data,
           semantic_domain:
@@ -295,7 +359,8 @@ function ExplorerCanvas({ projection }) {
   }, [
     layout,
     scope.edges,
-    semanticEdgeById
+    semanticEdgeById,
+    impactCausalEdgeSet
   ]);
 
   const detail = useMemo(
@@ -376,6 +441,37 @@ function ExplorerCanvas({ projection }) {
     fitView
   ]);
 
+  useEffect(() => {
+    if (!layout || !impactModel) return;
+    const layoutNodeSet = new Set(
+      layout.nodes.map(node => node.id)
+    );
+    const visibleImpactNodes = [
+      ...new Set([
+        ...impactModel.selected_node_ids,
+        ...impactModel.boundary_node_ids
+      ])
+    ].filter(
+      nodeId =>
+        visibleNodeSet.has(nodeId) &&
+        layoutNodeSet.has(nodeId)
+    );
+    if (visibleImpactNodes.length === 0) return;
+    queueMicrotask(() => {
+      fitView({
+        nodes: visibleImpactNodes.map(id => ({ id })),
+        padding: 0.55,
+        duration: 240,
+        maxZoom: 1.25
+      });
+    });
+  }, [
+    layout,
+    impactModel,
+    visibleNodeSet,
+    fitView
+  ]);
+
   function focusNode(nodeId) {
     if (!nodeId || !visibleNodeSet.has(nodeId)) return;
     setSelectedNodeId(nodeId);
@@ -404,7 +500,10 @@ function ExplorerCanvas({ projection }) {
   }
 
   function beginTour() {
-    if (!guidedTour.has_tour) return;
+    if (
+      !guidedTour.has_tour ||
+      impactSeedNodeId
+    ) return;
     tourReturnStateRef.current = {
       containerId,
       enabledLayerIds: [...enabledLayerIds],
@@ -437,6 +536,42 @@ function ExplorerCanvas({ projection }) {
     setSelectedEdgeId(restore.selectedEdgeId);
   }
 
+  function prepareImpactScope() {
+    setContainerId(EXPLORER_ROOT_CONTAINER_ID);
+    setEnabledLayerIds(
+      hierarchy.layers.map(layer => layer.id)
+    );
+    setSelectedEdgeId(null);
+  }
+
+  function beginImpact() {
+    if (
+      !selectedNodeId ||
+      tourPlayback.active
+    ) return;
+    if (!impactSeedNodeId) {
+      impactReturnStateRef.current = {
+        containerId,
+        enabledLayerIds: [...enabledLayerIds],
+        selectedNodeId,
+        selectedEdgeId
+      };
+    }
+    prepareImpactScope();
+    setImpactSeedNodeId(selectedNodeId);
+  }
+
+  function endImpact() {
+    const restore = impactReturnStateRef.current;
+    setImpactSeedNodeId(null);
+    impactReturnStateRef.current = null;
+    if (!restore) return;
+    setContainerId(restore.containerId);
+    setEnabledLayerIds(restore.enabledLayerIds);
+    setSelectedNodeId(restore.selectedNodeId);
+    setSelectedEdgeId(restore.selectedEdgeId);
+  }
+
   function navigateContainer(nextId) {
     setContainerId(nextId);
     setSelectedNodeId(null);
@@ -458,7 +593,7 @@ function ExplorerCanvas({ projection }) {
         <div>
           <strong>KNEEKURA Human Explorer</strong>
           <span className="explorer-subtitle">
-            P4 semantics · guided tours · canonical projection consumer
+            P4 semantics · guided tours · change impact · canonical projection consumer
           </span>
         </div>
 
@@ -504,6 +639,10 @@ function ExplorerCanvas({ projection }) {
           guidedTour={guidedTour}
           tourPlayback={tourPlayback}
           currentTourStep={currentTourStep}
+          impactModel={impactModel}
+          impactDepth={impactDepth}
+          impactSeedNodeId={impactSeedNodeId}
+          selectedNodeId={selectedNodeId}
           containerId={containerId}
           enabledLayerIds={enabledLayerIds}
           onNavigate={navigateContainer}
@@ -512,6 +651,9 @@ function ExplorerCanvas({ projection }) {
           onTourPrevious={() => moveTour(-1)}
           onTourNext={() => moveTour(1)}
           onTourExit={endTour}
+          onImpactStart={beginImpact}
+          onImpactDepthChange={setImpactDepth}
+          onImpactExit={endImpact}
         />
 
         <section className="explorer-canvas">
@@ -583,6 +725,10 @@ function HierarchyPanel({
   guidedTour,
   tourPlayback,
   currentTourStep,
+  impactModel,
+  impactDepth,
+  impactSeedNodeId,
+  selectedNodeId,
   containerId,
   enabledLayerIds,
   onNavigate,
@@ -590,7 +736,10 @@ function HierarchyPanel({
   onTourStart,
   onTourPrevious,
   onTourNext,
-  onTourExit
+  onTourExit,
+  onImpactStart,
+  onImpactDepthChange,
+  onImpactExit
 }) {
   const current = hierarchy.containers.find(
     item => item.id === containerId
@@ -599,11 +748,26 @@ function HierarchyPanel({
   return (
     <aside className="explorer-hierarchy">
       <section>
+        <h2>Change impact</h2>
+        <ChangeImpactPanel
+          model={impactModel}
+          depth={impactDepth}
+          seedNodeId={impactSeedNodeId}
+          selectedNodeId={selectedNodeId}
+          tourActive={tourPlayback.active}
+          onStart={onImpactStart}
+          onDepthChange={onImpactDepthChange}
+          onExit={onImpactExit}
+        />
+      </section>
+
+      <section>
         <h2>Guided tour</h2>
         <GuidedTourPanel
           tour={guidedTour}
           playback={tourPlayback}
           step={currentTourStep}
+          disabled={Boolean(impactSeedNodeId)}
           onStart={onTourStart}
           onPrevious={onTourPrevious}
           onNext={onTourNext}
@@ -699,10 +863,134 @@ function HierarchyPanel({
   );
 }
 
+function ChangeImpactPanel({
+  model,
+  depth,
+  seedNodeId,
+  selectedNodeId,
+  tourActive,
+  onStart,
+  onDepthChange,
+  onExit
+}) {
+  const active = Boolean(model && seedNodeId);
+
+  return (
+    <div className="explorer-impact-panel">
+      <p className="explorer-impact-disclaimer">
+        CORE IMPACT investigation scope — not a
+        verified breakage claim.
+      </p>
+
+      <label className="explorer-impact-depth">
+        <span>Depth</span>
+        <select
+          value={depth}
+          onChange={event =>
+            onDepthChange(Number(event.target.value))
+          }
+        >
+          {[1, 2, 3, 4, 5].map(value => (
+            <option key={value} value={value}>
+              {value}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {!active ? (
+        <>
+          <button
+            type="button"
+            disabled={!selectedNodeId || tourActive}
+            onClick={onStart}
+          >
+            Analyze selected node
+          </button>
+          {!selectedNodeId ? (
+            <p className="explorer-empty">
+              Select a canonical node first.
+            </p>
+          ) : tourActive ? (
+            <p className="explorer-empty">
+              Exit guided tour before change impact.
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <>
+          <dl>
+            <dt>Seed</dt>
+            <dd>{model.seed_node_id}</dd>
+            <dt>Scope nodes</dt>
+            <dd>{model.selected_node_ids.length}</dd>
+            <dt>Boundary nodes</dt>
+            <dd>{model.boundary_node_ids.length}</dd>
+            <dt>Causal edges</dt>
+            <dd>{model.causal_edge_ids.length}</dd>
+            <dt>Max items</dt>
+            <dd>{model.max_items}</dd>
+          </dl>
+
+          <button
+            type="button"
+            disabled={!selectedNodeId}
+            onClick={onStart}
+          >
+            Recompute from selected
+          </button>
+          <button type="button" onClick={onExit}>
+            Exit impact
+          </button>
+
+          <details>
+            <summary>
+              Planner closure / boundaries
+            </summary>
+            <pre>{JSON.stringify({
+              universe_enumerable:
+                model.universe_enumerable,
+              closure: model.closure,
+              boundary: model.boundary
+            }, null, 2)}</pre>
+          </details>
+
+          <details>
+            <summary>
+              Exact ScopeDecisions ({model.decisions.length})
+            </summary>
+            <ul className="explorer-impact-decisions">
+              {model.decisions.map(item => (
+                <li key={item.decision_id}>
+                  <code>{item.decision_id}</code>
+                  <div>
+                    {item.action} · depth {item.depth}
+                    {' · '}
+                    {item.cause}
+                  </div>
+                  <div>{item.reason}</div>
+                  {item.causal_edge ? (
+                    <pre>{JSON.stringify(
+                      item.causal_edge,
+                      null,
+                      2
+                    )}</pre>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </details>
+        </>
+      )}
+    </div>
+  );
+}
+
 function GuidedTourPanel({
   tour,
   playback,
   step,
+  disabled = false,
   onStart,
   onPrevious,
   onNext,
@@ -723,9 +1011,18 @@ function GuidedTourPanel({
           {tour.step_count} canonical tour steps
           available.
         </p>
-        <button type="button" onClick={onStart}>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={onStart}
+        >
           Start tour
         </button>
+        {disabled ? (
+          <p className="explorer-empty">
+            Exit change impact before starting a tour.
+          </p>
+        ) : null}
       </div>
     );
   }
