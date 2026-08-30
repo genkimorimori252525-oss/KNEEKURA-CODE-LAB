@@ -6,7 +6,7 @@ on:
 
 jobs:
   test:
-    runs-on: [self-hosted, Windows, X64, love-github]
+    runs-on: [self-hosted, Windows, X64, kneekura-code-lab]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
