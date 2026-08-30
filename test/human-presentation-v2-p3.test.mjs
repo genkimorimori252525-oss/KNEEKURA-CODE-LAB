@@ -313,6 +313,14 @@ test('P3 fails closed on foreign and cyclic container metadata', () => {
 
   const foreignParent = structuredClone(hierarchy);
   foreignParent.containers.find(
+    item => item.id === family.id
+  ).child_container_ids =
+    foreignParent.containers.find(
+      item => item.id === family.id
+    ).child_container_ids.filter(
+      id => id !== kind.id
+    );
+  foreignParent.containers.find(
     item => item.id === kind.id
   ).parent_id = 'container:foreign';
   assert.throws(
