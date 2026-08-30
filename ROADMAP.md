@@ -40,7 +40,7 @@
 - [x] Human Presentation v2 P1 Explorer Projection (one-to-one canonical traceability)
 - [x] Human Presentation v2 P2 Explorer Shell (opt-in React Flow + deterministic ELK layout)
 - [x] Understand Anything graph importer (nodes/edges/layers/tour)
-- [ ] architecture layers
+- [x] Human Presentation v2 P3 architecture layers / containers / drill-down
 - [ ] guided tours
 - [ ] change impact view
 - [ ] ask-graph adapter for AI agents
