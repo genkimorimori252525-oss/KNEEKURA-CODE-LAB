@@ -293,6 +293,35 @@ test('guided tours reject UA_TOUR_HIGHLIGHTS from non-tour canonical sources', (
   );
 });
 
+test('guided tour React declarations precede consumers and focus waits for layout', async () => {
+  const app=await fs.readFile(
+    path.join(
+      ROOT,
+      'packages/human-explorer/src/App.jsx'
+    ),
+    'utf8'
+  );
+  const highlightDeclaration=
+    app.indexOf('const tourHighlightSet');
+  const visibleNodesDeclaration=
+    app.indexOf('const visibleNodes');
+  assert.equal(highlightDeclaration >= 0,true);
+  assert.equal(visibleNodesDeclaration >= 0,true);
+  assert.equal(
+    highlightDeclaration < visibleNodesDeclaration,
+    true,
+    'tourHighlightSet must be initialized before visibleNodes render consumes it'
+  );
+  assert.match(
+    app,
+    /!layout[\s\S]*!tourPlayback\.active/
+  );
+  assert.match(
+    app,
+    /layout\.nodes\.map\(node => node\.id\)/
+  );
+});
+
 test('guided tour UI keeps repository text inert and uses only fixed Presentation classes', async () => {
   const [app,css]=await Promise.all([
     fs.readFile(path.join(ROOT,'packages/human-explorer/src/App.jsx'),'utf8'),

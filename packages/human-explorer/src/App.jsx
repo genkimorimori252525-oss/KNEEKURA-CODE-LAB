@@ -223,6 +223,20 @@ function ExplorerCanvas({ projection }) {
     }
   }, [selectedEdgeId, scope.visible_edge_ids]);
 
+  const currentTourStep = useMemo(
+    () => guidedTourCurrentStep(
+      guidedTour,
+      tourPlayback
+    ),
+    [guidedTour, tourPlayback]
+  );
+  const tourHighlightSet = useMemo(
+    () => new Set(
+      currentTourStep?.highlight_node_ids ?? []
+    ),
+    [currentTourStep]
+  );
+
   const visibleNodes = useMemo(() => {
     const source = layout?.nodes ?? scope.nodes;
     return source.map(node => {
@@ -321,27 +335,22 @@ function ExplorerCanvas({ projection }) {
       selectedEdgeId
     ]
   );
-  const currentTourStep = useMemo(
-    () => guidedTourCurrentStep(
-      guidedTour,
-      tourPlayback
-    ),
-    [guidedTour, tourPlayback]
-  );
-  const tourHighlightSet = useMemo(
-    () => new Set(
-      currentTourStep?.highlight_node_ids ?? []
-    ),
-    [currentTourStep]
-  );
-
   useEffect(() => {
-    if (!tourPlayback.active || !currentTourStep) {
+    if (
+      !layout ||
+      !tourPlayback.active ||
+      !currentTourStep
+    ) {
       return;
     }
+    const layoutNodeSet = new Set(
+      layout.nodes.map(node => node.id)
+    );
     const visibleHighlights =
       currentTourStep.highlight_node_ids.filter(
-        nodeId => visibleNodeSet.has(nodeId)
+        nodeId =>
+          visibleNodeSet.has(nodeId) &&
+          layoutNodeSet.has(nodeId)
       );
     if (visibleHighlights.length === 0) {
       setSelectedNodeId(null);
@@ -359,6 +368,7 @@ function ExplorerCanvas({ projection }) {
       });
     });
   }, [
+    layout,
     tourPlayback.active,
     tourPlayback.index,
     currentTourStep,
