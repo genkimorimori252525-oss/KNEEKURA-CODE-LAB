@@ -618,7 +618,7 @@ test('Ask-Graph package entrypoint is explicit and does not change plugin/mailbo
   );
   assert.match(
     road,
-    /- \[ \] confidence\/evidence inspector/
+    /- \[x\] confidence\/evidence inspector/
   );
   assert.match(
     doc,
