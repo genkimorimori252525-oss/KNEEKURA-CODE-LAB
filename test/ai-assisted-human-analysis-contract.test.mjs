@@ -110,7 +110,7 @@ test('root agent guidance makes human-code-analysis requests artifact-first', as
     'artifact-first human analysis',
     'self-contained offline HTML guide',
     'ZIP companion bundle',
-    'EXECUTABLE_GENERATOR',
+    'EXECUTABLE_GENERATOR_CODE',
     'AI_INTERPRETATION',
     'COVERAGE_GAP',
     'missing deterministic language scanner is **not** a reason to refuse'

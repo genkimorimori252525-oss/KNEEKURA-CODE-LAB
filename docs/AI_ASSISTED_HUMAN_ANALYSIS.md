@@ -8,7 +8,7 @@ Machine-readable defaults: `config/human-analysis-delivery.v1.json`.
 
 KNEEKURA-CODE-LAB is intended to be an **AI-assisted code analysis system** when the goal is human understanding.
 
-It is not a project goal to make all semantic understanding work without AI. Deterministic/static analysis remains extremely valuable, but its role is to provide repeatable structure, canonical evidence, provenance, coverage boundaries and domain-specific facts. AI is a first-class semantic author that turns those facts plus direct source inspection into useful architecture explanations, concepts, tours and human-facing artifacts.
+**AI-independent semantic understanding is not a goal.** Deterministic/static analysis remains extremely valuable, but its role is to provide repeatable structure, canonical evidence, provenance, coverage boundaries and domain-specific facts. AI is a first-class semantic author that turns those facts plus direct source inspection into useful architecture explanations, concepts, tours and human-facing artifacts.
 
 The target is a deliberate hybrid:
 
@@ -158,7 +158,7 @@ The authoring layer should keep at least these semantic classes distinct:
 - `COVERAGE_GAP`
 - `UNKNOWN`
 
-Every material `AI_INTERPRETATION` should carry one or more source references when possible:
+Every material `AI_INTERPRETATION` should carry one or more source references when possible. In short: preserve source paths/ranges or canonical IDs rather than presenting interpretation as untraceable prose:
 
 - repository + commit/snapshot;
 - file path and line/range when available;

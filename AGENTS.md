@@ -40,7 +40,7 @@ Preferred bundle:
 - `README.md` — how to open/use the artifact
 - optional `architecture.svg`, `knowledge-graph.json`, `tour.json`
 
-If the current environment cannot create downloadable files, do **not** silently degrade to prose-only. Provide executable generator code/script that creates the same artifact bundle, plus only the minimum prose needed to run it.
+If the current environment cannot create downloadable files, do **not** silently degrade to prose-only. Use the `EXECUTABLE_GENERATOR_CODE` fallback: provide executable generator code/script that creates the same artifact bundle, plus only the minimum prose needed to run it.
 
 If the platform offers a better directly viewable interactive artifact, it may be the primary presentation, but keep a portable self-contained HTML/ZIP companion when practical.
 
