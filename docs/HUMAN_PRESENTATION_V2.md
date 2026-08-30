@@ -1,6 +1,6 @@
 # Human Presentation v2
 
-Status: P0/P1/P2/P3 complete. P4 semantic visualization contract active.
+Status: P0/P1/P2/P3/P4 complete. Guided Tours contract active.
 
 Human Presentation v2 improves human exploration and presentation without changing the authority, schemas, or semantics of KNEEKURA CORE.
 
@@ -638,3 +638,60 @@ Before merge, P4 must prove at least:
 - `src/core/**` remains unchanged;
 - Classic Viewer remains default;
 - Render Pack/pixel-parity work remains separately implementable.
+
+
+## 17. Guided Tours Presentation contract
+
+Guided Tours implement the first remaining ROADMAP v0.5 item after P4. They replay **existing canonical Understand Anything tour data** in the opt-in Explorer. Guided Tours do not generate a tour, summarize code into new facts, infer missing highlights, change ordering authority, or add canonical graph semantics.
+
+### Canonical inputs
+
+The only tour authority is the existing canonical graph:
+
+- `ua:tour_step` nodes imported by `src/adapters/understand-anything.mjs`;
+- exact canonical step fields already stored on those nodes: `label`, finite numeric `order`, `description`, and `languageLesson`;
+- exact canonical `UA_TOUR_HIGHLIGHTS` edges from a `ua:tour_step` to canonical target nodes.
+
+The Presentation model must re-check those node/edge identities against P1 projection metadata and the P2 UI model before using them.
+
+### Deterministic ordering
+
+Finite numeric `order` values sort ascending. Duplicate numeric orders are not rewritten or rejected; they use canonical tour-step node ID as a deterministic tie-break. Missing, non-numeric, or non-finite order values sort after numbered steps and then by canonical tour-step node ID.
+
+Highlight target order follows canonical graph edge order. Presentation must not create a substitute target, infer a nearest node, or turn graph adjacency into a tour highlight.
+
+A step with zero valid canonical highlights remains an explicit text-only step with no focus target.
+
+### Playback and hierarchy interaction
+
+Tours are opt-in and inactive by default. Supported playback controls are Start, Previous, Next, and Exit. Playback does not wrap beyond the first or last step.
+
+When a tour starts or changes step, the Explorer may temporarily switch the **UI scope only** to Root with every P3 layer enabled so the canonical highlight targets can be shown. The first canonical highlight is selected and all visible highlights are passed to React Flow `fitView`.
+
+Starting a tour snapshots the previous container, enabled layers, selected node, and selected edge. Exit restores that UI state. None of this state is written to Explorer Projection, canonical graph, AnalysisResult, Claim, Evidence, Counterevidence, Coverage, or UNKNOWN records.
+
+### Invalid and missing data
+
+An empty graph with no `ua:tour_step` nodes is valid and exposes a no-tour state.
+
+Guided-tour derivation fails closed when a `UA_TOUR_HIGHLIGHTS` source is not a canonical tour step, a target is foreign, the P1/P2 node or edge identity/type/endpoints drift from the canonical snapshot, or one step has duplicate highlight targets. Presentation does not repair those conditions.
+
+The upstream Understand Anything importer may already omit unknown `nodeIds`; Guided Tours must not recreate those omitted references.
+
+### Text and instruction security
+
+**Tour text is repository-controlled inert data.** Labels, descriptions, and language lessons are displayed only as ordinary React text. They are not trusted instructions to the assistant, not HTML/Markdown execution, not CSS selectors, and not semantic authority.
+
+Guided Tours must not introduce `dangerouslySetInnerHTML`, `innerHTML`, `eval`, generated functions, script URLs, repository-text-driven class names, or repository-text-driven navigation targets.
+
+### Non-goals and scope
+
+Guided Tours are Presentation-only and must leave `src/core/**` unchanged. Classic `serve` remains the default Viewer.
+
+The following ROADMAP items remain separate after Guided Tours:
+
+- change impact view;
+- ask-graph adapter for AI agents;
+- confidence/evidence inspector.
+
+Guided Tours also do not implement Render Pack generation, Minecraft/YSM rendering, shader replay, pixel parity, or Evidence ranking.

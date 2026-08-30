@@ -1,6 +1,7 @@
 import React, {
   useEffect,
   useMemo,
+  useRef,
   useState
 } from 'react';
 import {
@@ -33,6 +34,14 @@ import {
 import {
   layoutExplorerUiModel
 } from '../../../src/presentation/explorer/layout.mjs';
+import {
+  createExplorerGuidedTour,
+  createGuidedTourPlayback,
+  exitGuidedTour,
+  guidedTourCurrentStep,
+  moveGuidedTour,
+  startGuidedTour
+} from '../../../src/presentation/explorer/tour.mjs';
 
 const elk = new ELK();
 
@@ -78,6 +87,13 @@ function ExplorerCanvas({ projection }) {
     ),
     [semanticModel]
   );
+  const guidedTour = useMemo(
+    () => createExplorerGuidedTour(
+      projection,
+      model
+    ),
+    [projection, model]
+  );
   const [containerId, setContainerId] = useState(
     EXPLORER_ROOT_CONTAINER_ID
   );
@@ -92,6 +108,11 @@ function ExplorerCanvas({ projection }) {
     useState(null);
   const [selectedEdgeId, setSelectedEdgeId] =
     useState(null);
+  const [tourPlayback, setTourPlayback] =
+    useState(() =>
+      createGuidedTourPlayback(guidedTour)
+    );
+  const tourReturnStateRef = useRef(null);
   const { fitView } = useReactFlow();
 
   useEffect(() => {
@@ -101,7 +122,11 @@ function ExplorerCanvas({ projection }) {
     );
     setSelectedNodeId(null);
     setSelectedEdgeId(null);
-  }, [hierarchy]);
+    setTourPlayback(
+      createGuidedTourPlayback(guidedTour)
+    );
+    tourReturnStateRef.current = null;
+  }, [hierarchy, guidedTour]);
 
   const scope = useMemo(
     () => createExplorerScope(model, hierarchy, {
@@ -198,6 +223,20 @@ function ExplorerCanvas({ projection }) {
     }
   }, [selectedEdgeId, scope.visible_edge_ids]);
 
+  const currentTourStep = useMemo(
+    () => guidedTourCurrentStep(
+      guidedTour,
+      tourPlayback
+    ),
+    [guidedTour, tourPlayback]
+  );
+  const tourHighlightSet = useMemo(
+    () => new Set(
+      currentTourStep?.highlight_node_ids ?? []
+    ),
+    [currentTourStep]
+  );
+
   const visibleNodes = useMemo(() => {
     const source = layout?.nodes ?? scope.nodes;
     return source.map(node => {
@@ -214,6 +253,9 @@ function ExplorerCanvas({ projection }) {
           : null,
         matchSet.has(node.id)
           ? 'explorer-node-match'
+          : null,
+        tourHighlightSet.has(node.id)
+          ? 'explorer-node-tour-highlight'
           : null
       ].filter(Boolean);
 
@@ -228,7 +270,8 @@ function ExplorerCanvas({ projection }) {
     scope.nodes,
     matchSet,
     selectedNodeId,
-    semanticNodeById
+    semanticNodeById,
+    tourHighlightSet
   ]);
 
   const visibleEdges = useMemo(() => {
@@ -292,6 +335,46 @@ function ExplorerCanvas({ projection }) {
       selectedEdgeId
     ]
   );
+  useEffect(() => {
+    if (
+      !layout ||
+      !tourPlayback.active ||
+      !currentTourStep
+    ) {
+      return;
+    }
+    const layoutNodeSet = new Set(
+      layout.nodes.map(node => node.id)
+    );
+    const visibleHighlights =
+      currentTourStep.highlight_node_ids.filter(
+        nodeId =>
+          visibleNodeSet.has(nodeId) &&
+          layoutNodeSet.has(nodeId)
+      );
+    if (visibleHighlights.length === 0) {
+      setSelectedNodeId(null);
+      setSelectedEdgeId(null);
+      return;
+    }
+    setSelectedNodeId(visibleHighlights[0]);
+    setSelectedEdgeId(null);
+    queueMicrotask(() => {
+      fitView({
+        nodes: visibleHighlights.map(id => ({ id })),
+        padding: 0.8,
+        duration: 240,
+        maxZoom: 1.5
+      });
+    });
+  }, [
+    layout,
+    tourPlayback.active,
+    tourPlayback.index,
+    currentTourStep,
+    visibleNodeSet,
+    fitView
+  ]);
 
   function focusNode(nodeId) {
     if (!nodeId || !visibleNodeSet.has(nodeId)) return;
@@ -310,6 +393,48 @@ function ExplorerCanvas({ projection }) {
   function submitSearch(event) {
     event.preventDefault();
     focusNode(matches[0] ?? null);
+  }
+
+  function prepareTourScope() {
+    setContainerId(EXPLORER_ROOT_CONTAINER_ID);
+    setEnabledLayerIds(
+      hierarchy.layers.map(layer => layer.id)
+    );
+    setSelectedEdgeId(null);
+  }
+
+  function beginTour() {
+    if (!guidedTour.has_tour) return;
+    tourReturnStateRef.current = {
+      containerId,
+      enabledLayerIds: [...enabledLayerIds],
+      selectedNodeId,
+      selectedEdgeId
+    };
+    prepareTourScope();
+    setTourPlayback(startGuidedTour(guidedTour));
+  }
+
+  function moveTour(delta) {
+    prepareTourScope();
+    setTourPlayback(current =>
+      moveGuidedTour(
+        guidedTour,
+        current,
+        delta
+      )
+    );
+  }
+
+  function endTour() {
+    const restore = tourReturnStateRef.current;
+    setTourPlayback(exitGuidedTour(guidedTour));
+    tourReturnStateRef.current = null;
+    if (!restore) return;
+    setContainerId(restore.containerId);
+    setEnabledLayerIds(restore.enabledLayerIds);
+    setSelectedNodeId(restore.selectedNodeId);
+    setSelectedEdgeId(restore.selectedEdgeId);
   }
 
   function navigateContainer(nextId) {
@@ -333,7 +458,7 @@ function ExplorerCanvas({ projection }) {
         <div>
           <strong>KNEEKURA Human Explorer</strong>
           <span className="explorer-subtitle">
-            P3 hierarchy · canonical projection consumer
+            P4 semantics · guided tours · canonical projection consumer
           </span>
         </div>
 
@@ -376,10 +501,17 @@ function ExplorerCanvas({ projection }) {
           scope={scope}
           semanticModel={semanticModel}
           semanticScopeSummary={semanticScopeSummary}
+          guidedTour={guidedTour}
+          tourPlayback={tourPlayback}
+          currentTourStep={currentTourStep}
           containerId={containerId}
           enabledLayerIds={enabledLayerIds}
           onNavigate={navigateContainer}
           onToggleLayer={toggleLayer}
+          onTourStart={beginTour}
+          onTourPrevious={() => moveTour(-1)}
+          onTourNext={() => moveTour(1)}
+          onTourExit={endTour}
         />
 
         <section className="explorer-canvas">
@@ -448,10 +580,17 @@ function HierarchyPanel({
   scope,
   semanticModel,
   semanticScopeSummary,
+  guidedTour,
+  tourPlayback,
+  currentTourStep,
   containerId,
   enabledLayerIds,
   onNavigate,
-  onToggleLayer
+  onToggleLayer,
+  onTourStart,
+  onTourPrevious,
+  onTourNext,
+  onTourExit
 }) {
   const current = hierarchy.containers.find(
     item => item.id === containerId
@@ -459,6 +598,19 @@ function HierarchyPanel({
 
   return (
     <aside className="explorer-hierarchy">
+      <section>
+        <h2>Guided tour</h2>
+        <GuidedTourPanel
+          tour={guidedTour}
+          playback={tourPlayback}
+          step={currentTourStep}
+          onStart={onTourStart}
+          onPrevious={onTourPrevious}
+          onNext={onTourNext}
+          onExit={onTourExit}
+        />
+      </section>
+
       <section>
         <h2>Layers</h2>
         <div className="explorer-layer-list">
@@ -544,6 +696,91 @@ function HierarchyPanel({
         </dl>
       </section>
     </aside>
+  );
+}
+
+function GuidedTourPanel({
+  tour,
+  playback,
+  step,
+  onStart,
+  onPrevious,
+  onNext,
+  onExit
+}) {
+  if (!tour.has_tour) {
+    return (
+      <p className="explorer-empty">
+        No canonical guided tour in this graph.
+      </p>
+    );
+  }
+
+  if (!playback.active || !step) {
+    return (
+      <div className="explorer-tour-panel">
+        <p>
+          {tour.step_count} canonical tour steps
+          available.
+        </p>
+        <button type="button" onClick={onStart}>
+          Start tour
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="explorer-tour-panel"
+      aria-live="polite"
+    >
+      <div className="explorer-tour-progress">
+        Step {playback.index + 1} / {tour.step_count}
+      </div>
+      <h3>{step.label}</h3>
+      {step.description ? (
+        <p>{step.description}</p>
+      ) : null}
+      {step.language_lesson ? (
+        <div className="explorer-tour-lesson">
+          <strong>Language lesson</strong>
+          <p>{step.language_lesson}</p>
+        </div>
+      ) : null}
+      <dl>
+        <dt>Canonical step</dt>
+        <dd>{step.step_node_id}</dd>
+        <dt>Highlights</dt>
+        <dd>{step.highlight_node_ids.length}</dd>
+      </dl>
+      {step.highlight_node_ids.length === 0 ? (
+        <p className="explorer-empty">
+          This canonical step has no highlight target.
+        </p>
+      ) : null}
+      <div className="explorer-tour-actions">
+        <button
+          type="button"
+          disabled={playback.index === 0}
+          onClick={onPrevious}
+        >
+          Previous
+        </button>
+        <button
+          type="button"
+          disabled={
+            playback.index === tour.step_count - 1
+          }
+          onClick={onNext}
+        >
+          Next
+        </button>
+        <button type="button" onClick={onExit}>
+          Exit
+        </button>
+      </div>
+    </div>
   );
 }
 

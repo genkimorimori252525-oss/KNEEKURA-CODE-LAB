@@ -21,7 +21,8 @@
     "explorer:build": "vite build --config packages/human-explorer/vite.config.mjs",
     "test:presentation-p2": "node --test test/human-presentation-v2-p2.test.mjs",
     "test:presentation-p3": "node --test test/human-presentation-v2-p3.test.mjs",
-    "test:presentation-p4": "node --test test/human-presentation-v2-p4.test.mjs"
+    "test:presentation-p4": "node --test test/human-presentation-v2-p4.test.mjs",
+    "test:presentation-guided-tour": "node --test test/human-presentation-v2-guided-tour.test.mjs"
   },
   "engines": {
     "node": ">=20"
