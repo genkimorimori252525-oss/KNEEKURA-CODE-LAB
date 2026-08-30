@@ -44,5 +44,5 @@
 - [x] Human Presentation v2 P4 KNEEKURA semantic visualization
 - [x] guided tours
 - [x] change impact view
-- [ ] ask-graph adapter for AI agents
+- [x] ask-graph adapter for AI agents
 - [ ] confidence/evidence inspector

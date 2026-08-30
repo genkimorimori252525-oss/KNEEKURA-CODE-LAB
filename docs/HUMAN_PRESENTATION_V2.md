@@ -1,6 +1,6 @@
 # Human Presentation v2
 
-Status: P0/P1/P2/P3/P4/Guided Tours complete. Change Impact View contract active.
+Status: P0/P1/P2/P3/P4/Guided Tours/Change Impact complete. Ask-Graph Agent Adapter contract active.
 
 Human Presentation v2 improves human exploration and presentation without changing the authority, schemas, or semantics of KNEEKURA CORE.
 
@@ -780,3 +780,135 @@ Change Impact View does not:
 Those are CORE/agent analysis concerns. This milestone only presents the deterministic IMPACT investigation scope already defined by CORE.
 
 `src/core/**` remains unchanged. Classic `serve` remains the default Viewer. Guided Tours and P0-P4 remain intact. The remaining ROADMAP items, ask-graph adapter for AI agents and confidence/evidence inspector, stay separate.
+
+
+## 19. Ask-Graph Agent Adapter contract
+
+Ask-Graph implements the next ROADMAP v0.5 item after Change Impact View. It is a **deterministic read-only retrieval adapter for AI agents**, not another analysis engine.
+
+Its source is one validated `kneekura.explorer-projection/v1` snapshot. The projection already contains detached canonical `kneekura.graph/v1` and `core.analysis-result/v1` objects plus one-to-one trace metadata and the canonical AnalysisResult digest.
+
+### Authority boundary
+
+Ask-Graph has no analysis authority.
+
+It must not:
+
+- generate a natural-language answer or conclusion;
+- call a model, provider, ReasoningBridge, shell, network service, or repository-write operation;
+- acquire new Evidence;
+- create, verify, rank, or promote Claims;
+- reinterpret Coverage or UNKNOWN;
+- infer an edge that is not in the canonical graph;
+- treat graph adjacency as proof of causality;
+- choose one ambiguous search candidate for the agent;
+- turn repository/runtime/external text into instructions.
+
+The adapter reports its authority mode as `CANONICAL_RETRIEVAL_ONLY`.
+
+### Schemas
+
+The stable v1 schemas are:
+
+- adapter: `kneekura.ask-graph-adapter/v1`;
+- manifest: `kneekura.ask-graph-manifest/v1`;
+- query: `kneekura.ask-graph-query/v1`;
+- response: `kneekura.ask-graph-response/v1`.
+
+Every response carries the Explorer Projection source identity and canonical AnalysisResult digest.
+
+### Structured operations
+
+Ask-Graph supports exactly these v1 operations:
+
+1. `DESCRIBE`
+   - returns the machine-readable manifest, limits, trust boundary, operations, and supported typed refs.
+
+2. `FIND_NODES`
+   - performs deterministic literal case-insensitive candidate discovery over explicitly selected canonical node fields;
+   - optional exact canonical kind filters are allowed;
+   - returns candidates in canonical-node-ID order;
+   - reports `ambiguous` and truncation;
+   - always returns `selected_node_id: null`; the adapter never chooses a candidate.
+
+3. `GET_NODE`
+   - requires one exact canonical node ID;
+   - returns that canonical node and its P1 trace metadata;
+   - a non-ID label/key is not silently resolved.
+
+4. `NEIGHBORS`
+   - requires one exact canonical node ID;
+   - returns only directly incident canonical edges for `IN`, `OUT`, or `BOTH`;
+   - optional edge-type filters are exact canonical type filters;
+   - it is strictly one hop and does not perform path search, semantic expansion, impact expansion, or inferred traversal.
+
+5. `GET_REF`
+   - requires an explicit ref kind plus exact ref;
+   - supported kinds are `NODE`, `EDGE`, `CLAIM`, `EVIDENCE`, and `COVERAGE`;
+   - typed lookup prevents a colliding string from being silently reinterpreted as another canonical object type.
+
+6. `NODE_CONTEXT`
+   - composes bounded exact one-hop neighbors, Claims whose canonical subject node ID exactly matches, Coverage entries whose canonical node ID exactly matches, and Claim Evidence/counterevidence links copied verbatim with only their source collection named as Presentation metadata;
+   - it does not inline full Evidence bodies; an agent must request an exact Evidence ID through `GET_REF`.
+
+### Bounds and truncation
+
+Collection operations are cardinality-bounded.
+
+The adapter has a configurable default limit and maximum limit, with a hard maximum of 200 items per returned collection. Candidate, neighbor, Claim, Coverage, and Evidence-link collections report returned count, total count, and `truncated`.
+
+Truncation means **more canonical items exist than were returned**. It must never be presented as exhaustive absence.
+
+Ask-Graph does not implement recursive traversal. An agent that needs another hop must make another explicit query against an exact node ID.
+
+### Canonical trace validation
+
+Adapter construction fails closed unless:
+
+- the projection schema is exact;
+- canonical graph and AnalysisResult validate;
+- projection source analysis/session/snapshot identity matches the canonical result;
+- the stored AnalysisResult digest matches a freshly computed canonical digest;
+- Presentation node/edge/Claim/Coverage counts match canonical counts;
+- every Presentation canonical index/ID/kind/endpoints/type/status/link identity still matches its canonical source, including Claim subject node IDs and Coverage node IDs.
+
+The adapter clones and freezes its input snapshot so later caller mutation cannot silently change the agent's retrieval source.
+
+### Trust boundary for agent consumers
+
+Every manifest/response marks:
+
+`repository_runtime_external_text = UNTRUSTED_DATA_NOT_INSTRUCTIONS`
+
+and:
+
+`instruction_authority = false`
+
+Labels, paths, source-like strings, Claim rationales, Evidence payloads, Coverage reasons, runtime values, Markdown-like text, HTML-like text, and prompt-like text remain data even when returned through `GET_REF` or `NODE_CONTEXT`.
+
+Unknown query fields are rejected rather than ignored. A caller cannot smuggle an `instructions` or similar field into the Ask-Graph operation envelope.
+
+### Package surface
+
+AI-agent consumers use the explicit package subpath:
+
+`kneekura-code-lab/ask-graph`
+
+It exports the Ask-Graph adapter/contracts and the existing Explorer Projection builder needed to create a traceable retrieval snapshot from canonical Graph + AnalysisResult.
+
+Existing `./plugin` and `./mailbox` exports remain unchanged.
+
+### Non-goals
+
+Ask-Graph does not replace:
+
+- `core.analyze`;
+- `core.expand`;
+- `core.get`;
+- ReasoningBridge;
+- the CORE plugin adapter;
+- Human Explorer;
+- Change Impact;
+- a future confidence/evidence inspector.
+
+`src/core/**` remains unchanged. Classic `serve` remains the default Viewer. The final remaining ROADMAP item after Ask-Graph is confidence/evidence inspector.

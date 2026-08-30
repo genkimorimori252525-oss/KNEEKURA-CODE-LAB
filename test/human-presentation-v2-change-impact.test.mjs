@@ -386,7 +386,7 @@ test('change impact remains Presentation-only, CI-covered, Classic-default and l
   assert.equal(pkg.scripts.serve,'node src/cli.mjs serve');
   assert.match(cli,/cmd === 'serve'/);
   assert.match(road,/- \[x\] change impact view/);
-  assert.match(road,/- \[ \] ask-graph adapter for AI agents/);
+  assert.match(road,/- \[x\] ask-graph adapter for AI agents/);
   assert.match(road,/- \[ \] confidence\/evidence inspector/);
   assert.match(doc,/Change Impact View Presentation contract/);
   assert.match(

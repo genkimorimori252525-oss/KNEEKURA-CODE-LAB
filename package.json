@@ -6,7 +6,8 @@
   "description": "Minecraft/Forge aware code graph laboratory for private repository analysis.",
   "exports": {
     "./plugin": "./src/plugin.mjs",
-    "./mailbox": "./src/mailbox.mjs"
+    "./mailbox": "./src/mailbox.mjs",
+    "./ask-graph": "./src/ask-graph.mjs"
   },
   "scripts": {
     "scan": "node src/cli.mjs scan",
@@ -23,7 +24,8 @@
     "test:presentation-p3": "node --test test/human-presentation-v2-p3.test.mjs",
     "test:presentation-p4": "node --test test/human-presentation-v2-p4.test.mjs",
     "test:presentation-guided-tour": "node --test test/human-presentation-v2-guided-tour.test.mjs",
-    "test:presentation-change-impact": "node --test test/human-presentation-v2-change-impact.test.mjs"
+    "test:presentation-change-impact": "node --test test/human-presentation-v2-change-impact.test.mjs",
+    "test:presentation-ask-graph": "node --test test/human-presentation-v2-ask-graph.test.mjs"
   },
   "engines": {
     "node": ">=20"
