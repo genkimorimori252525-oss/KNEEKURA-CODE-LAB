@@ -46,6 +46,9 @@ import {
   CHANGE_IMPACT_MAX_ITEMS,
   createExplorerChangeImpact
 } from '../../../src/presentation/explorer/impact.mjs';
+import {
+  createExplorerConfidenceEvidenceInspector
+} from '../../../src/presentation/explorer/inspector.mjs';
 
 const elk = new ELK();
 
@@ -386,6 +389,15 @@ function ExplorerCanvas({ projection }) {
       selectedNodeId
     ]
   );
+  const confidenceEvidenceInspector = useMemo(
+    () => selectedNodeId
+      ? createExplorerConfidenceEvidenceInspector(
+          projection,
+          selectedNodeId
+        )
+      : null,
+    [projection, selectedNodeId]
+  );
   const edgeDetail = useMemo(
     () => selectedEdgeId
       ? createExplorerSemanticEdgeDetail(
@@ -705,6 +717,7 @@ function ExplorerCanvas({ projection }) {
             <NodeDetail
               detail={detail}
               semantic={semanticNodeDetail}
+              inspector={confidenceEvidenceInspector}
             />
           ) : (
             <p className="explorer-empty">
@@ -1081,7 +1094,7 @@ function GuidedTourPanel({
   );
 }
 
-function NodeDetail({ detail, semantic }) {
+function NodeDetail({ detail, semantic, inspector }) {
   return (
     <div className="explorer-detail-body">
       <dl>
@@ -1157,6 +1170,10 @@ function NodeDetail({ detail, semantic }) {
         ))}
       </ul>
 
+      <ConfidenceEvidenceInspector
+        inspector={inspector}
+      />
+
       <h3>Coverage trace</h3>
       <ul className="explorer-semantic-trace">
         {(semantic?.coverage ?? []).map(item => (
@@ -1172,6 +1189,206 @@ function NodeDetail({ detail, semantic }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function ConfidenceEvidenceInspector({
+  inspector
+}) {
+  if (!inspector) return null;
+
+  return (
+    <section className="explorer-confidence-inspector">
+      <h3>Confidence / Evidence Inspector</h3>
+      <p className="explorer-inspector-disclaimer">
+        Exact canonical fields only — no score,
+        ranking, or inferred conclusion.
+      </p>
+
+      {inspector.claims.length === 0 ? (
+        <p className="explorer-empty">
+          No canonical Claim is attached to this node.
+        </p>
+      ) : (
+        <div className="explorer-inspector-claims">
+          {inspector.claims.map(claim => (
+            <article
+              key={claim.claim_id}
+              className="explorer-inspector-claim"
+            >
+              <div className="explorer-inspector-heading">
+                <code>{claim.claim_id}</code>
+                <SemanticBadge
+                  label={claim.status}
+                  tone="neutral"
+                />
+              </div>
+
+              <dl>
+                <dt>Type</dt>
+                <dd>{claim.type}</dd>
+                <dt>Confidence</dt>
+                <dd>{claim.confidence.level}</dd>
+                <dt>Confidence rationale</dt>
+                <dd>{claim.confidence.rationale}</dd>
+                <dt>Predicate</dt>
+                <dd>{claim.predicate}</dd>
+                <dt>Object / value</dt>
+                <dd>
+                  <pre>{JSON.stringify(
+                    claim.object_or_value,
+                    null,
+                    2
+                  )}</pre>
+                </dd>
+                <dt>Coverage</dt>
+                <dd>
+                  <code>{claim.coverage.id}</code>
+                  {' · '}
+                  {claim.coverage.status}
+                  {' · '}
+                  {claim.coverage.role}
+                </dd>
+                <dt>Dependency Claims</dt>
+                <dd>
+                  {claim.dependency_claim_ids.length
+                    ? claim.dependency_claim_ids.join(', ')
+                    : 'none'}
+                </dd>
+                <dt>Provenance refs</dt>
+                <dd>
+                  {claim.provenance_refs.length
+                    ? claim.provenance_refs.join(', ')
+                    : 'none'}
+                </dd>
+                <dt>Verifier results</dt>
+                <dd>{claim.verifier_results.length}</dd>
+              </dl>
+
+              {claim.unresolved_reason ? (
+                <div className="explorer-inspector-note">
+                  <strong>Unresolved reason</strong>
+                  <p>{claim.unresolved_reason}</p>
+                </div>
+              ) : null}
+
+              <EvidenceLinkGroup
+                title="Evidence links"
+                items={claim.evidence_links}
+              />
+              <EvidenceLinkGroup
+                title="Counterevidence links"
+                items={claim.counterevidence_links}
+              />
+
+              <details>
+                <summary>Exact verifier records</summary>
+                <pre>{JSON.stringify(
+                  claim.verifier_results,
+                  null,
+                  2
+                )}</pre>
+              </details>
+            </article>
+          ))}
+        </div>
+      )}
+
+      <details>
+        <summary>
+          Node Coverage ({inspector.node_coverage.length})
+        </summary>
+        <pre>{JSON.stringify(
+          inspector.node_coverage,
+          null,
+          2
+        )}</pre>
+      </details>
+    </section>
+  );
+}
+
+function EvidenceLinkGroup({
+  title,
+  items
+}) {
+  return (
+    <div className="explorer-inspector-evidence-group">
+      <h4>{title}</h4>
+      {items.length === 0 ? (
+        <p className="explorer-empty">none</p>
+      ) : (
+        <ul>
+          {items.map(item => (
+            <li
+              key={
+                item.source_field + ':' +
+                item.canonical_link_index + ':' +
+                item.link.evidence_id
+              }
+            >
+              <div>
+                <code>{item.link.evidence_id}</code>
+                {' · '}
+                {item.link.role}
+                {' · '}
+                {item.link.strength}
+              </div>
+              {item.link.rationale ? (
+                <p>{item.link.rationale}</p>
+              ) : null}
+
+              {item.record_status === 'INLINE' ? (
+                <div className="explorer-inspector-evidence-record">
+                  <dl>
+                    <dt>Record</dt>
+                    <dd>INLINE</dd>
+                    <dt>Kind</dt>
+                    <dd>{item.evidence.kind}</dd>
+                    <dt>Trust class</dt>
+                    <dd>{item.evidence.trust_class}</dd>
+                    <dt>Provider</dt>
+                    <dd>
+                      {item.evidence.provider_id}
+                      {' @ '}
+                      {item.evidence.provider_version}
+                    </dd>
+                    <dt>Integrity</dt>
+                    <dd>
+                      <code>
+                        {item.evidence.integrity_digest}
+                      </code>
+                    </dd>
+                  </dl>
+                  <details>
+                    <summary>Provenance</summary>
+                    <pre>{JSON.stringify(
+                      item.evidence.provenance,
+                      null,
+                      2
+                    )}</pre>
+                  </details>
+                  <details>
+                    <summary>Observation</summary>
+                    <pre>{JSON.stringify(
+                      item.evidence.observation,
+                      null,
+                      2
+                    )}</pre>
+                  </details>
+                </div>
+              ) : (
+                <p className="explorer-inspector-unavailable">
+                  Evidence body is unavailable inline.
+                  The canonical ref is preserved; this does
+                  not mean the Evidence is absent.
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
