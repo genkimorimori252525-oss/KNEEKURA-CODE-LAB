@@ -1,0 +1,115 @@
+name: Stage canonical fixture binary bridge
+
+on:
+  push:
+    branches:
+      - jolly/fixture-binary-bridge-v1
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kneekura-fixture-binary-bridge
+  cancel-in-progress: false
+
+jobs:
+  stage:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: [self-hosted, Windows, X64, kneekura-code-lab]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: jolly/fixture-binary-bridge-v1
+          fetch-depth: 1
+
+      - name: Locate exact canonical ZIP and stage base64 chunks
+        shell: powershell
+        env:
+          EXPECTED_SHA256: 12079e1d5dc6d433fce8a5f8857a708424c1ba149257fae91880594154effa06
+          EXPECTED_SIZE: "1677805"
+          ORIGINAL_NAME: 3e8dc177-0f87-4c7d-ae50-997e4ee4b920.zip
+          STAGE_DIR: fixture-binary-bridge/reimu-basic-1.20.1-v1
+          CHUNK_CHARS: "160000"
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $expected = $env:EXPECTED_SHA256.ToLowerInvariant()
+          $roots = @(
+            (Join-Path $env:USERPROFILE 'Downloads'),
+            (Join-Path $env:USERPROFILE 'Desktop'),
+            (Join-Path $env:USERPROFILE 'Documents'),
+            (Join-Path $env:USERPROFILE 'OneDrive')
+          ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -Unique
+
+          $candidates = New-Object System.Collections.Generic.List[System.IO.FileInfo]
+          foreach ($root in $roots) {
+            Get-ChildItem -LiteralPath $root -Filter $env:ORIGINAL_NAME -File -Recurse -ErrorAction SilentlyContinue |
+              ForEach-Object { $candidates.Add($_) }
+          }
+          if ($candidates.Count -eq 0) {
+            foreach ($root in $roots) {
+              Get-ChildItem -LiteralPath $root -Filter '*.zip' -File -Recurse -ErrorAction SilentlyContinue |
+                Where-Object { $_.Length -eq [int64]$env:EXPECTED_SIZE } |
+                Select-Object -First 100 |
+                ForEach-Object { $candidates.Add($_) }
+            }
+          }
+
+          $source = $null
+          foreach ($candidate in ($candidates | Sort-Object FullName -Unique)) {
+            $hash = (Get-FileHash -LiteralPath $candidate.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            Write-Host "CANDIDATE=$($candidate.FullName) SIZE=$($candidate.Length) SHA256=$hash"
+            if ($hash -eq $expected) {
+              $source = $candidate
+              break
+            }
+          }
+          if ($null -eq $source) {
+            throw "Canonical fixture ZIP with SHA256 $expected was not found in user roots"
+          }
+
+          if ($source.Length -ne [int64]$env:EXPECTED_SIZE) {
+            throw "Canonical fixture size mismatch: expected $env:EXPECTED_SIZE, got $($source.Length)"
+          }
+
+          $bytes = [System.IO.File]::ReadAllBytes($source.FullName)
+          $actual = [BitConverter]::ToString([Security.Cryptography.SHA256]::HashData($bytes)).Replace('-','').ToLowerInvariant()
+          if ($actual -ne $expected) {
+            throw "Pre-stage hash mismatch: expected $expected, got $actual"
+          }
+
+          $base64 = [Convert]::ToBase64String($bytes)
+          $stage = Join-Path $env:GITHUB_WORKSPACE $env:STAGE_DIR
+          if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
+          New-Item -ItemType Directory -Force $stage | Out-Null
+
+          $chunkChars = [int]$env:CHUNK_CHARS
+          $chunkCount = [Math]::Ceiling($base64.Length / [double]$chunkChars)
+          for ($i = 0; $i -lt $chunkCount; $i++) {
+            $start = $i * $chunkChars
+            $length = [Math]::Min($chunkChars, $base64.Length - $start)
+            $chunk = $base64.Substring($start, $length)
+            $name = ('chunk-{0:D3}.txt' -f $i)
+            [System.IO.File]::WriteAllText((Join-Path $stage $name), $chunk, [Text.Encoding]::ASCII)
+          }
+
+          $manifest = [ordered]@{
+            sourceSha256 = $actual
+            sourceSize = $bytes.Length
+            base64Length = $base64.Length
+            chunkChars = $chunkChars
+            chunkCount = [int]$chunkCount
+            originalName = $env:ORIGINAL_NAME
+          }
+          $manifest | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $stage 'manifest.json') -Encoding utf8
+
+          & git config user.name 'kneekura-fixture-bridge'
+          & git config user.email 'kneekura-fixture-bridge@users.noreply.github.com'
+          & git add -- $env:STAGE_DIR
+          & git commit -m '[skip ci] Stage canonical fixture binary bridge'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & git push origin "HEAD:refs/heads/$env:GITHUB_REF_NAME"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          Write-Host "SOURCE=$($source.FullName)"
+          Write-Host "SOURCE_SHA256=$actual"
+          Write-Host "CHUNK_COUNT=$chunkCount"
