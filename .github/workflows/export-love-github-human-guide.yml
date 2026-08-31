@@ -23,7 +23,7 @@ jobs:
         env:
           KNEEKURA_HUMAN_GUIDE_OUT: ${{ github.workspace }}/generated-human-guide
       - name: Commit generated ZIP to disposable branch
-        shell: pwsh
+        shell: powershell
         run: |
           Copy-Item "generated-human-guide/guide/love-github-human-guide.zip" "love-github-human-guide.zip" -Force
           git config user.name "github-actions[bot]"
