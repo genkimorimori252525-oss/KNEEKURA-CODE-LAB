@@ -7,7 +7,8 @@
   "exports": {
     "./plugin": "./src/plugin.mjs",
     "./mailbox": "./src/mailbox.mjs",
-    "./ask-graph": "./src/ask-graph.mjs"
+    "./ask-graph": "./src/ask-graph.mjs",
+    "./human-analysis": "./src/human-analysis/index.mjs"
   },
   "scripts": {
     "scan": "node src/cli.mjs scan",
