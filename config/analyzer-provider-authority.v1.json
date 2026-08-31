@@ -37,6 +37,7 @@
       "supported_languages",
       "capabilities",
       "origin",
+      "authority_level",
       "required_tools",
       "source_range_support",
       "semantic_identity_support",
@@ -247,5 +248,32 @@
     "AI_CONFIDENCE_IS_NOT_CANONICAL_AUTHORITY",
     "UNKNOWN_REMAINS_UNKNOWN_UNTIL_EVIDENCE_RESOLVES_IT",
     "PROVIDER_FAILURE_DOES_NOT_ERASE_OTHER_PROVIDER_EVIDENCE"
-  ]
+  ],
+  "authority_levels": {
+    "values": [
+      "SYNTAX_ONLY",
+      "STRUCTURAL_EVIDENCE",
+      "RESOLVED_SEMANTIC_EVIDENCE",
+      "RUNTIME_OBSERVED_EVIDENCE",
+      "IMPORTED_MAPPED_EVIDENCE",
+      "AI_INTERPRETATION_ONLY"
+    ],
+    "direct_canonicalization_for_any_level": false,
+    "canonical_promotion_boundary": "EXISTING_KNEEKURA_CORE_VERIFICATION"
+  },
+  "provider_registry": {
+    "schema": "kneekura.analyzer-provider-registry/v1",
+    "entry_required": [
+      "provider_id",
+      "manifest_ref",
+      "enabled",
+      "execution_preference",
+      "fallback_policy"
+    ],
+    "multiple_providers_per_capability_allowed": true,
+    "execution_preference_may_control_scheduling_or_fallback": true,
+    "execution_preference_may_decide_truth": false,
+    "evidence_from_executed_providers_is_preserved": true,
+    "disabled_or_unavailable_provider_requires_coverage_reason": true
+  }
 }
