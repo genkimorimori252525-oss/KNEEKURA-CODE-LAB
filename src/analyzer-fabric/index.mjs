@@ -4,3 +4,4 @@ export * from './fusion.mjs';
 export * from './providers/index.mjs';
 export * from './core-evidence.mjs';
 export * from './typescript-vertical.mjs';
+export * from './polyglot.mjs';
