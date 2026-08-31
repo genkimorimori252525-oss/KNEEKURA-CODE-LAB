@@ -80,12 +80,6 @@ function readEmbeddedExperience() {
   );
   const raw = node?.textContent?.trim() ?? '';
   if (!raw) return null;
-  if (
-    raw ===
-    '__KNEEKURA_HUMAN_EXPERIENCE_BASE64_V1__'
-  ) {
-    return null;
-  }
   try {
     const bytes = Uint8Array.from(
       atob(raw),
