@@ -61,6 +61,7 @@ version
 supported_languages
 capabilities
 origin
+authority_level
 required_tools
 source_range_support
 semantic_identity_support
