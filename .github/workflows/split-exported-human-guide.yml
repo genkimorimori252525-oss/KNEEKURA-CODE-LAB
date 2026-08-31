@@ -1,0 +1,39 @@
+name: Split Exported Human Guide ZIP
+
+on:
+  push:
+    branches:
+      - tmp/export-love-github-human-guide-20260831
+
+permissions:
+  contents: write
+
+jobs:
+  split:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: [self-hosted, Windows, X64, kneekura-code-lab]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Split ZIP as base64 transport chunks
+        shell: powershell
+        run: |
+          $bytes = [System.IO.File]::ReadAllBytes("love-github-human-guide.zip")
+          $b64 = [Convert]::ToBase64String($bytes)
+          $dir = "_transport_chunks"
+          if (Test-Path $dir) { Remove-Item $dir -Recurse -Force }
+          New-Item -ItemType Directory -Path $dir | Out-Null
+          $size = 6000
+          $count = [Math]::Ceiling($b64.Length / $size)
+          for ($i = 0; $i -lt $count; $i++) {
+            $start = $i * $size
+            $len = [Math]::Min($size, $b64.Length - $start)
+            $chunk = $b64.Substring($start, $len)
+            $name = "chunk-{0:D3}.txt" -f ($i + 1)
+            [System.IO.File]::WriteAllText((Join-Path $dir $name), $chunk, [System.Text.Encoding]::ASCII)
+          }
+          [System.IO.File]::WriteAllText((Join-Path $dir "manifest.txt"), ("count={0}`nbase64_length={1}`nzip_bytes={2}`n" -f $count,$b64.Length,$bytes.Length), [System.Text.Encoding]::ASCII)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add _transport_chunks
+          git commit -m "artifact: split Human Guide ZIP for transport"
+          git push origin "HEAD:${{ github.ref_name }}"

@@ -5,29 +5,9 @@ on:
     branches:
       - tmp/export-love-github-human-guide-20260831
 
-permissions:
-  contents: write
-
 jobs:
   export:
-    if: github.actor != 'github-actions[bot]'
+    if: ${{ false }}
     runs-on: [self-hosted, Windows, X64, kneekura-code-lab]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm install --no-audit --no-fund --package-lock=false
-      - name: Generate production Human Guide ZIP
-        run: node scripts/export-love-github-human-guide.mjs
-        env:
-          KNEEKURA_HUMAN_GUIDE_OUT: ${{ github.workspace }}/generated-human-guide
-      - name: Commit generated ZIP to disposable branch
-        shell: powershell
-        run: |
-          Copy-Item "generated-human-guide/guide/love-github-human-guide.zip" "love-github-human-guide.zip" -Force
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add love-github-human-guide.zip
-          git commit -m "artifact: export Love-Github human guide"
-          git push origin "HEAD:${{ github.ref_name }}"
+      - run: echo disabled
