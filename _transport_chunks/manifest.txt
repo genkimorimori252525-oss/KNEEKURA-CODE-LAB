@@ -1,0 +1,3 @@
+count=10
+base64_length=54292
+zip_bytes=40719
