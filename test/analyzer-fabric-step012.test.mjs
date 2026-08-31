@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import * as tsModule from 'typescript';
+import { createRequire } from 'node:module';
 
 import {
   createTypeScriptCompilerProvider,
@@ -15,7 +15,8 @@ import {
 } from '../src/analyzer-fabric/index.mjs';
 
 const execFileAsync = promisify(execFile);
-const ts = tsModule.createProgram ? tsModule : tsModule.default;
+const require = createRequire(import.meta.url);
+const ts = require('typescript');
 
 async function git(root, args) {
   const { stdout } = await execFileAsync('git', ['-C', root, ...args], { encoding: 'utf8', windowsHide: true });

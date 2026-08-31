@@ -4,7 +4,6 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
 import { runTypeScriptSemanticVertical } from '../src/analyzer-fabric/typescript-vertical.mjs';
 
 const execFileAsync = promisify(execFile);
@@ -79,9 +78,7 @@ async function resolveTargetCommit(tempRoot, sourceRoot) {
 
 async function loadTypeScript(root) {
   const require = createRequire(path.join(root, 'package.json'));
-  const resolved = require.resolve('typescript');
-  const imported = await import(pathToFileURL(resolved).href);
-  return imported.default ?? imported;
+  return require('typescript');
 }
 
 async function main() {
