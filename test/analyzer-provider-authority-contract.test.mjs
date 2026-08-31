@@ -69,6 +69,7 @@ test('provider manifest and observation envelope preserve provenance and provide
     'supported_languages',
     'capabilities',
     'origin',
+    'authority_level',
     'required_tools',
     'source_range_support',
     'semantic_identity_support',
@@ -97,6 +98,45 @@ test('provider manifest and observation envelope preserve provenance and provide
   assert.equal(config.observation.preserve_provider_specific_payload_or_ref, true);
   assert.equal(config.observation.unknown_source_range_is_omitted_not_zero, true);
   assert.equal(config.source_range_identity.zero_is_not_unknown_sentinel, true);
+});
+
+test('provider registry and authority levels cannot become truth ranking', async () => {
+  const config = await contract();
+
+  assert.equal(
+    config.provider_registry.schema,
+    'kneekura.analyzer-provider-registry/v1'
+  );
+  assert.equal(
+    config.provider_registry.multiple_providers_per_capability_allowed,
+    true
+  );
+  assert.equal(
+    config.provider_registry.execution_preference_may_control_scheduling_or_fallback,
+    true
+  );
+  assert.equal(
+    config.provider_registry.execution_preference_may_decide_truth,
+    false
+  );
+  assert.equal(
+    config.authority_levels.direct_canonicalization_for_any_level,
+    false
+  );
+  assert.equal(
+    config.authority_levels.canonical_promotion_boundary,
+    'EXISTING_KNEEKURA_CORE_VERIFICATION'
+  );
+  for (const level of [
+    'SYNTAX_ONLY',
+    'STRUCTURAL_EVIDENCE',
+    'RESOLVED_SEMANTIC_EVIDENCE',
+    'RUNTIME_OBSERVED_EVIDENCE',
+    'IMPORTED_MAPPED_EVIDENCE',
+    'AI_INTERPRETATION_ONLY'
+  ]) {
+    assert.ok(config.authority_levels.values.includes(level), level);
+  }
 });
 
 test('SCIP, Tree-sitter, structural, runtime and AI authority boundaries fail closed', async () => {
@@ -176,6 +216,8 @@ test('normative documentation states the anti-fabrication boundaries', async () 
   for (const phrase of [
     'providers observe; CORE decides',
     'Tree-sitter is syntax authority only',
+    'registry is a catalog and execution/fallback policy surface',
+    'No authority level directly canonicalizes a fact',
     'Fusion is evidence-preserving, not winner-selecting',
     'Names are not identities',
     'External analyzers run as untrusted processes',
