@@ -17,6 +17,9 @@ jobs:
       - name: Validate live Love-Github TypeScript vertical
         if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/typescript-semantic-vertical')
         run: npm run validate:love-github-typescript-live
+      - name: Validate live Love-Github Human Guide acceptance
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/love-github-human-guide-acceptance')
+        run: npm run validate:love-github-human-guide-live
       - run: npm run presentation:guard
       - run: npm run test:presentation-p1
       - run: npm run test:presentation-p2
