@@ -1,0 +1,388 @@
+{
+  "schema": "kneekura.analyzer-provider-authority/v1",
+  "status": "FROZEN",
+  "intent": {
+    "provider_fabric_role": "OBSERVATION_PRODUCTION_AND_NORMALIZATION",
+    "canonical_fact_authority": "EXISTING_KNEEKURA_CORE_VERIFICATION",
+    "provider_priority_decides_truth": false,
+    "last_writer_wins": false,
+    "provider_direct_canonical_graph_write": false
+  },
+  "capability_taxonomy": [
+    "SYNTAX",
+    "DECLARATION",
+    "SYMBOL",
+    "REFERENCE",
+    "CROSS_FILE_REFERENCE",
+    "CALL",
+    "TYPE",
+    "INHERITANCE",
+    "CONFIG",
+    "BUILD",
+    "EMBEDDED_LANGUAGE",
+    "FRAMEWORK",
+    "RUNTIME",
+    "AI_SEMANTIC"
+  ],
+  "provider_manifest": {
+    "schema": "kneekura.analyzer-provider-manifest/v1",
+    "required": [
+      "id",
+      "version",
+      "supported_languages",
+      "capabilities",
+      "capability_contracts",
+      "origin",
+      "authority_level",
+      "required_tools",
+      "toolchain_fingerprint",
+      "source_range_support",
+      "semantic_identity_support",
+      "timeout_ms",
+      "resource_limits",
+      "cacheability",
+      "provenance"
+    ],
+    "origins": [
+      "BUILTIN_DETERMINISTIC",
+      "EXTERNAL_DETERMINISTIC",
+      "IMPORTED_ARTIFACT",
+      "RUNTIME",
+      "STRUCTURAL_RULE",
+      "AI"
+    ],
+    "capability_contract_entry_required": [
+      "capability",
+      "authority_level",
+      "support_status"
+    ],
+    "capability_contracts_must_cover_declared_capabilities": true,
+    "top_level_authority_level_is_default_only": true,
+    "capability_contract_may_narrow_default_authority": true,
+    "capability_contract_may_silently_expand_authority": false
+  },
+  "observation": {
+    "schema": "kneekura.analyzer-observation/v1",
+    "required": [
+      "provider_id",
+      "provider_version",
+      "snapshot",
+      "capability",
+      "observation_type",
+      "subject",
+      "strength",
+      "origin",
+      "provenance"
+    ],
+    "optional": [
+      "source_file",
+      "source_range",
+      "object",
+      "raw_provider_ref",
+      "provider_payload"
+    ],
+    "strengths": [
+      "EXACT",
+      "RESOLVED",
+      "STRUCTURAL",
+      "HEURISTIC",
+      "RUNTIME_OBSERVED"
+    ],
+    "preserve_provider_specific_payload_or_ref": true,
+    "unknown_source_range_is_omitted_not_zero": true,
+    "strength_labels_are_descriptive_not_truth_priority": true
+  },
+  "source_range_identity": {
+    "required_context": [
+      "repository_id",
+      "snapshot_id",
+      "path"
+    ],
+    "canonical_fusion_coordinates": {
+      "preferred_fields": [
+        "content_digest",
+        "start_byte",
+        "end_byte"
+      ],
+      "byte_unit": "UTF8_BYTES",
+      "byte_base": 0,
+      "interval": "HALF_OPEN",
+      "exact_range_fusion_requires_same_content_digest_and_byte_offsets": true
+    },
+    "presentation_projection": {
+      "start_line_base": 1,
+      "end_line_base": 1,
+      "columns_optional": true,
+      "columns_are_not_exact_identity_without_declared_unit": true,
+      "existing_core_v1_range_shape_is_preserved": true
+    },
+    "native_coordinate_metadata": {
+      "retain_provider_native_coordinates": true,
+      "required_when_normalization_is_not_lossless": true,
+      "fields": [
+        "provider_coordinate_system",
+        "line_base",
+        "column_base",
+        "column_unit",
+        "end_semantics"
+      ]
+    },
+    "unknown_coordinates_are_omitted_not_zero_sentinel": true,
+    "ambiguous_normalization_may_be_exact_symbol_identity": false
+  },
+  "authority_boundaries": {
+    "scip_or_compiler_semantic_index": {
+      "may_emit": [
+        "SYMBOL",
+        "REFERENCE",
+        "CROSS_FILE_REFERENCE",
+        "CALL",
+        "TYPE",
+        "INHERITANCE"
+      ],
+      "may_emit_strengths": [
+        "EXACT",
+        "RESOLVED"
+      ],
+      "direct_canonicalization": false
+    },
+    "tree_sitter": {
+      "may_emit": [
+        "SYNTAX",
+        "DECLARATION"
+      ],
+      "may_emit_strengths": [
+        "STRUCTURAL"
+      ],
+      "may_resolve_cross_file_semantic_target": false,
+      "direct_canonicalization": false
+    },
+    "structural_rules": {
+      "may_emit": [
+        "SYNTAX",
+        "FRAMEWORK",
+        "CONFIG"
+      ],
+      "may_emit_strengths": [
+        "STRUCTURAL",
+        "HEURISTIC"
+      ],
+      "may_resolve_cross_file_semantic_target": false,
+      "direct_canonicalization": false
+    },
+    "imported_analyzers": {
+      "provenance_and_version_required": true,
+      "mapping_semantics_must_be_explicit": true,
+      "direct_canonicalization": false
+    },
+    "runtime": {
+      "may_emit_strengths": [
+        "RUNTIME_OBSERVED"
+      ],
+      "observed_event_does_not_imply_unobserved_event": true,
+      "static_and_runtime_semantics_remain_distinct": true,
+      "direct_canonicalization": false
+    },
+    "ai": {
+      "may_emit_capability": "AI_SEMANTIC",
+      "human_output_class": "AI_INTERPRETATION",
+      "may_promote_canonical_fact": false,
+      "majority_vote_may_promote_canonical_fact": false
+    }
+  },
+  "fusion": {
+    "mode": "EVIDENCE_PRESERVING",
+    "rules": [
+      "PRESERVE_CONFLICTING_OBSERVATIONS",
+      "NO_PROVIDER_PRIORITY_WINS",
+      "NO_LAST_WRITER_WINS",
+      "DO_NOT_DROP_COUNTEREVIDENCE",
+      "DO_NOT_TREAT_ABSENCE_AS_NEGATIVE_EVIDENCE",
+      "PROMOTION_REQUIRES_EXISTING_CORE_VERIFICATION"
+    ]
+  },
+  "symbol_identity": {
+    "default": "FAIL_CONSERVATIVE",
+    "merge_only_when": [
+      "SEMANTIC_IDENTITY_EXACT",
+      "OR_LANGUAGE_SNAPSHOT_SIGNATURE_AND_RANGE_PROVE_SAME_ENTITY"
+    ],
+    "ambiguous_action": "KEEP_SEPARATE_AND_CORRELATE_AS_CANDIDATES",
+    "name_only_merge_allowed": false,
+    "false_positive_merge_is_worse_than_false_negative_split": true,
+    "identity_inputs": [
+      "semantic_symbol_id_when_available",
+      "language",
+      "repository_id",
+      "snapshot_id",
+      "file_path",
+      "source_range",
+      "signature",
+      "provider_namespace"
+    ]
+  },
+  "coverage": {
+    "unit": "CAPABILITY_PER_SCOPE",
+    "required_fields": [
+      "capability",
+      "support_status",
+      "execution_status",
+      "provider_refs"
+    ],
+    "support_reason_required_for": [
+      "PARTIAL",
+      "NONE"
+    ],
+    "execution_reason_required_for": [
+      "PARTIAL",
+      "FAILED",
+      "UNEXPLORED",
+      "SKIPPED"
+    ],
+    "support_available_does_not_imply_execution_analyzed": true,
+    "provider_failure_becomes_coverage_gap": true,
+    "missing_language_support_must_not_be_hidden": true
+  },
+  "provider_execution_sandbox": {
+    "isolated_workspace": true,
+    "credentials_available_to_provider": false,
+    "stdout_stderr_captured": true,
+    "timeout_required": true,
+    "cpu_budget_required": true,
+    "memory_budget_required": true,
+    "kill_process_tree_on_timeout": true,
+    "network_default": "DENY_UNLESS_EXPLICITLY_DECLARED_AND_ALLOWED",
+    "failure_isolated_from_other_providers": true
+  },
+  "cache": {
+    "deterministic_provider_key": [
+      "repository_snapshot_sha_or_snapshot_id",
+      "provider_id",
+      "provider_version",
+      "provider_config_digest",
+      "toolchain_fingerprint"
+    ],
+    "ai_semantic_key": [
+      "evidence_digest",
+      "agent_or_prompt_version",
+      "model_provider_configuration"
+    ],
+    "stale_cache_may_be_canonical_evidence": false
+  },
+  "versioning": {
+    "exact_provider_version_in_provenance": true,
+    "provider_config_digest_in_run_receipt": true,
+    "floating_latest_for_canonical_run": false,
+    "incompatible_contract_change_requires_new_schema_version": true,
+    "exact_toolchain_fingerprint_in_run_receipt": true
+  },
+  "oss_reuse_policy": {
+    "preference_order": [
+      "REUSE_EXISTING_CLI_API_INDEXER",
+      "ADAPTER_STABLE_EXPORT",
+      "KNEEKURA_NATIVE_IMPLEMENTATION",
+      "PINNED_VENDOR_LAST_RESORT"
+    ],
+    "wholesale_fork_merge_default": false,
+    "vendoring_requires": [
+      "PINNED_VERSION_OR_COMMIT",
+      "LICENSE_PROVENANCE",
+      "LOCAL_CHANGE_RECORD",
+      "SECURITY_REVIEW"
+    ]
+  },
+  "anti_fabrication_invariants": [
+    "TREE_SITTER_SYNTAX_IS_NOT_RESOLVED_CALL_TARGET",
+    "STRUCTURAL_MATCH_IS_NOT_CROSS_FILE_SEMANTIC_IDENTITY",
+    "AI_CONFIDENCE_IS_NOT_CANONICAL_AUTHORITY",
+    "UNKNOWN_REMAINS_UNKNOWN_UNTIL_EVIDENCE_RESOLVES_IT",
+    "PROVIDER_FAILURE_DOES_NOT_ERASE_OTHER_PROVIDER_EVIDENCE"
+  ],
+  "authority_levels": {
+    "values": [
+      "SYNTAX_ONLY",
+      "STRUCTURAL_EVIDENCE",
+      "RESOLVED_SEMANTIC_EVIDENCE",
+      "RUNTIME_OBSERVED_EVIDENCE",
+      "IMPORTED_MAPPED_EVIDENCE",
+      "AI_INTERPRETATION_ONLY"
+    ],
+    "direct_canonicalization_for_any_level": false,
+    "canonical_promotion_boundary": "EXISTING_KNEEKURA_CORE_VERIFICATION",
+    "truth_ordering": "NONE",
+    "comparable_for_truth": false
+  },
+  "provider_registry": {
+    "schema": "kneekura.analyzer-provider-registry/v1",
+    "entry_required": [
+      "provider_id",
+      "manifest_ref",
+      "enabled",
+      "execution_preference",
+      "fallback_policy"
+    ],
+    "multiple_providers_per_capability_allowed": true,
+    "execution_preference_may_control_scheduling_or_fallback": true,
+    "execution_preference_may_decide_truth": false,
+    "evidence_from_executed_providers_is_preserved": true,
+    "disabled_or_unavailable_provider_requires_coverage_reason": true
+  },
+  "capability_support_statuses": [
+    "AVAILABLE",
+    "PARTIAL",
+    "NONE"
+  ],
+  "capability_execution_statuses": [
+    "ANALYZED",
+    "PARTIAL",
+    "FAILED",
+    "UNEXPLORED",
+    "SKIPPED"
+  ],
+  "negative_evidence": {
+    "provider_silence_is_negative_evidence": false,
+    "bounded_negative_claim_requires": [
+      "DECLARED_NEGATIVE_SEARCH_CAPABILITY",
+      "EXPLICIT_SCOPE",
+      "EXECUTION_STATUS_ANALYZED",
+      "COMPLETE_RELEVANT_SCOPE_COVERAGE",
+      "PROVENANCE"
+    ],
+    "syntax_or_structural_absence_may_prove_cross_file_absence": false
+  },
+  "provider_failure_semantics": {
+    "schema": "kneekura.analyzer-provider-failure/v1",
+    "required": [
+      "provider_id",
+      "provider_version",
+      "failure_type",
+      "message",
+      "scope",
+      "provenance"
+    ],
+    "types": [
+      "ANALYZER_UNSUPPORTED",
+      "ANALYZER_UNAVAILABLE",
+      "PARSE_FAILED",
+      "RUNTIME_IDENTITY_MISMATCH",
+      "TRUST_BOUNDARY_VIOLATION",
+      "INTERNAL_INVARIANT",
+      "ANALYZER_TIMEOUT",
+      "ANALYZER_RESOURCE_LIMIT",
+      "ANALYZER_TOOLCHAIN_MISMATCH"
+    ],
+    "failure_erases_other_provider_evidence": false,
+    "failure_requires_coverage_gap": true,
+    "core_ingest_requires_explicit_mapping": true
+  },
+  "legacy_compatibility_bridge": {
+    "scope": "EXISTING_CORE_V1_PROVIDER_WRAPPERS_ONLY",
+    "existing_graph_builder_mutation_may_continue_for_v1_compatibility": true,
+    "new_fabric_provider_direct_graph_builder_mutation_allowed": false,
+    "existing_provider_failure_shape_requires_explicit_adapter": true,
+    "existing_dependency_fingerprint_shape_requires_explicit_adapter": true,
+    "migration_rule": "WRAP_AND_PRESERVE_EXISTING_CORE_SEMANTICS_DO_NOT_REINTERPRET",
+    "exception_is_not_precedent_for_new_providers": true,
+    "step_009_changes_src_core_semantics": false
+  }
+}

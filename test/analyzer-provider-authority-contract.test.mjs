@@ -1,0 +1,390 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+
+async function read(relative) {
+  const text = await fs.readFile(path.join(ROOT, relative), 'utf8');
+  return text.replace(/\r\n/g, '\n');
+}
+
+async function contract() {
+  return JSON.parse(await read('config/analyzer-provider-authority.v1.json'));
+}
+
+test('provider authority contract is frozen and providers never win truth by priority', async () => {
+  const config = await contract();
+
+  assert.equal(config.schema, 'kneekura.analyzer-provider-authority/v1');
+  assert.equal(config.status, 'FROZEN');
+  assert.equal(config.intent.provider_priority_decides_truth, false);
+  assert.equal(config.intent.last_writer_wins, false);
+  assert.equal(config.intent.provider_direct_canonical_graph_write, false);
+  assert.equal(
+    config.intent.canonical_fact_authority,
+    'EXISTING_KNEEKURA_CORE_VERIFICATION'
+  );
+  assert.ok(config.fusion.rules.includes('NO_PROVIDER_PRIORITY_WINS'));
+  assert.ok(config.fusion.rules.includes('NO_LAST_WRITER_WINS'));
+  assert.ok(config.fusion.rules.includes('DO_NOT_DROP_COUNTEREVIDENCE'));
+});
+
+test('legacy CORE provider wrappers are bridged without weakening the new Fabric boundary', async () => {
+  const config = await contract();
+  const bridge = config.legacy_compatibility_bridge;
+
+  assert.equal(bridge.scope, 'EXISTING_CORE_V1_PROVIDER_WRAPPERS_ONLY');
+  assert.equal(
+    bridge.existing_graph_builder_mutation_may_continue_for_v1_compatibility,
+    true
+  );
+  assert.equal(
+    bridge.new_fabric_provider_direct_graph_builder_mutation_allowed,
+    false
+  );
+  assert.equal(bridge.existing_provider_failure_shape_requires_explicit_adapter, true);
+  assert.equal(bridge.existing_dependency_fingerprint_shape_requires_explicit_adapter, true);
+  assert.equal(
+    bridge.migration_rule,
+    'WRAP_AND_PRESERVE_EXISTING_CORE_SEMANTICS_DO_NOT_REINTERPRET'
+  );
+  assert.equal(bridge.exception_is_not_precedent_for_new_providers, true);
+  assert.equal(bridge.step_009_changes_src_core_semantics, false);
+});
+
+test('capability matrix is capability-scoped rather than language checkbox support', async () => {
+  const config = await contract();
+
+  for (const capability of [
+    'SYNTAX',
+    'DECLARATION',
+    'SYMBOL',
+    'REFERENCE',
+    'CROSS_FILE_REFERENCE',
+    'CALL',
+    'TYPE',
+    'INHERITANCE',
+    'CONFIG',
+    'BUILD',
+    'EMBEDDED_LANGUAGE',
+    'FRAMEWORK',
+    'RUNTIME',
+    'AI_SEMANTIC'
+  ]) {
+    assert.ok(config.capability_taxonomy.includes(capability), capability);
+  }
+
+  assert.deepEqual(
+    config.capability_support_statuses,
+    ['AVAILABLE', 'PARTIAL', 'NONE']
+  );
+  assert.deepEqual(
+    config.capability_execution_statuses,
+    ['ANALYZED', 'PARTIAL', 'FAILED', 'UNEXPLORED', 'SKIPPED']
+  );
+  assert.equal(config.coverage.unit, 'CAPABILITY_PER_SCOPE');
+  assert.equal(
+    config.coverage.support_available_does_not_imply_execution_analyzed,
+    true
+  );
+  assert.equal(config.coverage.provider_failure_becomes_coverage_gap, true);
+  assert.equal(config.coverage.missing_language_support_must_not_be_hidden, true);
+});
+
+test('provider manifest and observation envelope preserve provenance and provider detail', async () => {
+  const config = await contract();
+
+  for (const required of [
+    'id',
+    'version',
+    'supported_languages',
+    'capabilities',
+    'capability_contracts',
+    'origin',
+    'authority_level',
+    'required_tools',
+    'toolchain_fingerprint',
+    'source_range_support',
+    'semantic_identity_support',
+    'timeout_ms',
+    'resource_limits',
+    'cacheability',
+    'provenance'
+  ]) {
+    assert.ok(config.provider_manifest.required.includes(required), required);
+  }
+
+  for (const required of [
+    'provider_id',
+    'provider_version',
+    'snapshot',
+    'capability',
+    'observation_type',
+    'subject',
+    'strength',
+    'origin',
+    'provenance'
+  ]) {
+    assert.ok(config.observation.required.includes(required), required);
+  }
+
+  assert.equal(config.observation.preserve_provider_specific_payload_or_ref, true);
+  assert.equal(config.observation.unknown_source_range_is_omitted_not_zero, true);
+  assert.equal(
+    config.observation.strength_labels_are_descriptive_not_truth_priority,
+    true
+  );
+  assert.deepEqual(
+    config.provider_manifest.capability_contract_entry_required,
+    ['capability', 'authority_level', 'support_status']
+  );
+  assert.equal(
+    config.provider_manifest.capability_contracts_must_cover_declared_capabilities,
+    true
+  );
+  assert.equal(config.provider_manifest.top_level_authority_level_is_default_only, true);
+  assert.equal(
+    config.provider_manifest.capability_contract_may_silently_expand_authority,
+    false
+  );
+
+  assert.equal(
+    config.source_range_identity.canonical_fusion_coordinates.byte_unit,
+    'UTF8_BYTES'
+  );
+  assert.equal(config.source_range_identity.canonical_fusion_coordinates.byte_base, 0);
+  assert.equal(
+    config.source_range_identity.canonical_fusion_coordinates.interval,
+    'HALF_OPEN'
+  );
+  assert.equal(
+    config.source_range_identity.canonical_fusion_coordinates
+      .exact_range_fusion_requires_same_content_digest_and_byte_offsets,
+    true
+  );
+  assert.equal(config.source_range_identity.presentation_projection.start_line_base, 1);
+  assert.equal(
+    config.source_range_identity.presentation_projection
+      .columns_are_not_exact_identity_without_declared_unit,
+    true
+  );
+  assert.equal(
+    config.source_range_identity.native_coordinate_metadata
+      .retain_provider_native_coordinates,
+    true
+  );
+  assert.equal(
+    config.source_range_identity.unknown_coordinates_are_omitted_not_zero_sentinel,
+    true
+  );
+  assert.equal(
+    config.source_range_identity.ambiguous_normalization_may_be_exact_symbol_identity,
+    false
+  );
+});
+
+test('provider registry and authority levels cannot become truth ranking', async () => {
+  const config = await contract();
+
+  assert.equal(
+    config.provider_registry.schema,
+    'kneekura.analyzer-provider-registry/v1'
+  );
+  assert.equal(
+    config.provider_registry.multiple_providers_per_capability_allowed,
+    true
+  );
+  assert.equal(
+    config.provider_registry.execution_preference_may_control_scheduling_or_fallback,
+    true
+  );
+  assert.equal(
+    config.provider_registry.execution_preference_may_decide_truth,
+    false
+  );
+  assert.equal(
+    config.authority_levels.direct_canonicalization_for_any_level,
+    false
+  );
+  assert.equal(
+    config.authority_levels.canonical_promotion_boundary,
+    'EXISTING_KNEEKURA_CORE_VERIFICATION'
+  );
+  assert.equal(config.authority_levels.truth_ordering, 'NONE');
+  assert.equal(config.authority_levels.comparable_for_truth, false);
+  for (const level of [
+    'SYNTAX_ONLY',
+    'STRUCTURAL_EVIDENCE',
+    'RESOLVED_SEMANTIC_EVIDENCE',
+    'RUNTIME_OBSERVED_EVIDENCE',
+    'IMPORTED_MAPPED_EVIDENCE',
+    'AI_INTERPRETATION_ONLY'
+  ]) {
+    assert.ok(config.authority_levels.values.includes(level), level);
+  }
+});
+
+test('SCIP, Tree-sitter, structural, runtime and AI authority boundaries fail closed', async () => {
+  const config = await contract();
+  const boundaries = config.authority_boundaries;
+
+  assert.equal(
+    boundaries.scip_or_compiler_semantic_index.direct_canonicalization,
+    false
+  );
+  assert.equal(boundaries.tree_sitter.may_resolve_cross_file_semantic_target, false);
+  assert.equal(boundaries.tree_sitter.direct_canonicalization, false);
+  assert.equal(
+    boundaries.structural_rules.may_resolve_cross_file_semantic_target,
+    false
+  );
+  assert.equal(boundaries.runtime.static_and_runtime_semantics_remain_distinct, true);
+  assert.equal(boundaries.runtime.observed_event_does_not_imply_unobserved_event, true);
+  assert.equal(boundaries.ai.human_output_class, 'AI_INTERPRETATION');
+  assert.equal(boundaries.ai.may_promote_canonical_fact, false);
+  assert.equal(boundaries.ai.majority_vote_may_promote_canonical_fact, false);
+});
+
+test('negative evidence requires bounded search and complete execution coverage', async () => {
+  const config = await contract();
+
+  assert.equal(config.negative_evidence.provider_silence_is_negative_evidence, false);
+  assert.equal(
+    config.negative_evidence.syntax_or_structural_absence_may_prove_cross_file_absence,
+    false
+  );
+  for (const requirement of [
+    'DECLARED_NEGATIVE_SEARCH_CAPABILITY',
+    'EXPLICIT_SCOPE',
+    'EXECUTION_STATUS_ANALYZED',
+    'COMPLETE_RELEVANT_SCOPE_COVERAGE',
+    'PROVENANCE'
+  ]) {
+    assert.ok(
+      config.negative_evidence.bounded_negative_claim_requires.includes(requirement),
+      requirement
+    );
+  }
+});
+
+test('symbol identity fusion is conservative and name-only merge is forbidden', async () => {
+  const config = await contract();
+
+  assert.equal(config.symbol_identity.default, 'FAIL_CONSERVATIVE');
+  assert.equal(config.symbol_identity.name_only_merge_allowed, false);
+  assert.equal(
+    config.symbol_identity.ambiguous_action,
+    'KEEP_SEPARATE_AND_CORRELATE_AS_CANDIDATES'
+  );
+  assert.equal(
+    config.symbol_identity.false_positive_merge_is_worse_than_false_negative_split,
+    true
+  );
+  for (const input of [
+    'semantic_symbol_id_when_available',
+    'language',
+    'repository_id',
+    'snapshot_id',
+    'file_path',
+    'source_range',
+    'signature',
+    'provider_namespace'
+  ]) {
+    assert.ok(config.symbol_identity.identity_inputs.includes(input), input);
+  }
+});
+
+test('typed provider failures remain visible and cannot erase other evidence', async () => {
+  const config = await contract();
+
+  assert.equal(
+    config.provider_failure_semantics.schema,
+    'kneekura.analyzer-provider-failure/v1'
+  );
+  for (const failureType of [
+    'ANALYZER_UNSUPPORTED',
+    'ANALYZER_UNAVAILABLE',
+    'PARSE_FAILED',
+    'RUNTIME_IDENTITY_MISMATCH',
+    'TRUST_BOUNDARY_VIOLATION',
+    'INTERNAL_INVARIANT',
+    'ANALYZER_TIMEOUT',
+    'ANALYZER_RESOURCE_LIMIT',
+    'ANALYZER_TOOLCHAIN_MISMATCH'
+  ]) {
+    assert.ok(config.provider_failure_semantics.types.includes(failureType), failureType);
+  }
+  assert.equal(config.provider_failure_semantics.failure_erases_other_provider_evidence, false);
+  assert.equal(config.provider_failure_semantics.failure_requires_coverage_gap, true);
+  assert.equal(config.provider_failure_semantics.core_ingest_requires_explicit_mapping, true);
+});
+
+test('provider sandbox, cache, version and OSS reuse policy are explicit', async () => {
+  const config = await contract();
+
+  assert.equal(config.provider_execution_sandbox.isolated_workspace, true);
+  assert.equal(config.provider_execution_sandbox.credentials_available_to_provider, false);
+  assert.equal(config.provider_execution_sandbox.timeout_required, true);
+  assert.equal(config.provider_execution_sandbox.cpu_budget_required, true);
+  assert.equal(config.provider_execution_sandbox.memory_budget_required, true);
+  assert.equal(config.provider_execution_sandbox.kill_process_tree_on_timeout, true);
+  assert.equal(
+    config.provider_execution_sandbox.network_default,
+    'DENY_UNLESS_EXPLICITLY_DECLARED_AND_ALLOWED'
+  );
+
+  assert.deepEqual(config.cache.deterministic_provider_key, [
+    'repository_snapshot_sha_or_snapshot_id',
+    'provider_id',
+    'provider_version',
+    'provider_config_digest',
+    'toolchain_fingerprint'
+  ]);
+  assert.equal(config.cache.stale_cache_may_be_canonical_evidence, false);
+  assert.equal(config.versioning.floating_latest_for_canonical_run, false);
+  assert.equal(config.versioning.exact_toolchain_fingerprint_in_run_receipt, true);
+
+  assert.deepEqual(config.oss_reuse_policy.preference_order, [
+    'REUSE_EXISTING_CLI_API_INDEXER',
+    'ADAPTER_STABLE_EXPORT',
+    'KNEEKURA_NATIVE_IMPLEMENTATION',
+    'PINNED_VENDOR_LAST_RESORT'
+  ]);
+  assert.equal(config.oss_reuse_policy.wholesale_fork_merge_default, false);
+});
+
+test('normative documentation states the anti-fabrication boundaries', async () => {
+  const [doc, coreFreeze] = await Promise.all([
+    read('docs/ANALYZER_PROVIDER_AUTHORITY_V1.md'),
+    read('docs/CORE_SCHEMA_FREEZE_V1.md')
+  ]);
+
+  for (const phrase of [
+    'providers observe; CORE decides',
+    'legacy CORE is bridged; new Fabric is clean',
+    'Capability support and execution coverage are separate axes',
+    'bounded negative claim requires all of',
+    'toolchain fingerprints',
+    'one strong capability cannot silently upgrade the others',
+    '0-based UTF-8 byte offset, inclusive',
+    'Exact range fusion requires the same content digest',
+    'Tree-sitter is syntax authority only',
+    'registry is a catalog and execution/fallback policy surface',
+    'No authority level directly canonicalizes a fact',
+    'Fusion is evidence-preserving, not winner-selecting',
+    'Names are not identities',
+    'External analyzers run as untrusted processes',
+    'PINNED_VENDOR_LAST_RESORT',
+    'UNKNOWN is not ABSENT',
+    'packet send is not packet receive'
+  ]) {
+    assert.ok(doc.includes(phrase), phrase);
+  }
+
+  assert.ok(doc.includes('capability_contracts\norigin\nauthority_level\nrequired_tools\ntoolchain_fingerprint'));
+  assert.ok(coreFreeze.includes('UNKNOWN is not ABSENT'));
+  assert.ok(coreFreeze.includes('packet send is not packet receive'));
+});
