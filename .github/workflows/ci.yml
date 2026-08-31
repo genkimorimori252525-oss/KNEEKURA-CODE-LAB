@@ -14,6 +14,9 @@ jobs:
           node-version: 20
       - run: npm install --no-audit --no-fund --package-lock=false
       - run: npm test
+      - name: Validate live Love-Github TypeScript vertical
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/typescript-semantic-vertical')
+        run: npm run validate:love-github-typescript-live
       - run: npm run presentation:guard
       - run: npm run test:presentation-p1
       - run: npm run test:presentation-p2
