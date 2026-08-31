@@ -27,7 +27,8 @@
     "test:presentation-change-impact": "node --test test/human-presentation-v2-change-impact.test.mjs",
     "test:presentation-ask-graph": "node --test test/human-presentation-v2-ask-graph.test.mjs",
     "test:presentation-confidence-evidence": "node --test test/human-presentation-v2-confidence-evidence.test.mjs",
-    "test:ai-human-analysis-contract": "node --test test/ai-assisted-human-analysis-contract.test.mjs"
+    "test:ai-human-analysis-contract": "node --test test/ai-assisted-human-analysis-contract.test.mjs",
+    "validate:love-github-typescript-live": "node scripts/validate-love-github-typescript-live.mjs"
   },
   "engines": {
     "node": ">=20"
@@ -39,6 +40,7 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
-    "vite": "8.2.2"
+    "vite": "8.2.2",
+    "@typescript/typescript6": "6.0.2"
   }
 }
