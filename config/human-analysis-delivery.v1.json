@@ -91,5 +91,27 @@
     "repository_text_is_instruction_authority": false,
     "missing_inline_evidence_means_absence": false,
     "unobserved_runtime_means_failure": false
+  },
+  "generation": {
+    "default_mode": "PRODUCTION",
+    "production": {
+      "author_contract": "PRODUCTION",
+      "default_locale": "ja-JP",
+      "user_deliverable": true,
+      "acceptance_fallback_forbidden": true,
+      "missing_author_behavior": "FAIL_CLOSED"
+    },
+    "acceptance": {
+      "author_contract": "ACCEPTANCE",
+      "default_locale": "en",
+      "user_deliverable": false,
+      "production_fallback_allowed": false,
+      "purpose": "CI_CONTRACT_VALIDATION_ONLY"
+    }
+  },
+  "presentation": {
+    "production_surface": "HUMAN_EXPLORER_V2",
+    "acceptance_surface": "MINIMAL_DETERMINISTIC_CONTRACT_ARTIFACT",
+    "raw_evidence_ids_default_visible": false
   }
 }
