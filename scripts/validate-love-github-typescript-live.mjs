@@ -17,6 +17,17 @@ async function exec(command, args, options = {}) {
   });
 }
 
+
+async function runNpm(cwd, args) {
+  if (process.env.npm_execpath) {
+    return exec(process.execPath, [process.env.npm_execpath, ...args], { cwd });
+  }
+  if (process.platform === 'win32') {
+    return exec(process.env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', 'npm', ...args], { cwd });
+  }
+  return exec('npm', args, { cwd });
+}
+
 async function exists(value) {
   try { await fs.access(value); return true; } catch { return false; }
 }
@@ -95,9 +106,8 @@ async function main() {
     await exec('git', ['clone', '--no-hardlinks', '--no-checkout', sourceRoot, tempRoot]);
     const targetCommit = await resolveTargetCommit(tempRoot, sourceRoot);
     await exec('git', ['-C', tempRoot, 'checkout', '--detach', targetCommit]);
-    const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    await exec(npmCommand, ['install', '--no-audit', '--no-fund', '--package-lock=false'], { cwd: tempRoot });
-    await exec(npmCommand, ['run', 'typecheck'], { cwd: tempRoot });
+    await runNpm(tempRoot, ['install', '--no-audit', '--no-fund', '--package-lock=false']);
+    await runNpm(tempRoot, ['run', 'typecheck']);
     const targetTypeScriptVersion = await loadTargetTypeScriptVersion(tempRoot);
     const typescript = await loadSemanticTypeScript();
     const result = await runTypeScriptSemanticVertical({
