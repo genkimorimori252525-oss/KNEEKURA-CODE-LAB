@@ -68,7 +68,7 @@ async function fixture() {
     }
   };
   const result = {
-    schema: 'kneekura.analysis-result/v1',
+    schema: 'core.analysis-result/v1',
     analysis_id: 'analysis:offline-explorer',
     session_id: 'session:offline-explorer',
     repository: { repository_id: repositoryId },

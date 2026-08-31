@@ -42,10 +42,9 @@ export async function buildStandaloneHumanExplorerShell() {
       write: false,
       cssCodeSplit: false,
       sourcemap: false,
-      minify: 'esbuild',
       rollupOptions: {
         output: {
-          inlineDynamicImports: true,
+          codeSplitting: false,
           entryFileNames: 'assets/human-explorer.js',
           chunkFileNames: 'assets/[name].js',
           assetFileNames: 'assets/[name][extname]'
