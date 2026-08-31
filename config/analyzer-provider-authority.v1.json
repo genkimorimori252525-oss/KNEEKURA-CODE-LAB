@@ -31,6 +31,7 @@
       "version",
       "supported_languages",
       "capabilities",
+      "capability_contracts",
       "origin",
       "authority_level",
       "required_tools",
@@ -49,7 +50,16 @@
       "RUNTIME",
       "STRUCTURAL_RULE",
       "AI"
-    ]
+    ],
+    "capability_contract_entry_required": [
+      "capability",
+      "authority_level",
+      "support_status"
+    ],
+    "capability_contracts_must_cover_declared_capabilities": true,
+    "top_level_authority_level_is_default_only": true,
+    "capability_contract_may_narrow_default_authority": true,
+    "capability_contract_may_silently_expand_authority": false
   },
   "observation": {
     "schema": "kneekura.analyzer-observation/v1",
@@ -88,13 +98,37 @@
       "snapshot_id",
       "path"
     ],
-    "optional_coordinates": [
-      "start_line",
-      "end_line",
-      "start_column",
-      "end_column"
-    ],
-    "zero_is_not_unknown_sentinel": true
+    "canonical_fusion_coordinates": {
+      "preferred_fields": [
+        "content_digest",
+        "start_byte",
+        "end_byte"
+      ],
+      "byte_unit": "UTF8_BYTES",
+      "byte_base": 0,
+      "interval": "HALF_OPEN",
+      "exact_range_fusion_requires_same_content_digest_and_byte_offsets": true
+    },
+    "presentation_projection": {
+      "start_line_base": 1,
+      "end_line_base": 1,
+      "columns_optional": true,
+      "columns_are_not_exact_identity_without_declared_unit": true,
+      "existing_core_v1_range_shape_is_preserved": true
+    },
+    "native_coordinate_metadata": {
+      "retain_provider_native_coordinates": true,
+      "required_when_normalization_is_not_lossless": true,
+      "fields": [
+        "provider_coordinate_system",
+        "line_base",
+        "column_base",
+        "column_unit",
+        "end_semantics"
+      ]
+    },
+    "unknown_coordinates_are_omitted_not_zero_sentinel": true,
+    "ambiguous_normalization_may_be_exact_symbol_identity": false
   },
   "authority_boundaries": {
     "scip_or_compiler_semantic_index": {

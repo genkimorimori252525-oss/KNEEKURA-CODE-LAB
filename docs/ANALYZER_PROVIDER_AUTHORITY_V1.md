@@ -94,6 +94,7 @@ id
 version
 supported_languages
 capabilities
+capability_contracts
 origin
 authority_level
 required_tools
@@ -116,6 +117,8 @@ RUNTIME
 STRUCTURAL_RULE
 AI
 ```
+
+Each declared capability also has a capability contract with its own `authority_level` and `support_status`. The provider-level authority is only a default. A provider that is resolved-semantic for `REFERENCE` but structural for `FRAMEWORK` must say so; one strong capability cannot silently upgrade the others.
 
 Imported tools are not trusted merely because they are external OSS. Their version, provenance, mapping semantics, and source trace must remain explicit.
 
@@ -276,7 +279,25 @@ False-positive merging is considered more damaging than a temporary false-negati
 
 ## 8. SourceRange identity
 
-A source reference is scoped by repository identity, snapshot identity, and repository-relative path.
+A source reference is scoped by repository identity, snapshot identity, and repository-relative path. Provider-native line/column systems are **not** assumed compatible.
+
+For exact cross-provider range identity, the preferred normalized form is:
+
+```text
+content_digest
+start_byte   # 0-based UTF-8 byte offset, inclusive
+end_byte     # 0-based UTF-8 byte offset, exclusive
+```
+
+Exact range fusion requires the same content digest and the same half-open byte interval. This avoids UTF-16/code-point/UTF-8 column disagreements and line-base differences across SCIP, Tree-sitter, compilers, and imported analyzers.
+
+Line projection remains compatible with existing CORE v1:
+
+- lines are projected as 1-based values when known;
+- columns remain optional;
+- a column is not exact identity unless its unit and base were declared;
+- provider-native coordinates are retained when conversion is not lossless;
+- ambiguous normalization cannot be used for exact symbol fusion.
 
 Coordinates are optional because some imported/runtime observations do not know an exact source location. Unknown location is represented by absence, never fabricated line 0/column 0.
 

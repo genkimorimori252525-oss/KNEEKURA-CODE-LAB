@@ -101,6 +101,7 @@ test('provider manifest and observation envelope preserve provenance and provide
     'version',
     'supported_languages',
     'capabilities',
+    'capability_contracts',
     'origin',
     'authority_level',
     'required_tools',
@@ -135,7 +136,53 @@ test('provider manifest and observation envelope preserve provenance and provide
     config.observation.strength_labels_are_descriptive_not_truth_priority,
     true
   );
-  assert.equal(config.source_range_identity.zero_is_not_unknown_sentinel, true);
+  assert.deepEqual(
+    config.provider_manifest.capability_contract_entry_required,
+    ['capability', 'authority_level', 'support_status']
+  );
+  assert.equal(
+    config.provider_manifest.capability_contracts_must_cover_declared_capabilities,
+    true
+  );
+  assert.equal(config.provider_manifest.top_level_authority_level_is_default_only, true);
+  assert.equal(
+    config.provider_manifest.capability_contract_may_silently_expand_authority,
+    false
+  );
+
+  assert.equal(
+    config.source_range_identity.canonical_fusion_coordinates.byte_unit,
+    'UTF8_BYTES'
+  );
+  assert.equal(config.source_range_identity.canonical_fusion_coordinates.byte_base, 0);
+  assert.equal(
+    config.source_range_identity.canonical_fusion_coordinates.interval,
+    'HALF_OPEN'
+  );
+  assert.equal(
+    config.source_range_identity.canonical_fusion_coordinates
+      .exact_range_fusion_requires_same_content_digest_and_byte_offsets,
+    true
+  );
+  assert.equal(config.source_range_identity.presentation_projection.start_line_base, 1);
+  assert.equal(
+    config.source_range_identity.presentation_projection
+      .columns_are_not_exact_identity_without_declared_unit,
+    true
+  );
+  assert.equal(
+    config.source_range_identity.native_coordinate_metadata
+      .retain_provider_native_coordinates,
+    true
+  );
+  assert.equal(
+    config.source_range_identity.unknown_coordinates_are_omitted_not_zero_sentinel,
+    true
+  );
+  assert.equal(
+    config.source_range_identity.ambiguous_normalization_may_be_exact_symbol_identity,
+    false
+  );
 });
 
 test('provider registry and authority levels cannot become truth ranking', async () => {
@@ -320,6 +367,9 @@ test('normative documentation states the anti-fabrication boundaries', async () 
     'Capability support and execution coverage are separate axes',
     'bounded negative claim requires all of',
     'toolchain fingerprints',
+    'one strong capability cannot silently upgrade the others',
+    '0-based UTF-8 byte offset, inclusive',
+    'Exact range fusion requires the same content digest',
     'Tree-sitter is syntax authority only',
     'registry is a catalog and execution/fallback policy surface',
     'No authority level directly canonicalizes a fact',
@@ -333,7 +383,7 @@ test('normative documentation states the anti-fabrication boundaries', async () 
     assert.ok(doc.includes(phrase), phrase);
   }
 
-  assert.ok(doc.includes('origin\nauthority_level\nrequired_tools\ntoolchain_fingerprint'));
+  assert.ok(doc.includes('capability_contracts\norigin\nauthority_level\nrequired_tools\ntoolchain_fingerprint'));
   assert.ok(coreFreeze.includes('UNKNOWN is not ABSENT'));
   assert.ok(coreFreeze.includes('packet send is not packet receive'));
 });
