@@ -44,6 +44,8 @@ test('capability matrix is capability-scoped rather than language checkbox suppo
     'TYPE',
     'INHERITANCE',
     'CONFIG',
+    'BUILD',
+    'EMBEDDED_LANGUAGE',
     'FRAMEWORK',
     'RUNTIME',
     'AI_SEMANTIC'
@@ -52,10 +54,18 @@ test('capability matrix is capability-scoped rather than language checkbox suppo
   }
 
   assert.deepEqual(
-    config.coverage_statuses,
-    ['AVAILABLE', 'PARTIAL', 'NONE', 'FAILED', 'UNEXPLORED']
+    config.capability_support_statuses,
+    ['AVAILABLE', 'PARTIAL', 'NONE']
+  );
+  assert.deepEqual(
+    config.capability_execution_statuses,
+    ['ANALYZED', 'PARTIAL', 'FAILED', 'UNEXPLORED', 'SKIPPED']
   );
   assert.equal(config.coverage.unit, 'CAPABILITY_PER_SCOPE');
+  assert.equal(
+    config.coverage.support_available_does_not_imply_execution_analyzed,
+    true
+  );
   assert.equal(config.coverage.provider_failure_becomes_coverage_gap, true);
   assert.equal(config.coverage.missing_language_support_must_not_be_hidden, true);
 });
@@ -71,6 +81,7 @@ test('provider manifest and observation envelope preserve provenance and provide
     'origin',
     'authority_level',
     'required_tools',
+    'toolchain_fingerprint',
     'source_range_support',
     'semantic_identity_support',
     'timeout_ms',
@@ -97,6 +108,10 @@ test('provider manifest and observation envelope preserve provenance and provide
 
   assert.equal(config.observation.preserve_provider_specific_payload_or_ref, true);
   assert.equal(config.observation.unknown_source_range_is_omitted_not_zero, true);
+  assert.equal(
+    config.observation.strength_labels_are_descriptive_not_truth_priority,
+    true
+  );
   assert.equal(config.source_range_identity.zero_is_not_unknown_sentinel, true);
 });
 
@@ -127,6 +142,8 @@ test('provider registry and authority levels cannot become truth ranking', async
     config.authority_levels.canonical_promotion_boundary,
     'EXISTING_KNEEKURA_CORE_VERIFICATION'
   );
+  assert.equal(config.authority_levels.truth_ordering, 'NONE');
+  assert.equal(config.authority_levels.comparable_for_truth, false);
   for (const level of [
     'SYNTAX_ONLY',
     'STRUCTURAL_EVIDENCE',
@@ -160,6 +177,28 @@ test('SCIP, Tree-sitter, structural, runtime and AI authority boundaries fail cl
   assert.equal(boundaries.ai.majority_vote_may_promote_canonical_fact, false);
 });
 
+test('negative evidence requires bounded search and complete execution coverage', async () => {
+  const config = await contract();
+
+  assert.equal(config.negative_evidence.provider_silence_is_negative_evidence, false);
+  assert.equal(
+    config.negative_evidence.syntax_or_structural_absence_may_prove_cross_file_absence,
+    false
+  );
+  for (const requirement of [
+    'DECLARED_NEGATIVE_SEARCH_CAPABILITY',
+    'EXPLICIT_SCOPE',
+    'EXECUTION_STATUS_ANALYZED',
+    'COMPLETE_RELEVANT_SCOPE_COVERAGE',
+    'PROVENANCE'
+  ]) {
+    assert.ok(
+      config.negative_evidence.bounded_negative_claim_requires.includes(requirement),
+      requirement
+    );
+  }
+});
+
 test('symbol identity fusion is conservative and name-only merge is forbidden', async () => {
   const config = await contract();
 
@@ -173,6 +212,43 @@ test('symbol identity fusion is conservative and name-only merge is forbidden', 
     config.symbol_identity.false_positive_merge_is_worse_than_false_negative_split,
     true
   );
+  for (const input of [
+    'semantic_symbol_id_when_available',
+    'language',
+    'repository_id',
+    'snapshot_id',
+    'file_path',
+    'source_range',
+    'signature',
+    'provider_namespace'
+  ]) {
+    assert.ok(config.symbol_identity.identity_inputs.includes(input), input);
+  }
+});
+
+test('typed provider failures remain visible and cannot erase other evidence', async () => {
+  const config = await contract();
+
+  assert.equal(
+    config.provider_failure_semantics.schema,
+    'kneekura.analyzer-provider-failure/v1'
+  );
+  for (const failureType of [
+    'ANALYZER_UNSUPPORTED',
+    'ANALYZER_UNAVAILABLE',
+    'PARSE_FAILED',
+    'RUNTIME_IDENTITY_MISMATCH',
+    'TRUST_BOUNDARY_VIOLATION',
+    'INTERNAL_INVARIANT',
+    'ANALYZER_TIMEOUT',
+    'ANALYZER_RESOURCE_LIMIT',
+    'ANALYZER_TOOLCHAIN_MISMATCH'
+  ]) {
+    assert.ok(config.provider_failure_semantics.types.includes(failureType), failureType);
+  }
+  assert.equal(config.provider_failure_semantics.failure_erases_other_provider_evidence, false);
+  assert.equal(config.provider_failure_semantics.failure_requires_coverage_gap, true);
+  assert.equal(config.provider_failure_semantics.core_ingest_requires_explicit_mapping, true);
 });
 
 test('provider sandbox, cache, version and OSS reuse policy are explicit', async () => {
@@ -193,10 +269,12 @@ test('provider sandbox, cache, version and OSS reuse policy are explicit', async
     'repository_snapshot_sha_or_snapshot_id',
     'provider_id',
     'provider_version',
-    'provider_config_digest'
+    'provider_config_digest',
+    'toolchain_fingerprint'
   ]);
   assert.equal(config.cache.stale_cache_may_be_canonical_evidence, false);
   assert.equal(config.versioning.floating_latest_for_canonical_run, false);
+  assert.equal(config.versioning.exact_toolchain_fingerprint_in_run_receipt, true);
 
   assert.deepEqual(config.oss_reuse_policy.preference_order, [
     'REUSE_EXISTING_CLI_API_INDEXER',
@@ -215,6 +293,9 @@ test('normative documentation states the anti-fabrication boundaries', async () 
 
   for (const phrase of [
     'providers observe; CORE decides',
+    'Capability support and execution coverage are separate axes',
+    'bounded negative claim requires all of',
+    'toolchain fingerprints',
     'Tree-sitter is syntax authority only',
     'registry is a catalog and execution/fallback policy surface',
     'No authority level directly canonicalizes a fact',
@@ -228,7 +309,7 @@ test('normative documentation states the anti-fabrication boundaries', async () 
     assert.ok(doc.includes(phrase), phrase);
   }
 
-  assert.ok(doc.includes('origin\nauthority_level\nrequired_tools'));
+  assert.ok(doc.includes('origin\nauthority_level\nrequired_tools\ntoolchain_fingerprint'));
   assert.ok(coreFreeze.includes('UNKNOWN is not ABSENT'));
   assert.ok(coreFreeze.includes('packet send is not packet receive'));
 });

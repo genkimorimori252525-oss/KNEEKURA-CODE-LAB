@@ -43,13 +43,33 @@ Language support is not a boolean checkbox. Coverage is recorded per scope and c
 - `TYPE`
 - `INHERITANCE`
 - `CONFIG`
+- `BUILD`
+- `EMBEDDED_LANGUAGE`
 - `FRAMEWORK`
 - `RUNTIME`
 - `AI_SEMANTIC`
 
-Coverage states are `AVAILABLE`, `PARTIAL`, `NONE`, `FAILED`, and `UNEXPLORED`.
+Capability support and execution coverage are separate axes.
 
-A provider failure therefore becomes visible Coverage Gap evidence; it does not disappear behind a repository-level "supported" flag.
+Support states describe whether a provider can supply a capability for the scope:
+
+```text
+AVAILABLE
+PARTIAL
+NONE
+```
+
+Execution states describe what the current analysis actually accomplished:
+
+```text
+ANALYZED
+PARTIAL
+FAILED
+UNEXPLORED
+SKIPPED
+```
+
+`AVAILABLE` therefore never means "this repository was analyzed completely". A provider can support TypeScript calls while the current run still has `UNEXPLORED` files. Provider failure becomes a visible Coverage Gap instead of disappearing behind a repository-level "supported" flag.
 
 ## 3. Provider manifest
 
@@ -63,6 +83,7 @@ capabilities
 origin
 authority_level
 required_tools
+toolchain_fingerprint
 source_range_support
 semantic_identity_support
 timeout_ms
@@ -115,6 +136,8 @@ IMPORTED_MAPPED_EVIDENCE
 AI_INTERPRETATION_ONLY
 ```
 
+Authority levels have no truth ordering and are not comparable as "winner" ranks.
+
 No authority level directly canonicalizes a fact. Even `RESOLVED_SEMANTIC_EVIDENCE` must pass through the existing KNEEKURA CORE verification boundary.
 
 ## 4. Analyzer Observation IR boundary
@@ -146,6 +169,8 @@ Observation strengths are:
 - `STRUCTURAL`
 - `HEURISTIC`
 - `RUNTIME_OBSERVED`
+
+These labels describe how an observation was obtained; they are not a truth-priority ordering. An `EXACT` observation does not erase conflicting Evidence merely because of the label.
 
 Unknown source coordinates are omitted. Zero is not used as an "unknown" sentinel.
 
@@ -205,6 +230,8 @@ The resolver preserves conflict/counterevidence and allows existing CORE verific
 
 Absence of an observation is not negative evidence unless an analyzer has an explicit bounded negative-search contract and Coverage sufficient for that claim.
 
+A bounded negative claim requires all of: a declared negative-search capability, an explicit scope, an `ANALYZED` execution state for the relevant capability, complete relevant-scope coverage, and provenance. Syntax/structural silence alone cannot prove a cross-file semantic absence.
+
 ## 7. Symbol identity: fail conservative
 
 Names are not identities.
@@ -220,6 +247,8 @@ generated foo()
 ```
 
 Merge only when semantic identity is exact, or repository snapshot + language + signature + range establish the same entity.
+
+Identity candidates retain the strongest available inputs instead of collapsing to a display name: semantic symbol ID, language, repository ID, snapshot ID, file path/range, signature, and provider namespace.
 
 If identity is ambiguous:
 
@@ -255,6 +284,8 @@ Minimum contract:
 
 A provider crash/hang becomes a typed failure plus Coverage Gap.
 
+The fabric failure contract distinguishes unsupported/unavailable analyzers, parse failure, runtime identity mismatch, trust-boundary violation, internal invariant failure, timeout, resource-limit exhaustion, and toolchain mismatch. A failure never erases Evidence acquired by another provider. Fabric-only failure types must be explicitly mapped before ingestion into an existing CORE failure surface.
+
 ## 10. Cache and version pinning
 
 Deterministic provider cache identity includes:
@@ -264,6 +295,7 @@ repository snapshot
 + provider id
 + provider version
 + provider config digest
++ toolchain fingerprint
 ```
 
 AI semantic cache identity includes:
@@ -276,7 +308,7 @@ evidence digest
 
 Stale cache is never silently treated as canonical evidence for a new snapshot.
 
-Canonical runs record exact provider versions/configuration. Floating `latest` is not an acceptable canonical run identity.
+Canonical runs record exact provider versions, configuration digests, and toolchain fingerprints. A version string alone is insufficient when a different executable could hide behind it. Floating `latest` is not an acceptable canonical run identity.
 
 ## 11. OSS reuse policy
 

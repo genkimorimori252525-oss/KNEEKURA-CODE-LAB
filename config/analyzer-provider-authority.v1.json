@@ -18,16 +18,11 @@
     "TYPE",
     "INHERITANCE",
     "CONFIG",
+    "BUILD",
+    "EMBEDDED_LANGUAGE",
     "FRAMEWORK",
     "RUNTIME",
     "AI_SEMANTIC"
-  ],
-  "coverage_statuses": [
-    "AVAILABLE",
-    "PARTIAL",
-    "NONE",
-    "FAILED",
-    "UNEXPLORED"
   ],
   "provider_manifest": {
     "schema": "kneekura.analyzer-provider-manifest/v1",
@@ -39,6 +34,7 @@
       "origin",
       "authority_level",
       "required_tools",
+      "toolchain_fingerprint",
       "source_range_support",
       "semantic_identity_support",
       "timeout_ms",
@@ -83,7 +79,8 @@
       "RUNTIME_OBSERVED"
     ],
     "preserve_provider_specific_payload_or_ref": true,
-    "unknown_source_range_is_omitted_not_zero": true
+    "unknown_source_range_is_omitted_not_zero": true,
+    "strength_labels_are_descriptive_not_truth_priority": true
   },
   "source_range_identity": {
     "required_context": [
@@ -178,21 +175,37 @@
     ],
     "ambiguous_action": "KEEP_SEPARATE_AND_CORRELATE_AS_CANDIDATES",
     "name_only_merge_allowed": false,
-    "false_positive_merge_is_worse_than_false_negative_split": true
+    "false_positive_merge_is_worse_than_false_negative_split": true,
+    "identity_inputs": [
+      "semantic_symbol_id_when_available",
+      "language",
+      "repository_id",
+      "snapshot_id",
+      "file_path",
+      "source_range",
+      "signature",
+      "provider_namespace"
+    ]
   },
   "coverage": {
     "unit": "CAPABILITY_PER_SCOPE",
     "required_fields": [
       "capability",
-      "status",
+      "support_status",
+      "execution_status",
       "provider_refs"
     ],
-    "reason_required_for": [
+    "support_reason_required_for": [
       "PARTIAL",
-      "NONE",
-      "FAILED",
-      "UNEXPLORED"
+      "NONE"
     ],
+    "execution_reason_required_for": [
+      "PARTIAL",
+      "FAILED",
+      "UNEXPLORED",
+      "SKIPPED"
+    ],
+    "support_available_does_not_imply_execution_analyzed": true,
     "provider_failure_becomes_coverage_gap": true,
     "missing_language_support_must_not_be_hidden": true
   },
@@ -212,7 +225,8 @@
       "repository_snapshot_sha_or_snapshot_id",
       "provider_id",
       "provider_version",
-      "provider_config_digest"
+      "provider_config_digest",
+      "toolchain_fingerprint"
     ],
     "ai_semantic_key": [
       "evidence_digest",
@@ -225,7 +239,8 @@
     "exact_provider_version_in_provenance": true,
     "provider_config_digest_in_run_receipt": true,
     "floating_latest_for_canonical_run": false,
-    "incompatible_contract_change_requires_new_schema_version": true
+    "incompatible_contract_change_requires_new_schema_version": true,
+    "exact_toolchain_fingerprint_in_run_receipt": true
   },
   "oss_reuse_policy": {
     "preference_order": [
@@ -259,7 +274,9 @@
       "AI_INTERPRETATION_ONLY"
     ],
     "direct_canonicalization_for_any_level": false,
-    "canonical_promotion_boundary": "EXISTING_KNEEKURA_CORE_VERIFICATION"
+    "canonical_promotion_boundary": "EXISTING_KNEEKURA_CORE_VERIFICATION",
+    "truth_ordering": "NONE",
+    "comparable_for_truth": false
   },
   "provider_registry": {
     "schema": "kneekura.analyzer-provider-registry/v1",
@@ -275,5 +292,53 @@
     "execution_preference_may_decide_truth": false,
     "evidence_from_executed_providers_is_preserved": true,
     "disabled_or_unavailable_provider_requires_coverage_reason": true
+  },
+  "capability_support_statuses": [
+    "AVAILABLE",
+    "PARTIAL",
+    "NONE"
+  ],
+  "capability_execution_statuses": [
+    "ANALYZED",
+    "PARTIAL",
+    "FAILED",
+    "UNEXPLORED",
+    "SKIPPED"
+  ],
+  "negative_evidence": {
+    "provider_silence_is_negative_evidence": false,
+    "bounded_negative_claim_requires": [
+      "DECLARED_NEGATIVE_SEARCH_CAPABILITY",
+      "EXPLICIT_SCOPE",
+      "EXECUTION_STATUS_ANALYZED",
+      "COMPLETE_RELEVANT_SCOPE_COVERAGE",
+      "PROVENANCE"
+    ],
+    "syntax_or_structural_absence_may_prove_cross_file_absence": false
+  },
+  "provider_failure_semantics": {
+    "schema": "kneekura.analyzer-provider-failure/v1",
+    "required": [
+      "provider_id",
+      "provider_version",
+      "failure_type",
+      "message",
+      "scope",
+      "provenance"
+    ],
+    "types": [
+      "ANALYZER_UNSUPPORTED",
+      "ANALYZER_UNAVAILABLE",
+      "PARSE_FAILED",
+      "RUNTIME_IDENTITY_MISMATCH",
+      "TRUST_BOUNDARY_VIOLATION",
+      "INTERNAL_INVARIANT",
+      "ANALYZER_TIMEOUT",
+      "ANALYZER_RESOURCE_LIMIT",
+      "ANALYZER_TOOLCHAIN_MISMATCH"
+    ],
+    "failure_erases_other_provider_evidence": false,
+    "failure_requires_coverage_gap": true,
+    "core_ingest_requires_explicit_mapping": true
   }
 }
