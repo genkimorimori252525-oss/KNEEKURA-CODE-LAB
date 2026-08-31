@@ -228,6 +228,7 @@ test('normative documentation states the anti-fabrication boundaries', async () 
     assert.ok(doc.includes(phrase), phrase);
   }
 
+  assert.ok(doc.includes('origin\nauthority_level\nrequired_tools'));
   assert.ok(coreFreeze.includes('UNKNOWN is not ABSENT'));
   assert.ok(coreFreeze.includes('packet send is not packet receive'));
 });
