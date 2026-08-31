@@ -16,7 +16,8 @@ import {
 
 const execFileAsync = promisify(execFile);
 const require = createRequire(import.meta.url);
-const ts = require('typescript');
+const tsModule = require('@typescript/typescript6');
+const ts = typeof tsModule?.createProgram === 'function' ? tsModule : tsModule.default;
 
 async function git(root, args) {
   const { stdout } = await execFileAsync('git', ['-C', root, ...args], { encoding: 'utf8', windowsHide: true });

@@ -76,9 +76,15 @@ async function resolveTargetCommit(tempRoot, sourceRoot) {
   return (await exec('git', ['-C', tempRoot, 'rev-parse', 'HEAD'])).stdout.trim().toLowerCase();
 }
 
-async function loadTypeScript(root) {
-  const require = createRequire(path.join(root, 'package.json'));
-  return require('typescript');
+async function loadSemanticTypeScript() {
+  const require = createRequire(import.meta.url);
+  const moduleValue = require('@typescript/typescript6');
+  return typeof moduleValue?.createProgram === 'function' ? moduleValue : moduleValue.default;
+}
+
+async function loadTargetTypeScriptVersion(root) {
+  const raw = await fs.readFile(path.join(root, 'node_modules', 'typescript', 'package.json'), 'utf8');
+  return String(JSON.parse(raw).version ?? 'unknown');
 }
 
 async function main() {
@@ -91,7 +97,9 @@ async function main() {
     await exec('git', ['-C', tempRoot, 'checkout', '--detach', targetCommit]);
     const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
     await exec(npmCommand, ['install', '--no-audit', '--no-fund', '--package-lock=false'], { cwd: tempRoot });
-    const typescript = await loadTypeScript(tempRoot);
+    await exec(npmCommand, ['run', 'typecheck'], { cwd: tempRoot });
+    const targetTypeScriptVersion = await loadTargetTypeScriptVersion(tempRoot);
+    const typescript = await loadSemanticTypeScript();
     const result = await runTypeScriptSemanticVertical({
       rootDirectory: tempRoot,
       commitSha: targetCommit,
@@ -114,7 +122,8 @@ async function main() {
       schema: 'kneekura.live-love-github-typescript-validation/v1',
       source_clone: sourceRoot,
       analyzed_commit: targetCommit,
-      typescript_version: String(typescript.version),
+      target_typescript_version: targetTypeScriptVersion,
+      semantic_sidecar_version: String(typescript.version),
       typescript_files: result.summary.typescript_files,
       tsx_files: tsxFiles,
       observations: result.summary.observations,
