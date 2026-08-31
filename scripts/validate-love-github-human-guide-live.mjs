@@ -8,7 +8,8 @@ import { createRequire } from 'node:module';
 import { runTypeScriptSemanticVertical } from '../src/analyzer-fabric/typescript-vertical.mjs';
 import { createHumanAnalysisEvidencePack } from '../src/human-analysis/evidence-pack.mjs';
 import { createHumanAnalysisSourceBroker } from '../src/human-analysis/source-broker.mjs';
-import { runHumanAnalysisSemanticPipeline } from '../src/human-analysis/pipeline.mjs';
+import { createAcceptanceSemanticAuthor } from '../src/human-analysis/author-contract.mjs';
+import { runAcceptanceHumanAnalysisSemanticPipeline } from '../src/human-analysis/production.mjs';
 import { compileHumanAnalysisArtifact, writeHumanAnalysisArtifact } from '../src/human-analysis/artifact-compiler.mjs';
 
 const run = promisify(execFile);
@@ -56,14 +57,14 @@ function gapAt(pack){
 function author(pack){
   const a=evidenceAt(pack,paths.architecture), d=evidenceAt(pack,paths.domain), t=evidenceAt(pack,paths.tour), g=gapAt(pack);
   const file={kind:'FILE_RANGE',path:t.provenance.path,start_line:t.provenance.range.start_line,end_line:t.provenance.range.end_line,content_digest:t.observation.source_range.content_digest};
-  return async env=>{
+  return createAcceptanceSemanticAuthor({id:'love-github-live-acceptance-v1',locale:'en',run:async env=>{
     if(env.stage==='ARCHITECTURE') return {items:[{kind:'ARCHITECTURE_COMPONENT',semantic_class:'AI_INTERPRETATION',title:'GitHub request boundary',body:`Resolved compiler evidence in ${paths.architecture} anchors the GitHub request layer.`,source_refs:[{kind:'EVIDENCE',id:a.id}]}]};
     if(env.stage==='DOMAIN') return {items:[{kind:'DOMAIN_CONCEPT',semantic_class:'AI_INTERPRETATION',title:'Agent orchestration',body:`Resolved compiler evidence in ${paths.domain} anchors the orchestration domain.`,source_refs:[{kind:'EVIDENCE',id:d.id}]}]};
     if(env.stage==='FLOW') return {items:[{kind:'FLOW',semantic_class:'COVERAGE_GAP',title:`${g.capability??'Semantic'} coverage remains bounded`,body:String(g.reason??'Canonical CORE coverage is incomplete.'),source_refs:[{kind:'COVERAGE',id:g.id}],confidence:{level:'VERY_HIGH',rationale:'Canonical coverage remains non-complete regardless of AI confidence.'}}]};
     if(env.stage==='TOUR') return {items:[{kind:'TOUR_STEP',semantic_class:'AI_INTERPRETATION',title:`Inspect ${paths.tour}`,body:'Start at this exact snapshot-bound compiler-traced source range.',source_refs:[file],ordering_key:'001'}]};
     if(env.stage==='REVIEWER') return {decisions:env.candidate_items.map(i=>({item_id:i.id,status:'ACCEPT',reason:'Real source/canonical ref verified; authority class preserved.'}))};
     throw new Error(`LIVE_GUIDE_UNEXPECTED_STAGE:${env.stage}`);
-  };
+  }});
 }
 async function catalog(root,files){
   const out=[];
@@ -97,7 +98,7 @@ async function main(){
     if(traced!==vertical.execution.observations.length) throw new Error(`LIVE_GUIDE_TRACEABILITY_GAP:${traced}/${vertical.execution.observations.length}`);
     const pack=createHumanAnalysisEvidencePack({repository:vertical.repository,snapshot:vertical.snapshot,graph:{nodes:[],edges:[]},result:{claims:vertical.evidence_ledger.claims,unknowns:[],coverage:vertical.evidence_ledger.coverage},evidence:vertical.evidence_ledger.evidence,source_catalog:await catalog(root,vertical.profile.files)});
     const broker=createHumanAnalysisSourceBroker(pack,{readSource:relative=>fs.readFile(path.join(root,relative),'utf8')});
-    const ir=await runHumanAnalysisSemanticPipeline({evidencePack:pack,sourceBroker:broker,author:author(pack),request:{question:'Explain Love-Github as a source-linked human guide.',audience:'HUMAN',scope:{type:'REPOSITORY'}}});
+    const ir=await runAcceptanceHumanAnalysisSemanticPipeline({evidencePack:pack,sourceBroker:broker,semanticAuthor:author(pack),request:{question:'Explain Love-Github as a source-linked human guide.',audience:'HUMAN',scope:{type:'REPOSITORY'}}}); if(ir.generation?.mode!=='ACCEPTANCE'||ir.generation?.user_deliverable!==false) throw new Error('LIVE_GUIDE_ACCEPTANCE_MODE_VIOLATION');
     const sources=await materialize(ir,broker), one=compileHumanAnalysisArtifact({ir,sources,title:'Love-Github Human Guide'}), two=compileHumanAnalysisArtifact({ir,sources,title:'Love-Github Human Guide'});
     if(one.artifact_id!==two.artifact_id||one.index_html!==two.index_html||!one.zip_bytes.equals(two.zip_bytes)||one.zip_digest!==two.zip_digest) throw new Error('LIVE_GUIDE_NONDETERMINISTIC_REBUILD');
     const coverage=JSON.parse(one.files.find(f=>f.path==='coverage.json')?.content??'{}'), sourceBundle=JSON.parse(one.files.find(f=>f.path==='sources.json')?.content??'{}');
