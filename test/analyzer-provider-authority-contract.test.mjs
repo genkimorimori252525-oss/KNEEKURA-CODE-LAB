@@ -31,6 +31,29 @@ test('provider authority contract is frozen and providers never win truth by pri
   assert.ok(config.fusion.rules.includes('DO_NOT_DROP_COUNTEREVIDENCE'));
 });
 
+test('legacy CORE provider wrappers are bridged without weakening the new Fabric boundary', async () => {
+  const config = await contract();
+  const bridge = config.legacy_compatibility_bridge;
+
+  assert.equal(bridge.scope, 'EXISTING_CORE_V1_PROVIDER_WRAPPERS_ONLY');
+  assert.equal(
+    bridge.existing_graph_builder_mutation_may_continue_for_v1_compatibility,
+    true
+  );
+  assert.equal(
+    bridge.new_fabric_provider_direct_graph_builder_mutation_allowed,
+    false
+  );
+  assert.equal(bridge.existing_provider_failure_shape_requires_explicit_adapter, true);
+  assert.equal(bridge.existing_dependency_fingerprint_shape_requires_explicit_adapter, true);
+  assert.equal(
+    bridge.migration_rule,
+    'WRAP_AND_PRESERVE_EXISTING_CORE_SEMANTICS_DO_NOT_REINTERPRET'
+  );
+  assert.equal(bridge.exception_is_not_precedent_for_new_providers, true);
+  assert.equal(bridge.step_009_changes_src_core_semantics, false);
+});
+
 test('capability matrix is capability-scoped rather than language checkbox support', async () => {
   const config = await contract();
 
@@ -293,6 +316,7 @@ test('normative documentation states the anti-fabrication boundaries', async () 
 
   for (const phrase of [
     'providers observe; CORE decides',
+    'legacy CORE is bridged; new Fabric is clean',
     'Capability support and execution coverage are separate axes',
     'bounded negative claim requires all of',
     'toolchain fingerprints',

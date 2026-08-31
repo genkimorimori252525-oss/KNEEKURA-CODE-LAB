@@ -30,6 +30,20 @@ The following are forbidden:
 
 A SCIP/compiler result can be much stronger than a syntax match, but it is still an observation with provenance. Canonical promotion belongs to the existing KNEEKURA verification boundary.
 
+### 1.1 Legacy CORE compatibility bridge
+
+The repository already has v1 provider wrappers in `src/core/evidence/provider.mjs` and `providers.mjs`. Those wrappers predate the new Fabric contract and intentionally call existing analyzers that can mutate the current `GraphBuilder`. Their `ProviderFailure` and dependency-fingerprint shapes are also existing CORE compatibility surfaces.
+
+Step-009 does **not** rewrite those semantics. They are a narrowly scoped migration exception:
+
+- existing CORE v1 wrappers may continue their current builder mutation while they preserve the frozen v1 behavior;
+- new Analyzer Provider Fabric providers must not copy that direct-write pattern;
+- legacy ProviderFailure/fingerprint shapes enter the Fabric only through an explicit adapter;
+- wrapping legacy output must preserve its existing meaning rather than reinterpret it as stronger Evidence;
+- this exception is not a provider-authority precedent and must not become a shortcut around Observation/Fusion.
+
+In short: **legacy CORE is bridged; new Fabric is clean.** `src/core/**` semantics remain unchanged by step-009.
+
 ## 2. Capability taxonomy
 
 Language support is not a boolean checkbox. Coverage is recorded per scope and capability:
