@@ -83,6 +83,39 @@ AI
 
 Imported tools are not trusted merely because they are external OSS. Their version, provenance, mapping semantics, and source trace must remain explicit.
 
+### 3.1 Provider registry
+
+The registry is a catalog and execution/fallback policy surface, **not a truth ranking**.
+
+Each registry entry records at least:
+
+```text
+provider_id
+manifest_ref
+enabled
+execution_preference
+fallback_policy
+```
+
+Multiple providers may cover the same capability. `execution_preference` may decide scheduling, cost-aware selection, or fallback order, but it may never decide which conflicting observation becomes true. Evidence from providers that actually ran is preserved, and a disabled/unavailable provider must leave a Coverage reason rather than disappearing.
+
+### 3.2 Authority levels
+
+Origins and authority levels are distinct. Origin says *where* an observation came from; authority level says *what kind of claim the provider is allowed to make*.
+
+Frozen authority levels:
+
+```text
+SYNTAX_ONLY
+STRUCTURAL_EVIDENCE
+RESOLVED_SEMANTIC_EVIDENCE
+RUNTIME_OBSERVED_EVIDENCE
+IMPORTED_MAPPED_EVIDENCE
+AI_INTERPRETATION_ONLY
+```
+
+No authority level directly canonicalizes a fact. Even `RESOLVED_SEMANTIC_EVIDENCE` must pass through the existing KNEEKURA CORE verification boundary.
+
 ## 4. Analyzer Observation IR boundary
 
 Providers emit `kneekura.analyzer-observation/v1`-shaped observations before any fusion.
