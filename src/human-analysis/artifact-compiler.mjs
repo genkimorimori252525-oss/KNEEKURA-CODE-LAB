@@ -4,12 +4,21 @@ import path from 'node:path';
 
 import { validateHumanAnalysisIr, stableDigest } from './schema.mjs';
 import { createDeterministicZip } from './zip.mjs';
+import { assertProductionHumanAnalysisIr } from './production.mjs';
+import { validateHumanExperienceProjection } from '../human-experience/schema.mjs';
+import {
+  buildStandaloneHumanExplorerShell,
+  HUMAN_EXPERIENCE_OFFLINE_PAYLOAD_SCHEMA,
+  HUMAN_EXPLORER_STANDALONE_SHELL_SCHEMA,
+  injectHumanExperienceOfflinePayload
+} from '../human-experience/standalone-explorer.mjs';
 
 export const HUMAN_ARTIFACT_MANIFEST_SCHEMA = 'kneekura.human-analysis-artifact-manifest/v1';
 export const HUMAN_ARTIFACT_REPAIR_ERROR_SCHEMA = 'kneekura.artifact-repair-error/v1';
 export const HUMAN_SOURCE_BUNDLE_SCHEMA = 'kneekura.human-analysis-source-bundle/v1';
 export const HUMAN_ANALYSIS_ARTIFACT_SCHEMA = 'kneekura.human-analysis-artifact/v1';
 export const ARTIFACT_RENDERER_VERSION = 'v1';
+export const HUMAN_EXPLORER_ARTIFACT_RENDERER_VERSION = 'human-explorer-v2';
 
 export class ArtifactRepairError extends Error {
   constructor(code, message, { path = null, details = null, repair = null, cause = null } = {}) {
@@ -33,6 +42,16 @@ export function compileHumanAnalysisArtifact({ ir, sources, title = null } = {})
     throw repair('IR_INVALID', 'Human Analysis IR failed validation', {
       path: 'ir', details: { cause: String(error?.message ?? error) }, repair: { action: 'regenerate_or_revalidate_ir' }, cause: error
     });
+  }
+  if (ir.generation?.mode === 'PRODUCTION') {
+    throw repair(
+      'PRODUCTION_EXPLORER_REQUIRED',
+      'PRODUCTION Human Analysis IR must be compiled through the full Human Explorer artifact path',
+      {
+        path: 'ir.generation.mode',
+        repair: { action: 'use_compileProductionHumanExperienceArtifact' }
+      }
+    );
   }
   const sourceBundle = normalizeSourceBundle(ir, sources);
   const normalizedTitle = normalizeTitle(title);
@@ -78,6 +97,177 @@ export function compileHumanAnalysisArtifact({ ir, sources, title = null } = {})
       path: 'zip', details: { cause: String(error?.message ?? error) }, repair: { action: 'reduce_or_repair_artifact_files' }, cause: error
     });
   }
+  return deepFreeze({
+    schema: HUMAN_ANALYSIS_ARTIFACT_SCHEMA,
+    artifact_id: artifactId,
+    ir_digest: ir.ir_digest,
+    manifest,
+    files: files.map(file => ({ ...file })),
+    index_html: indexHtml,
+    zip_bytes: zip,
+    zip_digest: digestBytes(zip)
+  });
+}
+
+export async function compileProductionHumanExperienceArtifact({
+  experience,
+  sources,
+  title = null,
+  explorerShell = null
+} = {}) {
+  try {
+    validateHumanExperienceProjection(experience);
+  } catch (error) {
+    throw repair(
+      'HUMAN_EXPERIENCE_INVALID',
+      'Human Experience projection failed validation',
+      {
+        path: 'experience',
+        details: { cause: String(error?.message ?? error) },
+        repair: { action: 'regenerate_or_revalidate_human_experience' },
+        cause: error
+      }
+    );
+  }
+  const ir = experience.derived?.human_analysis_ir;
+  try {
+    assertProductionHumanAnalysisIr(ir);
+  } catch (error) {
+    throw repair(
+      'PRODUCTION_IR_REQUIRED',
+      'Full Human Explorer artifact requires PRODUCTION Human Analysis IR',
+      {
+        path: 'experience.derived.human_analysis_ir',
+        details: { cause: String(error?.message ?? error) },
+        repair: { action: 'run_production_semantic_author' },
+        cause: error
+      }
+    );
+  }
+
+  const sourceBundle = normalizeSourceBundle(ir, sources);
+  const normalizedTitle = normalizeTitle(title);
+  const shell = explorerShell ?? await buildStandaloneHumanExplorerShell();
+  if (
+    !shell ||
+    shell.schema !== HUMAN_EXPLORER_STANDALONE_SHELL_SCHEMA ||
+    typeof shell.html !== 'string' ||
+    !shell.digest?.startsWith('sha256:')
+  ) {
+    throw repair(
+      'HUMAN_EXPLORER_SHELL_INVALID',
+      'production artifact requires a validated standalone Human Explorer shell',
+      {
+        path: 'explorerShell',
+        repair: { action: 'rebuild_standalone_human_explorer_shell' }
+      }
+    );
+  }
+
+  const offlinePayload = {
+    schema: HUMAN_EXPERIENCE_OFFLINE_PAYLOAD_SCHEMA,
+    experience: structuredClone(experience),
+    sources: structuredClone(sourceBundle)
+  };
+  let indexHtml;
+  try {
+    indexHtml = injectHumanExperienceOfflinePayload(shell, {
+      payload: offlinePayload,
+      title: normalizedTitle
+    });
+  } catch (error) {
+    throw repair(
+      'HUMAN_EXPLORER_PAYLOAD_INJECTION_FAILED',
+      'Human Experience payload could not be injected into the standalone Explorer shell',
+      {
+        path: 'index.html',
+        details: { cause: String(error?.message ?? error) },
+        repair: { action: 'rebuild_shell_or_payload' },
+        cause: error
+      }
+    );
+  }
+
+  const analysisJson = stableJson(ir);
+  const sourcesJson = stableJson(sourceBundle);
+  const coverageJson = stableJson(buildCoverageView(ir));
+  const experienceJson = stableJson(experience);
+  const explorerProjectionJson = stableJson(
+    experience.canonical.explorer_projection
+  );
+  const readme = renderProductionReadme(ir, normalizedTitle);
+
+  const primaryFiles = new Map([
+    ['analysis.json', analysisJson],
+    ['coverage.json', coverageJson],
+    ['experience.json', experienceJson],
+    ['explorer-projection.json', explorerProjectionJson],
+    ['index.html', indexHtml],
+    ['README.md', readme],
+    ['sources.json', sourcesJson]
+  ]);
+  const manifestCore = {
+    schema: HUMAN_ARTIFACT_MANIFEST_SCHEMA,
+    renderer_version: HUMAN_EXPLORER_ARTIFACT_RENDERER_VERSION,
+    renderer_surface: 'HUMAN_EXPLORER_V2',
+    repository: structuredClone(ir.repository),
+    ir_digest: ir.ir_digest,
+    evidence_pack: structuredClone(ir.evidence_pack),
+    human_experience_projection_id: experience.projection_id,
+    human_explorer_shell_digest: shell.digest,
+    offline_payload_digest: stableDigest(offlinePayload),
+    title: normalizedTitle,
+    security: {
+      repository_content_instruction_authority: false,
+      source_text_rendering: 'REACT_TEXT_ONLY',
+      embedded_payload_encoding: 'BASE64_JSON',
+      external_network_required: false,
+      csp: "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; worker-src blob:"
+    },
+    files: [...primaryFiles.entries()]
+      .map(([filePath, content]) => ({
+        path: filePath,
+        digest: digestBytes(content),
+        bytes: Buffer.byteLength(content)
+      }))
+      .sort((a, b) => compareText(a.path, b.path))
+  };
+  const artifactId =
+    'artifact:sha256:' +
+    stableDigest(manifestCore).slice('sha256:'.length);
+  const manifest = {
+    ...manifestCore,
+    artifact_id: artifactId
+  };
+  const files = [...primaryFiles.entries()]
+    .map(([filePath, content]) => ({ path: filePath, content }));
+  files.push({
+    path: 'manifest.json',
+    content: stableJson(manifest)
+  });
+  files.sort((a, b) => compareText(a.path, b.path));
+
+  let zip;
+  try {
+    zip = createDeterministicZip(
+      files.map(file => ({
+        path: file.path,
+        data: file.content
+      }))
+    );
+  } catch (error) {
+    throw repair(
+      'ZIP_BUILD_FAILED',
+      'deterministic Human Explorer ZIP companion could not be built',
+      {
+        path: 'zip',
+        details: { cause: String(error?.message ?? error) },
+        repair: { action: 'reduce_or_repair_artifact_files' },
+        cause: error
+      }
+    );
+  }
+
   return deepFreeze({
     schema: HUMAN_ANALYSIS_ARTIFACT_SCHEMA,
     artifact_id: artifactId,
@@ -207,6 +397,10 @@ function renderOfflineHtml(model) {
   const payload = Buffer.from(stableJson(model), 'utf8').toString('base64');
   const title = escapeHtml(model.title);
   return `<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">\n<title>${title}</title>\n<style>body{font-family:system-ui,sans-serif;margin:0;background:#f7f7f8;color:#171717}header{padding:18px 24px;background:#fff;border-bottom:1px solid #ddd}main{max-width:1100px;margin:auto;padding:24px}.toolbar{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 20px}.toolbar input,.toolbar select{padding:8px 10px}.card{background:#fff;border:1px solid #ddd;border-radius:10px;padding:16px;margin:12px 0}.meta,.refs{font-size:12px;color:#555}.tag{display:inline-block;border:1px solid #bbb;border-radius:999px;padding:2px 8px;margin-right:6px;font-size:12px}.source{white-space:pre-wrap;background:#111;color:#eee;padding:12px;border-radius:8px;overflow:auto}</style>\n</head>\n<body>\n<header><h1>${title}</h1><div id="identity"></div></header>\n<main><div class="toolbar"><input id="q" placeholder="Search"><select id="klass"><option value="">All classes</option><option>AI_INTERPRETATION</option><option>UNKNOWN</option><option>COVERAGE_GAP</option></select></div><div id="summary"></div><div id="items"></div></main>\n<script id="kneekura-data" type="application/octet-stream">${payload}</script>\n<script>"use strict";const raw=document.getElementById("kneekura-data").textContent.trim();const data=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(raw),c=>c.charCodeAt(0))));const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!=null)n.textContent=String(text);if(cls)n.className=cls;return n};document.getElementById("identity").textContent=data.repository.repository_id+" · "+data.repository.snapshot_id;const items=document.getElementById("items"),q=document.getElementById("q"),klass=document.getElementById("klass");document.getElementById("summary").textContent=data.items.length+" derived items · IR "+data.ir_digest;function render(){items.replaceChildren();const query=q.value.toLowerCase(),k=klass.value;for(const item of data.items){if(k&&item.semantic_class!==k)continue;const hay=(item.title+" "+item.body).toLowerCase();if(query&&!hay.includes(query))continue;const card=el("article",null,"card"),h=el("h2",item.title),tags=el("div",null,"meta");tags.append(el("span",item.stage,"tag"),el("span",item.semantic_class,"tag"),el("span",item.review_status,"tag"));card.append(h,tags,el("p",item.body));card.append(el("div","Sources: "+item.source_refs.map(r=>r.kind==="FILE_RANGE"?r.path+":"+r.start_line+"-"+r.end_line:r.kind+":"+r.id).join(", "),"refs"));for(const ref of item.source_refs){const key=ref.kind==="FILE_RANGE"?"FILE_RANGE:"+ref.path+":"+ref.start_line+":"+ref.end_line+":"+ref.content_digest:ref.kind+":"+ref.id;const source=data.sources_by_key[key];if(source&&typeof source.text==="string"){const details=document.createElement("details");details.append(el("summary","Show source"),el("pre",source.text,"source"));card.append(details)}}items.append(card)}}q.addEventListener("input",render);klass.addEventListener("change",render);render();</script>\n</body>\n</html>\n`;
+}
+
+function renderProductionReadme(ir, title) {
+  return `# ${title}\n\nPortable KNEEKURA Human Explorer production artifact.\n\n- IR: ${ir.ir_digest}\n- Repository: ${ir.repository.repository_id}\n- Snapshot: ${ir.repository.snapshot_id}\n- Renderer: HUMAN_EXPLORER_V2\n- The full ReactFlow/ELK Human Explorer is bundled into index.html.\n- Repository/source text remains inert data and never gains instruction authority.\n- Open index.html directly in a browser; no server or network connection is required.\n`;
 }
 
 function renderReadme(ir, title) {
