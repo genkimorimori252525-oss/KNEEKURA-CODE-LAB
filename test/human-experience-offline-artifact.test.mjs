@@ -32,6 +32,22 @@ async function fixture() {
     'repo:sha256:' + '1'.repeat(64);
   const snapshotId =
     'snapshot:sha256:' + '2'.repeat(64);
+  const repository = {
+    schema: 'core.repository-identity/v1',
+    vcs: 'filesystem',
+    canonical_identity:
+      'filesystem:root:/offline-explorer-fixture',
+    repository_id: repositoryId
+  };
+  const snapshot = {
+    schema: 'core.snapshot-identity/v1',
+    kind: 'WORKSPACE',
+    repository_id: repositoryId,
+    content_manifest_digest:
+      'sha256:' + '3'.repeat(64),
+    content_manifest: [],
+    snapshot_id: snapshotId
+  };
   const graph = {
     schema: 'kneekura.graph/v1',
     meta: {
@@ -60,30 +76,46 @@ async function fixture() {
     }]
   };
   const evidence = {
+    schema: 'core.evidence/v1',
     id: 'evidence:boot',
-    kind: 'STATIC_ANALYSIS',
+    kind: 'SOURCE',
+    observation: {
+      text: 'export function boot()'
+    },
     provenance: {
+      repository_id: repositoryId,
+      snapshot_id: snapshotId,
+      provider_id: 'offline-explorer-fixture',
+      provider_version: 'v1',
       path: 'src/main.ts',
-      range: { start_line: 1, end_line: 3 }
-    }
+      extraction_method: 'fixture'
+    },
+    integrity_digest:
+      'sha256:' + '4'.repeat(64),
+    trust_class: 'repository',
+    provider_id: 'offline-explorer-fixture',
+    provider_version: 'v1'
   };
   const result = {
     schema: 'core.analysis-result/v1',
     analysis_id: 'analysis:offline-explorer',
     session_id: 'session:offline-explorer',
-    repository: { repository_id: repositoryId },
-    snapshot: { snapshot_id: snapshotId },
-    claims: [],
-    unknowns: [],
+    repository,
+    snapshot,
+    status: 'COMPLETE',
     coverage: {
-      completeness: 'BOUNDED',
+      schema: 'core.coverage/v1',
+      completeness: 'COMPLETE',
       entries: []
     },
-    diagnostics: []
+    claims: [],
+    evidence: [evidence],
+    unknowns: [],
+    failures: []
   };
   const pack = createHumanAnalysisEvidencePack({
-    repository: result.repository,
-    snapshot: result.snapshot,
+    repository,
+    snapshot,
     graph,
     result,
     evidence: [evidence],
