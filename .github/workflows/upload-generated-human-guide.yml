@@ -1,0 +1,19 @@
+name: Upload Generated Human Guide
+
+on:
+  push:
+    branches:
+      - tmp/export-love-github-human-guide-20260831
+
+jobs:
+  upload:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: [self-hosted, Windows, X64, kneekura-code-lab]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: love-github-human-guide
+          path: love-github-human-guide.zip
+          if-no-files-found: error
+          compression-level: 0
