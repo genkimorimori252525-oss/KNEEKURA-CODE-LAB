@@ -62,3 +62,21 @@ jobs:
       - run: node src/cli.mjs scan fixtures/forge-mini --trace fixtures/runtime/kneekura-trace.jsonl --pose fixtures/runtime/kneekura.pose.json --out dist/runtime-pose-overlay.json
       - run: node src/cli.mjs scan fixtures/forge-mini --trace fixtures/runtime/kneekura-trace.jsonl --net fixtures/runtime/kneekura-server.net.jsonl --net fixtures/runtime/kneekura-client.net.jsonl --out dist/runtime-network-overlay.json
       - run: node src/cli.mjs scan fixtures/workspace/ysm --trace fixtures/runtime/kneekura-trace.jsonl --pose fixtures/runtime/kneekura.pose.json --palette fixtures/runtime/kneekura.pal.json --out dist/runtime-bone-overlay.json
+      - name: Use Node 22 for fixed Love-Github R4 replay
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/human-analysis-r4-repository-scale')
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Reinstall locked KNEEKURA dependencies under Node 22
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/human-analysis-r4-repository-scale')
+        run: npm ci --no-audit --no-fund
+      - name: Validate fixed Love-Github production R4 repository scale
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/human-analysis-r4-repository-scale')
+        run: npm run validate:love-github-human-guide-production-r4
+      - name: Upload Love-Github production R4 artifact
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/human-analysis-r4-repository-scale')
+        uses: actions/upload-artifact@v4
+        with:
+          name: love-github-r4-human-explorer
+          path: dist/r4-love-github-production
+          if-no-files-found: error
