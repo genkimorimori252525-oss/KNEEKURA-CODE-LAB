@@ -42,6 +42,7 @@ assert.equal(
 assert.equal(technicalViews.architecture.relations.length, 2);
 assert.equal(technicalViews.architecture.relations[0].confirmation, 'CONFIRMED');
 assert.equal(technicalViews.architecture.relations[1].confirmation, 'UNCONFIRMED');
+assert.equal(technicalViews.architecture.relations[1].direction, 'UNKNOWN');
 assert(technicalViews.workflow.transitions.length >= 5);
 assert.equal(technicalViews.sequence.messages.filter(row => row.confirmation === 'CONFIRMED').length, 4);
 assert.equal(technicalViews.sequence.messages.filter(row => row.confirmation === 'UNCONFIRMED').length, 1);
@@ -81,6 +82,7 @@ const report = {
   analyzed_commit: '5d647785bfeee1b8892e9ba782b04a76f1b63fff',
   technical_view_set_id: technicalViews.view_set_id,
   architecture_relations: technicalViews.architecture.relations.length,
+  architecture_unconfirmed_directions: technicalViews.architecture.relations.filter(row => row.direction === 'UNKNOWN').length,
   workflow_steps: technicalViews.workflow.steps.length,
   workflow_transitions: technicalViews.workflow.transitions.length,
   sequence_confirmed_messages: technicalViews.sequence.messages.filter(row => row.confirmation === 'CONFIRMED').length,
@@ -128,10 +130,7 @@ function buildLoveGithubSpec(presentation) {
   };
   const refs = (...values) => {
     const map = new Map();
-    for (const value of values.flat()) {
-      const key = JSON.stringify(value);
-      map.set(key, value);
-    }
+    for (const value of values.flat()) map.set(JSON.stringify(value), value);
     return [...map.values()];
   };
 
@@ -159,17 +158,14 @@ function buildLoveGithubSpec(presentation) {
           from_component_id: publisher.component_id,
           to_component_id: githubRequester.component_id,
           type: 'REACHES_AUTHENTICATED_GITHUB_REQUESTER',
-          direction: 'FORWARD',
+          direction: 'UNKNOWN',
           confirmation: 'UNCONFIRMED',
-          unconfirmed_reason: 'このbounded scopeではWorkspacePublisherからRefreshingInstallationRequesterまでの直接call chainを確認していないため、接続を確定矢印にしません。',
+          unconfirmed_reason: 'このbounded scopeではWorkspacePublisherからRefreshingInstallationRequesterまでの直接call chainを確認していないため、接続方向を確定矢印にしません。',
           source_refs: []
         }
       ]
     },
-    workflow: {
-      flow_id: flow.flow_id,
-      title: 'workspace publish workflow'
-    },
+    workflow: { flow_id: flow.flow_id, title: 'workspace publish workflow' },
     sequence: {
       flow_id: flow.flow_id,
       title: '公開要求からatomic commitまでの確認済み順序',
@@ -303,7 +299,7 @@ function validateFileBrowser(indexPath) {
     for (const expected of [
       '技術ビュー', 'Architecture', 'Workflow', 'Sequence', 'Data Flow', 'Lifecycle',
       '順序未確認', 'STALE_STATE後にatomic commitへ進む',
-      'packages/orchestration/src/agent-service.ts'
+      'UNKNOWN', 'packages/orchestration/src/agent-service.ts'
     ]) {
       assert(dom.includes(expected), `R3 rendered DOM missing: ${expected}`);
     }

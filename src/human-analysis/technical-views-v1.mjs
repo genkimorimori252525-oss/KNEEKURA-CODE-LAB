@@ -9,7 +9,7 @@ export const HUMAN_ANALYSIS_TECHNICAL_VIEWS_SCHEMA =
   'kneekura.human-analysis-technical-views/v1';
 
 const CONFIRMATIONS = new Set(['CONFIRMED', 'UNCONFIRMED']);
-const ARCH_DIRECTIONS = new Set(['FORWARD', 'REVERSE', 'BIDIRECTIONAL']);
+const ARCH_DIRECTIONS = new Set(['FORWARD', 'REVERSE', 'BIDIRECTIONAL', 'UNKNOWN']);
 const DATA_DIRECTIONS = new Set(['FORWARD', 'RETURN', 'BIDIRECTIONAL', 'UNKNOWN']);
 
 export function createHumanAnalysisTechnicalViews({ ir, presentation, spec } = {}) {
@@ -139,6 +139,12 @@ function normalizeArchitecture(input, componentById) {
       relation?.unconfirmed_reason,
       `architecture relation ${from} -> ${to}`
     );
+    if (confirmation.confirmation === 'CONFIRMED' && direction === 'UNKNOWN') {
+      throw new TypeError(`confirmed architecture relation cannot use UNKNOWN direction: ${from} -> ${to}`);
+    }
+    if (confirmation.confirmation === 'UNCONFIRMED' && direction !== 'UNKNOWN') {
+      throw new TypeError(`unconfirmed architecture relation must use UNKNOWN direction: ${from} -> ${to}`);
+    }
     const core = {
       from_component_id: from,
       to_component_id: to,
