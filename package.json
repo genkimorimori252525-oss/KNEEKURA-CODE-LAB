@@ -33,7 +33,8 @@
     "validate:love-github-typescript-live": "node scripts/validate-love-github-typescript-live.mjs",
     "validate:love-github-human-guide-live": "node scripts/validate-love-github-human-guide-live.mjs",
     "validate:love-github-human-guide-production-r1": "node scripts/run-love-github-human-guide-production-r1.mjs",
-    "validate:love-github-system-map-r2": "node scripts/validate-love-github-system-map-r2.mjs"
+    "validate:love-github-human-guide-production-r2": "node scripts/run-love-github-human-guide-production-r2.mjs",
+    "validate:love-github-human-guide-production-r3": "node scripts/run-love-github-human-guide-production-r3.mjs"
   },
   "engines": {
     "node": ">=20"

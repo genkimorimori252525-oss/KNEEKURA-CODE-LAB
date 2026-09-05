@@ -30,9 +30,19 @@ jobs:
           name: love-github-r1-human-explorer
           path: dist/r1-love-github-production
           if-no-files-found: error
-      - name: Validate fixed Love-Github R2 System Map
+      - name: Validate fixed Love-Github production R2 System Map
         if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/human-experience-system-map-r2')
-        run: npm run validate:love-github-system-map-r2
+        run: npm run validate:love-github-human-guide-production-r2
+      - name: Validate fixed Love-Github production R3 technical views
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/human-analysis-r3-technical-views')
+        run: npm run validate:love-github-human-guide-production-r3
+      - name: Upload Love-Github production R3 artifact
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/human-analysis-r3-technical-views')
+        uses: actions/upload-artifact@v4
+        with:
+          name: love-github-r3-human-explorer
+          path: dist/r3-love-github-production
+          if-no-files-found: error
       - run: npm run presentation:guard
       - run: npm run test:presentation-p1
       - run: npm run test:presentation-p2
