@@ -92,7 +92,7 @@ export function HumanGuidePanel({ offlinePayload }) {
                   onClick={() => setSelectedSourceKey(source.key)}
                   aria-pressed={selectedSource?.key === source.key}
                 >
-                  {source.citation}
+                  {sourceButtonLabel(source)}
                 </button>
               ))}
             </div>
@@ -216,4 +216,12 @@ function SourceState({ source }) {
         : '根拠record'
       : 'ソース未同梱';
   return <span className="human-guide-source-state">{label}</span>;
+}
+
+function sourceButtonLabel(source) {
+  if (source.reference_type === 'FILE_RANGE') return source.citation;
+  if (source.reference_type === 'RUNTIME_OBSERVATION') {
+    return `${source.citation}（実行時観測）`;
+  }
+  return `${source.citation}（根拠record）`;
 }
