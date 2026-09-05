@@ -294,6 +294,9 @@ try {
   const dom = String(launched.stdout ?? '');
   for (const required of [
     'KNEEKURA コードエクスプローラー',
+    'System Map',
+    'リポジトリ全体を検索',
+    'L0–L3 探索',
     'AIによるコード案内',
     '起動処理',
     'src/main.ts:1–3',
