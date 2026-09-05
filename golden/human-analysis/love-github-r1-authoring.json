@@ -1,0 +1,224 @@
+{
+  "schema": "kneekura.saved-production-authoring/v1",
+  "authoring_run_id": "love-github-r1-2026-09-06-gpt-5.6-sol",
+  "authoring_origin": "SAVED_AI_AUTHORING_RUN",
+  "repository": {
+    "full_name": "genkimorimori252525-oss/Love-Github",
+    "commit_sha": "5d647785bfeee1b8892e9ba782b04a76f1b63fff"
+  },
+  "semantic_author": {
+    "id": "love-github-r1-saved-production-author",
+    "provider_id": "chatgpt:gpt-5.6-sol",
+    "locale": "ja-JP",
+    "acceptance_fixture": false
+  },
+  "scope": {
+    "kind": "BOUNDED_PREVIEW",
+    "label": "workspace変更を安全にGitHubへ公開する代表経路",
+    "declared_paths": [
+      "packages/github/src/client.ts",
+      "packages/orchestration/src/agent-service.ts",
+      "packages/orchestration/src/workspace-publisher.ts",
+      "packages/workspace/src/manager.ts"
+    ]
+  },
+  "source_ranges": {
+    "agent_publish": {
+      "path": "packages/orchestration/src/agent-service.ts",
+      "start_contains": "  async publish(",
+      "end_before_contains": "  async createPullRequest("
+    },
+    "agent_create_pr": {
+      "path": "packages/orchestration/src/agent-service.ts",
+      "start_contains": "  async createPullRequest(",
+      "end_before_contains": "  async listWorkflowRuns("
+    },
+    "publisher_publish": {
+      "path": "packages/orchestration/src/workspace-publisher.ts",
+      "start_contains": "  async publish(",
+      "end_before_contains": "  private async resolveBranch("
+    },
+    "publisher_resolve_branch": {
+      "path": "packages/orchestration/src/workspace-publisher.ts",
+      "start_contains": "  private async resolveBranch(",
+      "end_before_contains": "function staleState("
+    },
+    "publisher_stale_state": {
+      "path": "packages/orchestration/src/workspace-publisher.ts",
+      "start_contains": "function staleState(",
+      "end_before_contains": "function validationError<"
+    },
+    "workspace_bind_upstream": {
+      "path": "packages/workspace/src/manager.ts",
+      "start_contains": "  async bindTrustedUpstream(",
+      "end_before_contains": "  async trustedUpstream("
+    },
+    "github_request": {
+      "path": "packages/github/src/client.ts",
+      "start_contains": "  async request<T>(",
+      "end_before_contains": "  private async currentState()"
+    },
+    "github_refresh": {
+      "path": "packages/github/src/client.ts",
+      "start_contains": "  private async currentState()",
+      "end_before_contains": "  private refresh("
+    }
+  },
+  "stages": {
+    "ARCHITECTURE": [
+      {
+        "key": "overview",
+        "role": "OVERVIEW",
+        "kind": "ARCHITECTURE_COMPONENT",
+        "semantic_class": "AI_INTERPRETATION",
+        "title": "Love-Githubの安全な公開経路",
+        "body": "AIからの公開操作はAgentServiceのworkspace所有権・ポリシー境界を通ってWorkspacePublisherへ渡され、trusted upstreamとtask branchの状態を確認した後にatomic commitへ到達します。PR作成は同じAgentServiceにある別操作であり、publish完了後に自動でPRが作られることはこの範囲からは確認できません。",
+        "source_keys": [
+          "agent_publish",
+          "agent_create_pr",
+          "publisher_publish",
+          "publisher_resolve_branch"
+        ]
+      },
+      {
+        "key": "agent_boundary",
+        "role": "COMPONENT",
+        "kind": "ARCHITECTURE_COMPONENT",
+        "semantic_class": "AI_INTERPRETATION",
+        "title": "Agent操作境界",
+        "body": "LoveGitHubAgentServiceはpublishやPR作成をidempotency制御とworkspace認可の内側で実行し、書込系操作をguarded operationとして扱います。",
+        "source_keys": ["agent_publish", "agent_create_pr"],
+        "presentation": {
+          "name": "Agent操作境界",
+          "responsibility": "AI操作をworkspace所有権・リスク制御・idempotencyの境界へ通す"
+        }
+      },
+      {
+        "key": "publication_engine",
+        "role": "COMPONENT",
+        "kind": "ARCHITECTURE_COMPONENT",
+        "semantic_class": "AI_INTERPRETATION",
+        "title": "Workspace公開エンジン",
+        "body": "WorkspacePublisherはtrusted upstreamを基準にtask branchを解決し、変更集合を収集してexpected-head付きatomic commitを実行します。remote branchが想定SHAから動いていればSTALE_STATEとして停止します。",
+        "source_keys": [
+          "publisher_publish",
+          "publisher_resolve_branch",
+          "publisher_stale_state",
+          "workspace_bind_upstream"
+        ],
+        "presentation": {
+          "name": "Workspace公開エンジン",
+          "responsibility": "固定されたupstreamとremote freshnessを確認してworkspace差分を原子的に公開する"
+        }
+      },
+      {
+        "key": "github_request_boundary",
+        "role": "COMPONENT",
+        "kind": "ARCHITECTURE_COMPONENT",
+        "semantic_class": "AI_INTERPRETATION",
+        "title": "GitHub認証付きrequester",
+        "body": "RefreshingInstallationRequesterはinstallation credentialを使ってGitHub要求を行い、401を受けた場合はcredentialをrefreshして一度再試行します。期限が近いcredentialも要求前に更新対象になります。",
+        "source_keys": ["github_request", "github_refresh"],
+        "presentation": {
+          "name": "GitHub認証付きrequester",
+          "responsibility": "installation credentialの期限・401を処理しながらGitHub要求を送る"
+        }
+      }
+    ],
+    "DOMAIN": [
+      {
+        "key": "safe_write_contract",
+        "kind": "DOMAIN_CONCEPT",
+        "semantic_class": "AI_INTERPRETATION",
+        "title": "古い状態への上書きを避ける書込契約",
+        "body": "workspaceのtrusted upstream bindingは後から別upstreamへ差し替えられず、publish時にはremote task branchの現在SHAとexpectedRemoteShaを照合します。この二つは、解析・編集対象と実際の書込先が途中でずれることを抑える安全境界です。",
+        "source_keys": ["workspace_bind_upstream", "publisher_resolve_branch", "publisher_stale_state"]
+      }
+    ],
+    "FLOW": [
+      {
+        "key": "publish_flow",
+        "kind": "FLOW",
+        "semantic_class": "AI_INTERPRETATION",
+        "title": "workspace変更をatomic commitへ公開する流れ",
+        "body": "入口はAgentService.publishです。workspace認可を通った後、WorkspacePublisherがtrusted upstreamを取得し、task branchのfreshnessを確認し、変更集合を集めてatomicCommitへ渡します。既存branchのSHAがexpectedRemoteShaと異なる場合はSTALE_STATEへ分岐して書込みを止めます。",
+        "source_keys": [
+          "agent_publish",
+          "publisher_publish",
+          "publisher_resolve_branch",
+          "publisher_stale_state"
+        ],
+        "presentation": {
+          "name": "workspace publish",
+          "entry_step_id": "agent-publish",
+          "steps": [
+            {"step_id": "agent-publish", "label": "AgentServiceで公開要求をguardする", "source_keys": ["agent_publish"]},
+            {"step_id": "trusted-upstream", "label": "trusted upstreamを取得する", "source_keys": ["publisher_publish"]},
+            {"step_id": "branch-freshness", "label": "task branchの現在SHAを確認する", "source_keys": ["publisher_resolve_branch"]},
+            {"step_id": "collect-changes", "label": "workspace変更集合を収集する", "source_keys": ["publisher_publish"]},
+            {"step_id": "atomic-commit", "label": "expected-head付きatomic commitを実行する", "source_keys": ["publisher_publish"]},
+            {"step_id": "stale-state", "label": "remote driftを検出して書込みを止める", "source_keys": ["publisher_resolve_branch", "publisher_stale_state"]}
+          ],
+          "transitions": [
+            {"from_step_id": "agent-publish", "to_step_id": "trusted-upstream", "kind": "CALL", "source_keys": ["agent_publish", "publisher_publish"]},
+            {"from_step_id": "trusted-upstream", "to_step_id": "branch-freshness", "kind": "CALL", "source_keys": ["publisher_publish", "publisher_resolve_branch"]},
+            {"from_step_id": "branch-freshness", "to_step_id": "collect-changes", "kind": "GUARD", "source_keys": ["publisher_publish", "publisher_resolve_branch"]},
+            {"from_step_id": "branch-freshness", "to_step_id": "stale-state", "kind": "GUARD", "source_keys": ["publisher_resolve_branch", "publisher_stale_state"]},
+            {"from_step_id": "collect-changes", "to_step_id": "atomic-commit", "kind": "EXTERNAL_WRITE", "source_keys": ["publisher_publish"]}
+          ]
+        }
+      }
+    ],
+    "TOUR": [
+      {
+        "key": "tour_agent_publish",
+        "kind": "TOUR_STEP",
+        "semantic_class": "AI_INTERPRETATION",
+        "title": "1. AgentService.publishから入る",
+        "body": "まずAgentService.publishを読み、公開操作がonceによるidempotency境界とwithWorkspaceによるguardを通ることを確認します。",
+        "source_keys": ["agent_publish"],
+        "ordering_key": "001",
+        "presentation_order": 1
+      },
+      {
+        "key": "tour_freshness",
+        "kind": "TOUR_STEP",
+        "semantic_class": "AI_INTERPRETATION",
+        "title": "2. remote branchのfreshnessを確認する",
+        "body": "次にWorkspacePublisher.resolveBranchを読み、既存task branchのSHAがexpectedRemoteShaと一致しない場合にSTALE_STATEで止まることを確認します。",
+        "source_keys": ["publisher_resolve_branch", "publisher_stale_state"],
+        "ordering_key": "002",
+        "presentation_order": 2
+      },
+      {
+        "key": "tour_atomic_commit",
+        "kind": "TOUR_STEP",
+        "semantic_class": "AI_INTERPRETATION",
+        "title": "3. atomic commit境界を確認する",
+        "body": "WorkspacePublisher.publishでは、検証済みbranch SHAをexpectedHeadShaに設定し、収集した変更集合をcontrol.git.atomicCommitへ渡します。",
+        "source_keys": ["publisher_publish"],
+        "ordering_key": "003",
+        "presentation_order": 3
+      },
+      {
+        "key": "tour_pr_separate",
+        "kind": "TOUR_STEP",
+        "semantic_class": "AI_INTERPRETATION",
+        "title": "4. PR作成は別操作として読む",
+        "body": "createPullRequestはpublishとは別のguarded operationとしてcontrol.pulls.createを呼びます。この固定範囲にはpublish成功後の自動PR作成を示す呼出しがないため、両者を一本の確定sequenceとして描きません。",
+        "source_keys": ["agent_create_pr"],
+        "ordering_key": "004",
+        "presentation_order": 4
+      }
+    ]
+  },
+  "review_policy": {
+    "kind": "DETERMINISTIC_SAVED_RUN_REVIEW",
+    "acceptance_requires": [
+      "candidate_matches_saved_stage_title_and_body",
+      "candidate_semantic_class_remains_AI_INTERPRETATION",
+      "candidate_has_resolved_source_refs"
+    ],
+    "unconditional_accept_forbidden": true
+  }
+}
