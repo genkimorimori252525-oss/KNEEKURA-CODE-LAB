@@ -16,6 +16,9 @@ jobs:
       - name: Generate R4 package lock probe
         if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/human-analysis-r4-repository-scale')
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Emit R4 package lock probe
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/human-analysis-r4-repository-scale')
+        run: node scripts/emit-package-lock-base64.mjs
       - name: Upload R4 package lock probe
         if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/human-analysis-r4-repository-scale')
         uses: actions/upload-artifact@v4
