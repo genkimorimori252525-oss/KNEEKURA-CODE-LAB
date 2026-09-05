@@ -2,9 +2,11 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { ExplorerApp } from './App.jsx';
 import { SystemMapPanel } from './SystemMapPanel.jsx';
+import { TechnicalViewsPanel } from './TechnicalViewsPanel.jsx';
 import './styles.css';
 import './human-experience.css';
 import './system-map.css';
+import './technical-views.css';
 
 const root = createRoot(
   document.getElementById('root')
@@ -42,6 +44,7 @@ async function bootstrap() {
         'Human Experience projectionが成果物に含まれていません。'
       );
     }
+    assertTechnicalViewsIdentity(embedded);
     projection =
       embedded.experience.canonical?.explorer_projection;
     offlinePayload = embedded;
@@ -71,10 +74,16 @@ async function bootstrap() {
   root.render(
     <React.StrictMode>
       <div className="human-explorer-r2-shell">
-        <SystemMapPanel
-          projection={projection}
-          offlinePayload={offlinePayload}
-        />
+        <div className="human-explorer-r3-sidebar">
+          <SystemMapPanel
+            projection={projection}
+            offlinePayload={offlinePayload}
+          />
+          <TechnicalViewsPanel
+            projection={projection}
+            offlinePayload={offlinePayload}
+          />
+        </div>
         <div className="human-explorer-r2-main">
           <ExplorerApp
             projection={projection}
@@ -84,6 +93,44 @@ async function bootstrap() {
       </div>
     </React.StrictMode>
   );
+}
+
+function assertTechnicalViewsIdentity(payload) {
+  const views = payload?.technical_views;
+  if (views == null) return;
+  if (views.schema !== 'kneekura.human-analysis-technical-views/v1') {
+    throw new Error('対応していないtechnical views成果物です。');
+  }
+  const experience = payload.experience;
+  const presentation = payload.presentation;
+  const repository = experience?.repository;
+  const irDigest = experience?.source_identity?.human_analysis_ir_digest;
+  if (
+    !repository?.repository_id ||
+    !repository?.snapshot_id ||
+    !irDigest ||
+    !presentation?.presentation_id
+  ) {
+    throw new Error('technical viewsの基準identityが不足しています。');
+  }
+  if (
+    views.repository?.repository_id !== repository.repository_id ||
+    views.repository?.snapshot_id !== repository.snapshot_id ||
+    views.human_analysis_ir_digest !== irDigest ||
+    views.presentation_id !== presentation.presentation_id
+  ) {
+    throw new Error('technical viewsのrepository/snapshot identityが一致しません。');
+  }
+  const authority = views.authority ?? {};
+  if (
+    authority.canonical_authority !== false ||
+    authority.may_mint_canonical_nodes !== false ||
+    authority.may_mint_canonical_edges !== false ||
+    authority.may_mint_canonical_claims !== false ||
+    authority.derived_presentation_only !== true
+  ) {
+    throw new Error('technical viewsがcanonical authority境界に違反しています。');
+  }
 }
 
 function readEmbeddedExperience() {
