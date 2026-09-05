@@ -4,6 +4,7 @@ import { ExplorerApp } from './App.jsx';
 import { HumanGuidePanel } from './HumanGuidePanel.jsx';
 import './styles.css';
 import './human-guide.css';
+import './evidence-ux.css';
 
 const root = createRoot(
   document.getElementById('root')
