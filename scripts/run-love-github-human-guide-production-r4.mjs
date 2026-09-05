@@ -12,21 +12,30 @@ globalThis.__KNEEKURA_R4_NPM_CI_INTERCEPTS__ = 0;
 function transformArgs(file, args) {
   const npmExecPath = process.env.npm_execpath;
   if (
-    file === process.execPath &&
-    typeof npmExecPath === 'string' &&
-    Array.isArray(args) &&
-    args[0] === npmExecPath &&
-    args[1] === 'install' &&
-    args.includes('--package-lock=false')
+    file !== process.execPath ||
+    typeof npmExecPath !== 'string' ||
+    !Array.isArray(args) ||
+    args[0] !== npmExecPath
+  ) {
+    return args;
+  }
+
+  let transformed = [...args];
+  if (
+    transformed[1] === 'install' &&
+    transformed.includes('--package-lock=false')
   ) {
     globalThis.__KNEEKURA_R4_NPM_CI_INTERCEPTS__ += 1;
-    const transformed = args
+    transformed = transformed
       .filter(arg => arg !== '--package-lock=false')
       .map((arg, index) => index === 1 ? 'ci' : arg);
-    if (!transformed.includes('--include=dev')) transformed.push('--include=dev');
-    return transformed;
   }
-  return args;
+
+  if (transformed[1] === 'ci') {
+    if (!transformed.includes('--include=dev')) transformed.push('--include=dev');
+    if (!transformed.includes('--production=false')) transformed.push('--production=false');
+  }
+  return transformed;
 }
 
 function execFileWithLockedTargetInstall(file, args = [], options, callback) {
