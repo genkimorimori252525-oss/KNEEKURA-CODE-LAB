@@ -6,5 +6,6 @@ export * from './author-contract.mjs';
 export * from './author-read-trace.mjs';
 export * from './production.mjs';
 export * from './presentation-companion.mjs';
+export * from './technical-views.mjs';
 export * from './artifact-compiler.mjs';
 export * from './zip.mjs';
