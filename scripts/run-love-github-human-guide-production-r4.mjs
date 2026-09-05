@@ -38,12 +38,42 @@ function transformArgs(file, args) {
   return transformed;
 }
 
+function isLockedNpmCi(file, args) {
+  return (
+    file === process.execPath &&
+    typeof process.env.npm_execpath === 'string' &&
+    Array.isArray(args) &&
+    args[0] === process.env.npm_execpath &&
+    args[1] === 'ci'
+  );
+}
+
+function lockedNpmEnvironment(options) {
+  return {
+    ...process.env,
+    ...(options?.env ?? {}),
+    NODE_ENV: 'development',
+    NPM_CONFIG_PRODUCTION: 'false',
+    NPM_CONFIG_OMIT: '',
+    NPM_CONFIG_ONLY: '',
+    NPM_CONFIG_INCLUDE: 'dev',
+    npm_config_production: 'false',
+    npm_config_omit: '',
+    npm_config_only: '',
+    npm_config_include: 'dev'
+  };
+}
+
 function execFileWithLockedTargetInstall(file, args = [], options, callback) {
+  const transformed = transformArgs(file, args);
+  const nextOptions = isLockedNpmCi(file, transformed)
+    ? { ...(options ?? {}), env: lockedNpmEnvironment(options) }
+    : options;
   return originalExecFile.call(
     childProcess,
     file,
-    transformArgs(file, args),
-    options,
+    transformed,
+    nextOptions,
     callback
   );
 }
