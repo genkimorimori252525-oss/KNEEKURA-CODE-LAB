@@ -30,6 +30,7 @@
     "test:presentation-ask-graph": "node --test test/human-presentation-v2-ask-graph.test.mjs",
     "test:presentation-confidence-evidence": "node --test test/human-presentation-v2-confidence-evidence.test.mjs",
     "test:ai-human-analysis-contract": "node --test test/ai-assisted-human-analysis-contract.test.mjs",
+    "validate:human-explorer-browser": "node scripts/validate-human-explorer-browser.mjs",
     "validate:love-github-typescript-live": "node scripts/validate-love-github-typescript-live.mjs",
     "validate:love-github-human-guide-live": "node scripts/validate-love-github-human-guide-live.mjs"
   },
@@ -44,6 +45,7 @@
   },
   "devDependencies": {
     "vite": "8.2.2",
-    "@typescript/typescript6": "6.0.2"
+    "@typescript/typescript6": "6.0.2",
+    "playwright-core": "1.62.1"
   }
 }
