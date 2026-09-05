@@ -5,6 +5,8 @@ import {
 
 export const EXPLORER_LAYOUT_SCHEMA =
   'kneekura.explorer-layout/v1';
+export const EXPLORER_LAYOUT_MAX_NODES = 1500;
+export const EXPLORER_LAYOUT_MAX_EDGES = 6000;
 
 export const ELK_LAYOUT_OPTIONS = Object.freeze({
   'elk.algorithm': 'layered',
@@ -15,8 +17,42 @@ export const ELK_LAYOUT_OPTIONS = Object.freeze({
     'NODES_AND_EDGES'
 });
 
+export function assertExplorerLayoutBudget(
+  model,
+  {
+    maxNodes = EXPLORER_LAYOUT_MAX_NODES,
+    maxEdges = EXPLORER_LAYOUT_MAX_EDGES
+  } = {}
+) {
+  assertExplorerUiModel(model);
+  if (!Number.isInteger(maxNodes) || maxNodes < 1) {
+    throw new TypeError('Explorer layout maxNodes must be a positive integer');
+  }
+  if (!Number.isInteger(maxEdges) || maxEdges < 0) {
+    throw new TypeError('Explorer layout maxEdges must be a non-negative integer');
+  }
+  if (model.nodes.length > maxNodes || model.edges.length > maxEdges) {
+    const error = new RangeError(
+      'Explorer layout budget exceeded: ' +
+      `${model.nodes.length}/${maxNodes} nodes, ` +
+      `${model.edges.length}/${maxEdges} edges. ` +
+      'Narrow the Explorer hierarchy/scope before running ELK.'
+    );
+    error.code = 'EXPLORER_LAYOUT_BUDGET_EXCEEDED';
+    error.details = Object.freeze({
+      nodes: model.nodes.length,
+      edges: model.edges.length,
+      max_nodes: maxNodes,
+      max_edges: maxEdges
+    });
+    throw error;
+  }
+  return true;
+}
+
 export function buildElkLayoutInput(model) {
   assertExplorerUiModel(model);
+  assertExplorerLayoutBudget(model);
 
   const children = [...model.nodes]
     .sort((a, b) => compareText(a.id, b.id))
@@ -44,6 +80,7 @@ export function buildElkLayoutInput(model) {
 
 export async function layoutExplorerUiModel(model, elk) {
   assertExplorerUiModel(model);
+  assertExplorerLayoutBudget(model);
   if (!elk || typeof elk.layout !== 'function') {
     throw new TypeError(
       'Explorer layout requires an ELK-compatible engine'
