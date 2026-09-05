@@ -611,11 +611,11 @@ test('Explorer UI presents exact Confidence Evidence Counterevidence and unavail
   const source=app+'\n'+css;
 
   for(const required of [
-    'Confidence / Evidence Inspector',
-    'Confidence rationale',
-    'Evidence links',
-    'Counterevidence links',
-    'Evidence body is unavailable inline',
+    '信頼度と根拠',
+    '信頼度の理由',
+    'title="根拠"',
+    'title="反証"',
+    '根拠本文はこの成果物へ直接同梱されていません',
     'explorer-confidence-inspector'
   ]){
     assert.equal(

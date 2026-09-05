@@ -373,10 +373,10 @@ test('P3 React shell exposes hierarchy controls without executable text renderin
     'createExplorerHierarchy',
     'createExplorerScope',
     'HierarchyPanel',
-    'Layers',
-    'Hierarchy',
+    '表示レイヤー',
+    '<h2>階層</h2>',
     'explorer-breadcrumbs',
-    'Boundary edges hidden'
+    '非表示の境界関係'
   ]) {
     assert.equal(
       app.includes(required),

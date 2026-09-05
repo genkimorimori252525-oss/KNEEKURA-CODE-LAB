@@ -284,10 +284,10 @@ test('change impact UI uses investigation-scope language and keeps repository te
   const source=app+'\n'+css;
   for(const required of [
     'ChangeImpactPanel',
-    'CORE IMPACT investigation scope',
-    'Analyze selected node',
-    'Recompute from selected',
-    'Exit impact',
+    'CORE IMPACTが示す調査範囲',
+    '選択中の要素を解析',
+    '選択中の要素から再計算',
+    '変更影響を終了',
     'explorer-node-impact-seed',
     'explorer-node-impact-scope',
     'explorer-node-impact-boundary',
