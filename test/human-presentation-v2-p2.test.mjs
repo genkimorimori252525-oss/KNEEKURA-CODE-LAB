@@ -366,8 +366,8 @@ test('P2 React shell has no executable repository-text rendering escape hatch', 
   for (const required of [
     'ReactFlow',
     'MiniMap',
-    'Controls',
     'fitView',
+    '表示範囲に合わせる',
     'JSON.stringify'
   ]) {
     assert.equal(
