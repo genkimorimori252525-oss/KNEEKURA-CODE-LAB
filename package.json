@@ -31,7 +31,8 @@
     "test:presentation-confidence-evidence": "node --test test/human-presentation-v2-confidence-evidence.test.mjs",
     "test:ai-human-analysis-contract": "node --test test/ai-assisted-human-analysis-contract.test.mjs",
     "validate:love-github-typescript-live": "node scripts/validate-love-github-typescript-live.mjs",
-    "validate:love-github-human-guide-live": "node scripts/validate-love-github-human-guide-live.mjs"
+    "validate:love-github-human-guide-live": "node scripts/validate-love-github-human-guide-live.mjs",
+    "validate:love-github-human-guide-production-r1": "node scripts/run-love-github-human-guide-production-r1.mjs"
   },
   "engines": {
     "node": ">=20"

@@ -5,6 +5,10 @@ import path from 'node:path';
 import { validateHumanAnalysisIr, stableDigest } from './schema.mjs';
 import { createDeterministicZip } from './zip.mjs';
 import { assertProductionHumanAnalysisIr } from './production.mjs';
+import {
+  HUMAN_ANALYSIS_PRESENTATION_SCHEMA,
+  validateHumanAnalysisPresentationCompanion
+} from './presentation-companion.mjs';
 import { validateHumanExperienceProjection } from '../human-experience/schema.mjs';
 import {
   buildStandaloneHumanExplorerShell,
@@ -112,6 +116,7 @@ export function compileHumanAnalysisArtifact({ ir, sources, title = null } = {})
 export async function compileProductionHumanExperienceArtifact({
   experience,
   sources,
+  presentation = null,
   title = null,
   explorerShell = null
 } = {}) {
@@ -146,6 +151,12 @@ export async function compileProductionHumanExperienceArtifact({
   }
 
   const sourceBundle = normalizeSourceBundle(ir, sources);
+  const normalizedPresentation = normalizePresentationForArtifact({
+    presentation,
+    experience,
+    ir,
+    sources
+  });
   const normalizedTitle = normalizeTitle(title);
   const shell = explorerShell ?? await buildStandaloneHumanExplorerShell();
   if (
@@ -167,7 +178,10 @@ export async function compileProductionHumanExperienceArtifact({
   const offlinePayload = {
     schema: HUMAN_EXPERIENCE_OFFLINE_PAYLOAD_SCHEMA,
     experience: structuredClone(experience),
-    sources: structuredClone(sourceBundle)
+    sources: structuredClone(sourceBundle),
+    ...(normalizedPresentation
+      ? { presentation: structuredClone(normalizedPresentation) }
+      : {})
   };
   let indexHtml;
   try {
@@ -195,7 +209,11 @@ export async function compileProductionHumanExperienceArtifact({
   const explorerProjectionJson = stableJson(
     experience.canonical.explorer_projection
   );
-  const readme = renderProductionReadme(ir, normalizedTitle);
+  const readme = renderProductionReadme(
+    ir,
+    normalizedTitle,
+    normalizedPresentation?.readiness ?? null
+  );
 
   const primaryFiles = new Map([
     ['analysis.json', analysisJson],
@@ -206,6 +224,9 @@ export async function compileProductionHumanExperienceArtifact({
     ['README.md', readme],
     ['sources.json', sourcesJson]
   ]);
+  if (normalizedPresentation) {
+    primaryFiles.set('presentation.json', stableJson(normalizedPresentation));
+  }
   const manifestCore = {
     schema: HUMAN_ARTIFACT_MANIFEST_SCHEMA,
     renderer_version: HUMAN_EXPLORER_ARTIFACT_RENDERER_VERSION,
@@ -216,6 +237,21 @@ export async function compileProductionHumanExperienceArtifact({
     human_experience_projection_id: experience.projection_id,
     human_explorer_shell_digest: shell.digest,
     offline_payload_digest: stableDigest(offlinePayload),
+    semantic_readiness: normalizedPresentation
+      ? {
+          status: normalizedPresentation.readiness.status,
+          bounded_preview_ready:
+            normalizedPresentation.readiness.bounded_preview_ready,
+          repository_scale_ready:
+            normalizedPresentation.readiness.repository_scale_ready,
+          presentation_id: normalizedPresentation.presentation_id
+        }
+      : {
+          status: 'UNASSESSED',
+          bounded_preview_ready: false,
+          repository_scale_ready: false,
+          presentation_id: null
+        },
     title: normalizedTitle,
     security: {
       repository_content_instruction_authority: false,
@@ -294,6 +330,73 @@ export async function writeHumanAnalysisArtifact({ artifact, outDir, zipFile = '
   }
   await writeAtomic(zipPath, artifact.zip_bytes);
   return deepFreeze({ root, index_path: path.join(root, 'index.html'), zip_path: zipPath, artifact_id: artifact.artifact_id, zip_digest: artifact.zip_digest });
+}
+
+function normalizePresentationForArtifact({ presentation, experience, ir, sources }) {
+  if (presentation == null) return null;
+  if (presentation.schema !== HUMAN_ANALYSIS_PRESENTATION_SCHEMA) {
+    throw repair(
+      'HUMAN_PRESENTATION_INVALID',
+      'production semantic presentation schema is invalid',
+      { path: 'presentation' }
+    );
+  }
+  const evidencePack = evidencePackViewFromExperience(experience);
+  try {
+    validateHumanAnalysisPresentationCompanion(presentation, {
+      ir,
+      evidencePack,
+      sources
+    });
+  } catch (error) {
+    throw repair(
+      'HUMAN_PRESENTATION_INVALID',
+      'production semantic presentation failed validation',
+      {
+        path: 'presentation',
+        details: { cause: String(error?.message ?? error) },
+        repair: { action: 'regenerate_typed_presentation' },
+        cause: error
+      }
+    );
+  }
+  if (
+    presentation.readiness?.status !== 'READY_BOUNDED_PREVIEW' ||
+    presentation.readiness?.bounded_preview_ready !== true
+  ) {
+    throw repair(
+      'HUMAN_PRESENTATION_NOT_READY',
+      'typed semantic presentation is not ready even for bounded preview delivery',
+      {
+        path: 'presentation.readiness',
+        details: {
+          status: presentation.readiness?.status ?? null,
+          gaps: presentation.readiness?.gaps ?? []
+        },
+        repair: { action: 'resolve_semantic_readiness_gaps' }
+      }
+    );
+  }
+  return structuredClone(presentation);
+}
+
+function evidencePackViewFromExperience(experience) {
+  return {
+    repository: structuredClone(experience.repository),
+    pack_id: experience.source_identity.evidence_pack_id,
+    pack_digest: experience.source_identity.evidence_pack_digest,
+    canonical_digest: experience.source_identity.canonical_digest,
+    source_catalog: structuredClone(experience.source_index?.files ?? []),
+    canonical: {
+      graph: structuredClone(
+        experience.canonical.explorer_projection.canonical.graph
+      ),
+      result: structuredClone(
+        experience.canonical.explorer_projection.canonical.result
+      ),
+      evidence: structuredClone(experience.canonical.evidence ?? [])
+    }
+  };
 }
 
 function normalizeSourceBundle(ir, sources) {
@@ -399,8 +502,8 @@ function renderOfflineHtml(model) {
   return `<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">\n<title>${title}</title>\n<style>body{font-family:system-ui,sans-serif;margin:0;background:#f7f7f8;color:#171717}header{padding:18px 24px;background:#fff;border-bottom:1px solid #ddd}main{max-width:1100px;margin:auto;padding:24px}.toolbar{display:flex;gap:12px;flex-wrap:wrap;margin:0 0 20px}.toolbar input,.toolbar select{padding:8px 10px}.card{background:#fff;border:1px solid #ddd;border-radius:10px;padding:16px;margin:12px 0}.meta,.refs{font-size:12px;color:#555}.tag{display:inline-block;border:1px solid #bbb;border-radius:999px;padding:2px 8px;margin-right:6px;font-size:12px}.source{white-space:pre-wrap;background:#111;color:#eee;padding:12px;border-radius:8px;overflow:auto}</style>\n</head>\n<body>\n<header><h1>${title}</h1><div id="identity"></div></header>\n<main><div class="toolbar"><input id="q" placeholder="Search"><select id="klass"><option value="">All classes</option><option>AI_INTERPRETATION</option><option>UNKNOWN</option><option>COVERAGE_GAP</option></select></div><div id="summary"></div><div id="items"></div></main>\n<script id="kneekura-data" type="application/octet-stream">${payload}</script>\n<script>"use strict";const raw=document.getElementById("kneekura-data").textContent.trim();const data=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(raw),c=>c.charCodeAt(0))));const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!=null)n.textContent=String(text);if(cls)n.className=cls;return n};document.getElementById("identity").textContent=data.repository.repository_id+" · "+data.repository.snapshot_id;const items=document.getElementById("items"),q=document.getElementById("q"),klass=document.getElementById("klass");document.getElementById("summary").textContent=data.items.length+" derived items · IR "+data.ir_digest;function render(){items.replaceChildren();const query=q.value.toLowerCase(),k=klass.value;for(const item of data.items){if(k&&item.semantic_class!==k)continue;const hay=(item.title+" "+item.body).toLowerCase();if(query&&!hay.includes(query))continue;const card=el("article",null,"card"),h=el("h2",item.title),tags=el("div",null,"meta");tags.append(el("span",item.stage,"tag"),el("span",item.semantic_class,"tag"),el("span",item.review_status,"tag"));card.append(h,tags,el("p",item.body));card.append(el("div","Sources: "+item.source_refs.map(r=>r.kind==="FILE_RANGE"?r.path+":"+r.start_line+"-"+r.end_line:r.kind+":"+r.id).join(", "),"refs"));for(const ref of item.source_refs){const key=ref.kind==="FILE_RANGE"?"FILE_RANGE:"+ref.path+":"+ref.start_line+":"+ref.end_line+":"+ref.content_digest:ref.kind+":"+ref.id;const source=data.sources_by_key[key];if(source&&typeof source.text==="string"){const details=document.createElement("details");details.append(el("summary","Show source"),el("pre",source.text,"source"));card.append(details)}}items.append(card)}}q.addEventListener("input",render);klass.addEventListener("change",render);render();</script>\n</body>\n</html>\n`;
 }
 
-function renderProductionReadme(ir, title) {
-  return `# ${title}\n\nPortable KNEEKURA Human Explorer production artifact.\n\n- IR: ${ir.ir_digest}\n- Repository: ${ir.repository.repository_id}\n- Snapshot: ${ir.repository.snapshot_id}\n- Renderer: HUMAN_EXPLORER_V2\n- The full ReactFlow/ELK Human Explorer is bundled into index.html.\n- Repository/source text remains inert data and never gains instruction authority.\n- Open index.html directly in a browser; no server or network connection is required.\n`;
+function renderProductionReadme(ir, title, readiness = null) {
+  return `# ${title}\n\nPortable KNEEKURA Human Explorer production artifact.\n\n- IR: ${ir.ir_digest}\n- Repository: ${ir.repository.repository_id}\n- Snapshot: ${ir.repository.snapshot_id}\n- Renderer: HUMAN_EXPLORER_V2\n- Semantic readiness: ${readiness?.status ?? 'UNASSESSED'}\n- Repository-scale ready: ${readiness?.repository_scale_ready === true ? 'yes' : 'no'}\n- The full ReactFlow/ELK Human Explorer is bundled into index.html.\n- Repository/source text remains inert data and never gains instruction authority.\n- Open index.html directly in a browser; no server or network connection is required.\n`;
 }
 
 function renderReadme(ir, title) {
