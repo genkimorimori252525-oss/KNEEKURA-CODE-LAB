@@ -6,7 +6,6 @@ import React, {
 } from 'react';
 import {
   Background,
-  Controls,
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
@@ -49,21 +48,34 @@ import {
 import {
   createExplorerConfidenceEvidenceInspector
 } from '../../../src/presentation/explorer/inspector.mjs';
+import {
+  createOfflineHumanExperienceView
+} from './offline-human-experience.mjs';
 
 const elk = new ELK();
 
-export function ExplorerApp({ projection }) {
+export function ExplorerApp({
+  projection,
+  offlinePayload = null
+}) {
   return (
     <ReactFlowProvider>
-      <ExplorerCanvas projection={projection} />
+      <ExplorerCanvas
+        projection={projection}
+        offlinePayload={offlinePayload}
+      />
     </ReactFlowProvider>
   );
 }
 
-function ExplorerCanvas({ projection }) {
+function ExplorerCanvas({ projection, offlinePayload }) {
   const model = useMemo(
     () => createExplorerUiModel(projection),
     [projection]
+  );
+  const humanExperience = useMemo(
+    () => createOfflineHumanExperienceView(offlinePayload),
+    [offlinePayload]
   );
   const hierarchy = useMemo(
     () => createExplorerHierarchy(model),
@@ -115,6 +127,10 @@ function ExplorerCanvas({ projection }) {
     useState(null);
   const [selectedEdgeId, setSelectedEdgeId] =
     useState(null);
+  const [selectedHumanItemId, setSelectedHumanItemId] =
+    useState(null);
+  const [selectedHumanSourceKey, setSelectedHumanSourceKey] =
+    useState(null);
   const [tourPlayback, setTourPlayback] =
     useState(() =>
       createGuidedTourPlayback(guidedTour)
@@ -141,6 +157,29 @@ function ExplorerCanvas({ projection }) {
     setImpactDepth(3);
     impactReturnStateRef.current = null;
   }, [hierarchy, guidedTour]);
+
+  useEffect(() => {
+    const firstItem = humanExperience.items[0] ?? null;
+    setSelectedHumanItemId(firstItem?.id ?? null);
+    setSelectedHumanSourceKey(
+      firstItem?.sources.find(
+        source => source.availability !== 'UNAVAILABLE'
+      )?.key ?? firstItem?.sources[0]?.key ?? null
+    );
+  }, [humanExperience]);
+
+  const selectedHumanItem = useMemo(
+    () => humanExperience.items.find(
+      item => item.id === selectedHumanItemId
+    ) ?? humanExperience.items[0] ?? null,
+    [humanExperience, selectedHumanItemId]
+  );
+  const selectedHumanSource = useMemo(
+    () => selectedHumanItem?.sources.find(
+      source => source.key === selectedHumanSourceKey
+    ) ?? selectedHumanItem?.sources[0] ?? null,
+    [selectedHumanItem, selectedHumanSourceKey]
+  );
 
   const scope = useMemo(
     () => createExplorerScope(model, hierarchy, {
@@ -412,6 +451,7 @@ function ExplorerCanvas({ projection }) {
       selectedEdgeId
     ]
   );
+
   useEffect(() => {
     if (
       !layout ||
@@ -599,13 +639,25 @@ function ExplorerCanvas({ projection }) {
     });
   }
 
+  function selectHumanItem(itemId) {
+    const item = humanExperience.items.find(
+      candidate => candidate.id === itemId
+    );
+    setSelectedHumanItemId(itemId);
+    setSelectedHumanSourceKey(
+      item?.sources.find(
+        source => source.availability !== 'UNAVAILABLE'
+      )?.key ?? item?.sources[0]?.key ?? null
+    );
+  }
+
   return (
     <div className="explorer-shell">
       <header className="explorer-toolbar">
         <div>
-          <strong>KNEEKURA Human Explorer</strong>
+          <strong>KNEEKURA コードエクスプローラー</strong>
           <span className="explorer-subtitle">
-            P4 semantics · guided tours · change impact · canonical projection consumer
+            canonical根拠とAI解釈を区別しながらコードを探索
           </span>
         </div>
 
@@ -618,14 +670,14 @@ function ExplorerCanvas({ projection }) {
             onChange={event =>
               setQuery(event.target.value)
             }
-            placeholder="visible node / kind / id を検索"
-            aria-label="Explorer node search"
+            placeholder="表示中の要素・種類を検索"
+            aria-label="表示中のコード要素を検索"
           />
           <button type="submit">
-            Focus
+            最初の候補へ
           </button>
           <span aria-live="polite">
-            {query ? matches.length + ' matches' : ''}
+            {query ? matches.length + '件' : ''}
           </span>
         </form>
 
@@ -638,7 +690,7 @@ function ExplorerCanvas({ projection }) {
             })
           }
         >
-          Fit scope
+          表示範囲に合わせる
         </button>
       </header>
 
@@ -674,7 +726,7 @@ function ExplorerCanvas({ projection }) {
               className="explorer-layout-error"
               role="alert"
             >
-              <strong>Layout failed</strong>
+              <strong>レイアウトに失敗しました</strong>
               <span>{layoutError}</span>
             </div>
           ) : null}
@@ -704,13 +756,20 @@ function ExplorerCanvas({ projection }) {
               pannable
               zoomable
             />
-            <Controls />
             <Background gap={22} />
           </ReactFlow>
         </section>
 
         <aside className="explorer-detail">
-          <h2>Selection</h2>
+          <HumanAnalysisPanel
+            view={humanExperience}
+            selectedItem={selectedHumanItem}
+            selectedSource={selectedHumanSource}
+            onSelectItem={selectHumanItem}
+            onSelectSource={setSelectedHumanSourceKey}
+          />
+
+          <h2>選択中のコード要素</h2>
           {edgeDetail ? (
             <EdgeDetail detail={edgeDetail} />
           ) : detail ? (
@@ -721,12 +780,167 @@ function ExplorerCanvas({ projection }) {
             />
           ) : (
             <p className="explorer-empty">
-              Select a canonical node or edge.
+              図のコード要素か関係を選択すると、canonical情報を確認できます。
             </p>
           )}
         </aside>
       </main>
     </div>
+  );
+}
+
+function HumanAnalysisPanel({
+  view,
+  selectedItem,
+  selectedSource,
+  onSelectItem,
+  onSelectSource
+}) {
+  if (!view.available) return null;
+
+  return (
+    <section className="explorer-human-analysis">
+      <div>
+        <h2>AIによるコード案内</h2>
+        <p className="explorer-empty">
+          AIの説明はcanonical事実そのものではありません。根拠を開いて実コードと照合できます。
+        </p>
+      </div>
+
+      <div className="explorer-human-summary">
+        <span>採用済み {view.counts.accepted}件</span>
+        <span>未解決 {view.counts.unknowns}件</span>
+        <span>解析範囲の不足 {view.counts.coverage_gaps}件</span>
+      </div>
+
+      {view.hidden_review_item_count > 0 ? (
+        <p className="explorer-empty">
+          レビューで未採用の説明 {view.hidden_review_item_count}件は通常表示から除外しています。
+        </p>
+      ) : null}
+
+      {view.items.length === 0 ? (
+        <p className="explorer-empty">
+          採用済みのAI説明はありません。
+        </p>
+      ) : (
+        <div className="explorer-human-items">
+          {view.items.map(item => (
+            <button
+              type="button"
+              className="explorer-human-item-button"
+              key={item.id}
+              aria-pressed={selectedItem?.id === item.id}
+              onClick={() => onSelectItem(item.id)}
+            >
+              <span>{item.title}</span>
+              <small>{item.semantic_label}</small>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {selectedItem ? (
+        <article className="explorer-human-item">
+          <div>
+            <SemanticBadge
+              label={selectedItem.semantic_label}
+              tone={semanticClassTone(selectedItem.semantic_class)}
+            />
+          </div>
+          <h3>{selectedItem.title}</h3>
+          <p>{selectedItem.body}</p>
+
+          <div>
+            <strong>根拠</strong>
+          </div>
+          <div className="explorer-human-source-list">
+            {selectedItem.sources.map(source =>
+              source.availability === 'UNAVAILABLE' ? (
+                <div
+                  className="explorer-human-source-unavailable"
+                  key={source.key}
+                >
+                  <span>{source.label}</span>
+                  <span>{source.reason}</span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  key={source.key}
+                  aria-pressed={selectedSource?.key === source.key}
+                  onClick={() => onSelectSource(source.key)}
+                >
+                  {source.label}
+                </button>
+              )
+            )}
+          </div>
+
+          <HumanSourcePanel source={selectedSource} />
+
+          <details className="explorer-technical-details">
+            <summary>技術詳細</summary>
+            <pre>{JSON.stringify({
+              item_id: selectedItem.id,
+              stage: selectedItem.stage,
+              kind: selectedItem.kind,
+              semantic_class: selectedItem.semantic_class,
+              review_status: selectedItem.review_status,
+              review_reason: selectedItem.review_reason,
+              origin: selectedItem.origin,
+              source_refs: selectedItem.source_refs,
+              repository: view.repository
+            }, null, 2)}</pre>
+          </details>
+        </article>
+      ) : null}
+    </section>
+  );
+}
+
+function HumanSourcePanel({ source }) {
+  if (!source) return null;
+
+  return (
+    <section className="explorer-source-panel">
+      <strong>ソース</strong>
+      <div className="explorer-source-location">
+        {source.label}
+      </div>
+
+      {source.availability === 'AVAILABLE' ? (
+        <pre className="explorer-source-code">
+          {source.rows.map(row => (
+            <span className="explorer-source-line" key={row.line}>
+              <span className="explorer-source-line-number">
+                {row.line}
+              </span>
+              <span className="explorer-source-line-text">
+                {row.text}
+              </span>
+            </span>
+          ))}
+        </pre>
+      ) : source.availability === 'CANONICAL_RECORD' ? (
+        <p className="explorer-empty">
+          この根拠はコード行ではなく、canonical記録として保存されています。
+        </p>
+      ) : (
+        <p className="explorer-human-source-unavailable">
+          {source.reason}
+        </p>
+      )}
+
+      <details className="explorer-technical-details">
+        <summary>根拠の技術詳細</summary>
+        <pre>{JSON.stringify({
+          ref: source.technical_ref,
+          record: source.technical_record ?? null,
+          availability: source.availability
+        }, null, 2)}</pre>
+      </details>
+    </section>
   );
 }
 
@@ -761,7 +975,7 @@ function HierarchyPanel({
   return (
     <aside className="explorer-hierarchy">
       <section>
-        <h2>Change impact</h2>
+        <h2>変更影響</h2>
         <ChangeImpactPanel
           model={impactModel}
           depth={impactDepth}
@@ -775,7 +989,7 @@ function HierarchyPanel({
       </section>
 
       <section>
-        <h2>Guided tour</h2>
+        <h2>ガイドツアー</h2>
         <GuidedTourPanel
           tour={guidedTour}
           playback={tourPlayback}
@@ -789,7 +1003,7 @@ function HierarchyPanel({
       </section>
 
       <section>
-        <h2>Layers</h2>
+        <h2>表示レイヤー</h2>
         <div className="explorer-layer-list">
           {hierarchy.layers.map(layer => (
             <label key={layer.id}>
@@ -810,10 +1024,10 @@ function HierarchyPanel({
       </section>
 
       <section>
-        <h2>Hierarchy</h2>
+        <h2>階層</h2>
         <nav
           className="explorer-breadcrumbs"
-          aria-label="Explorer hierarchy breadcrumb"
+          aria-label="コード階層のパンくず"
         >
           {scope.breadcrumbs.map((item, index) => (
             <React.Fragment key={item.id}>
@@ -840,21 +1054,21 @@ function HierarchyPanel({
                 onClick={() => onNavigate(item.id)}
               >
                 <span>{item.label}</span>
-                <small>{item.node_count} nodes</small>
+                <small>{item.node_count}件</small>
               </button>
             ))}
           </div>
         ) : (
           <p className="explorer-empty">
             {current?.kind === 'kind'
-              ? 'Canonical nodes in this kind are shown.'
-              : 'No visible child containers.'}
+              ? 'この種類に属するcanonical要素を表示しています。'
+              : 'この範囲に子階層はありません。'}
           </p>
         )}
       </section>
 
       <section>
-        <h2>KNEEKURA semantics</h2>
+        <h2>KNEEKURAの意味付け</h2>
         <SemanticLegend
           semanticModel={semanticModel}
           summary={semanticScopeSummary}
@@ -862,13 +1076,13 @@ function HierarchyPanel({
       </section>
 
       <section className="explorer-scope-stats">
-        <h2>Scope</h2>
+        <h2>現在の表示範囲</h2>
         <dl>
-          <dt>Nodes</dt>
+          <dt>要素</dt>
           <dd>{scope.visible_node_ids.length}</dd>
-          <dt>Edges</dt>
+          <dt>関係</dt>
           <dd>{scope.visible_edge_ids.length}</dd>
-          <dt>Boundary edges hidden</dt>
+          <dt>非表示の境界関係</dt>
           <dd>{scope.hidden_boundary_edge_ids.length}</dd>
         </dl>
       </section>
@@ -891,12 +1105,11 @@ function ChangeImpactPanel({
   return (
     <div className="explorer-impact-panel">
       <p className="explorer-impact-disclaimer">
-        CORE IMPACT investigation scope — not a
-        verified breakage claim.
+        CORE IMPACTが示す調査範囲です。故障や影響が確定したという意味ではありません。
       </p>
 
       <label className="explorer-impact-depth">
-        <span>Depth</span>
+        <span>深さ</span>
         <select
           value={depth}
           onChange={event =>
@@ -918,31 +1131,29 @@ function ChangeImpactPanel({
             disabled={!selectedNodeId || tourActive}
             onClick={onStart}
           >
-            Analyze selected node
+            選択中の要素を解析
           </button>
           {!selectedNodeId ? (
             <p className="explorer-empty">
-              Select a canonical node first.
+              先にcanonical要素を選択してください。
             </p>
           ) : tourActive ? (
             <p className="explorer-empty">
-              Exit guided tour before change impact.
+              変更影響を調べる前にガイドツアーを終了してください。
             </p>
           ) : null}
         </>
       ) : (
         <>
           <dl>
-            <dt>Seed</dt>
-            <dd>{model.seed_node_id}</dd>
-            <dt>Scope nodes</dt>
-            <dd>{model.selected_node_ids.length}</dd>
-            <dt>Boundary nodes</dt>
-            <dd>{model.boundary_node_ids.length}</dd>
-            <dt>Causal edges</dt>
-            <dd>{model.causal_edge_ids.length}</dd>
-            <dt>Max items</dt>
-            <dd>{model.max_items}</dd>
+            <dt>調査対象</dt>
+            <dd>{model.selected_node_ids.length}件</dd>
+            <dt>境界要素</dt>
+            <dd>{model.boundary_node_ids.length}件</dd>
+            <dt>因果関係</dt>
+            <dd>{model.causal_edge_ids.length}件</dd>
+            <dt>表示上限</dt>
+            <dd>{model.max_items}件</dd>
           </dl>
 
           <button
@@ -950,17 +1161,18 @@ function ChangeImpactPanel({
             disabled={!selectedNodeId}
             onClick={onStart}
           >
-            Recompute from selected
+            選択中の要素から再計算
           </button>
           <button type="button" onClick={onExit}>
-            Exit impact
+            変更影響を終了
           </button>
 
-          <details>
+          <details className="explorer-technical-details">
             <summary>
-              Planner closure / boundaries
+              技術詳細: Planner closure / boundaries
             </summary>
             <pre>{JSON.stringify({
+              seed_node_id: model.seed_node_id,
               universe_enumerable:
                 model.universe_enumerable,
               closure: model.closure,
@@ -968,9 +1180,9 @@ function ChangeImpactPanel({
             }, null, 2)}</pre>
           </details>
 
-          <details>
+          <details className="explorer-technical-details">
             <summary>
-              Exact ScopeDecisions ({model.decisions.length})
+              技術詳細: ScopeDecision ({model.decisions.length}件)
             </summary>
             <ul className="explorer-impact-decisions">
               {model.decisions.map(item => (
@@ -1012,7 +1224,7 @@ function GuidedTourPanel({
   if (!tour.has_tour) {
     return (
       <p className="explorer-empty">
-        No canonical guided tour in this graph.
+        このgraphにはcanonicalガイドツアーがありません。
       </p>
     );
   }
@@ -1021,19 +1233,18 @@ function GuidedTourPanel({
     return (
       <div className="explorer-tour-panel">
         <p>
-          {tour.step_count} canonical tour steps
-          available.
+          canonicalツアーを{tour.step_count}手順利用できます。
         </p>
         <button
           type="button"
           disabled={disabled}
           onClick={onStart}
         >
-          Start tour
+          ツアーを開始
         </button>
         {disabled ? (
           <p className="explorer-empty">
-            Exit change impact before starting a tour.
+            ツアーを始める前に変更影響を終了してください。
           </p>
         ) : null}
       </div>
@@ -1046,7 +1257,7 @@ function GuidedTourPanel({
       aria-live="polite"
     >
       <div className="explorer-tour-progress">
-        Step {playback.index + 1} / {tour.step_count}
+        手順 {playback.index + 1} / {tour.step_count}
       </div>
       <h3>{step.label}</h3>
       {step.description ? (
@@ -1054,19 +1265,17 @@ function GuidedTourPanel({
       ) : null}
       {step.language_lesson ? (
         <div className="explorer-tour-lesson">
-          <strong>Language lesson</strong>
+          <strong>言語メモ</strong>
           <p>{step.language_lesson}</p>
         </div>
       ) : null}
       <dl>
-        <dt>Canonical step</dt>
-        <dd>{step.step_node_id}</dd>
-        <dt>Highlights</dt>
-        <dd>{step.highlight_node_ids.length}</dd>
+        <dt>強調対象</dt>
+        <dd>{step.highlight_node_ids.length}件</dd>
       </dl>
       {step.highlight_node_ids.length === 0 ? (
         <p className="explorer-empty">
-          This canonical step has no highlight target.
+          この手順には強調対象がありません。
         </p>
       ) : null}
       <div className="explorer-tour-actions">
@@ -1075,7 +1284,7 @@ function GuidedTourPanel({
           disabled={playback.index === 0}
           onClick={onPrevious}
         >
-          Previous
+          前へ
         </button>
         <button
           type="button"
@@ -1084,12 +1293,19 @@ function GuidedTourPanel({
           }
           onClick={onNext}
         >
-          Next
+          次へ
         </button>
         <button type="button" onClick={onExit}>
-          Exit
+          終了
         </button>
       </div>
+      <details className="explorer-technical-details">
+        <summary>技術詳細</summary>
+        <pre>{JSON.stringify({
+          canonical_step: step.step_node_id,
+          highlight_node_ids: step.highlight_node_ids
+        }, null, 2)}</pre>
+      </details>
     </div>
   );
 }
@@ -1098,97 +1314,101 @@ function NodeDetail({ detail, semantic, inspector }) {
   return (
     <div className="explorer-detail-body">
       <dl>
-        <dt>Label</dt>
+        <dt>名前</dt>
         <dd>{detail.label}</dd>
-        <dt>Canonical ID</dt>
-        <dd>{detail.node_id}</dd>
-        <dt>Canonical kind</dt>
+        <dt>canonical種類</dt>
         <dd>{detail.canonical_kind}</dd>
-        <dt>Display family</dt>
+        <dt>表示分類</dt>
         <dd>{detail.display_family}</dd>
-        <dt>Semantic domain</dt>
+        <dt>意味領域</dt>
         <dd>
           <SemanticBadge
-            label={
+            label={domainLabel(
               semantic?.decoration?.domain ??
               'canonical'
-            }
+            )}
             tone="neutral"
           />
         </dd>
-        <dt>Runtime observation</dt>
+        <dt>実行時の観測</dt>
         <dd>
           {semantic?.decoration
-            ?.runtime_observation ?? 'n/a'}
+            ?.runtime_observation ?? '記録なし'}
         </dd>
-        <dt>Relations</dt>
-        <dd>{detail.relations.length}</dd>
-        <dt>Claims</dt>
-        <dd>{detail.claims.length}</dd>
-        <dt>Coverage entries</dt>
-        <dd>{detail.coverage.length}</dd>
+        <dt>関係</dt>
+        <dd>{detail.relations.length}件</dd>
+        <dt>主張</dt>
+        <dd>{detail.claims.length}件</dd>
+        <dt>解析範囲記録</dt>
+        <dd>{detail.coverage.length}件</dd>
       </dl>
 
-      <h3>Canonical node</h3>
-      <pre>{JSON.stringify(
-        detail.canonical_node,
-        null,
-        2
-      )}</pre>
-
-      <h3>Relations</h3>
-      <ul>
-        {detail.relations.map(item => (
-          <li key={item.edge_id}>
-            {item.direction} · {item.canonical_type}
-            {' · '}
-            {item.other_node_id}
-          </li>
-        ))}
-      </ul>
-
-      <h3>Claim / Evidence trace</h3>
-      <ul className="explorer-semantic-trace">
-        {(semantic?.claims ?? []).map(item => (
-          <li key={item.claim_id}>
-            <div>
-              <code>{item.claim_id}</code>
+      <h3>関係</h3>
+      {detail.relations.length ? (
+        <ul>
+          {detail.relations.map(item => (
+            <li key={item.edge_id}>
+              {relationDirectionLabel(item.direction)}
               {' · '}
-              <SemanticBadge
-                label={item.status}
-                tone={item.status_tone}
-              />
-            </div>
-            <div>{item.type}</div>
-            <pre>{JSON.stringify({
-              evidence_links: item.evidence_links,
-              counterevidence_links:
-                item.counterevidence_links,
-              coverage_ref: item.coverage_ref
-            }, null, 2)}</pre>
-          </li>
-        ))}
-      </ul>
+              {item.canonical_type}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="explorer-empty">関係記録はありません。</p>
+      )}
+
+      <h3>主張と根拠</h3>
+      {(semantic?.claims ?? []).length ? (
+        <ul className="explorer-semantic-trace">
+          {semantic.claims.map(item => (
+            <li key={item.claim_id}>
+              <div>
+                <SemanticBadge
+                  label={statusLabel(item.status)}
+                  tone={item.status_tone}
+                />
+              </div>
+              <div>{item.type}</div>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="explorer-empty">canonical主張はありません。</p>
+      )}
 
       <ConfidenceEvidenceInspector
         inspector={inspector}
       />
 
-      <h3>Coverage trace</h3>
-      <ul className="explorer-semantic-trace">
-        {(semantic?.coverage ?? []).map(item => (
-          <li key={item.coverage_id}>
-            <code>{item.coverage_id}</code>
-            {' · '}
-            <SemanticBadge
-              label={item.status}
-              tone={item.status_tone}
-            />
-            {' · '}
-            {item.role}
-          </li>
-        ))}
-      </ul>
+      <h3>解析範囲</h3>
+      {(semantic?.coverage ?? []).length ? (
+        <ul className="explorer-semantic-trace">
+          {semantic.coverage.map(item => (
+            <li key={item.coverage_id}>
+              <SemanticBadge
+                label={statusLabel(item.status)}
+                tone={item.status_tone}
+              />
+              {' · '}
+              {item.role}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="explorer-empty">解析範囲記録はありません。</p>
+      )}
+
+      <details className="explorer-technical-details">
+        <summary>技術詳細</summary>
+        <pre>{JSON.stringify({
+          canonical_id: detail.node_id,
+          canonical_node: detail.canonical_node,
+          relations: detail.relations,
+          claims: semantic?.claims ?? [],
+          coverage: semantic?.coverage ?? []
+        }, null, 2)}</pre>
+      </details>
     </div>
   );
 }
@@ -1200,15 +1420,14 @@ function ConfidenceEvidenceInspector({
 
   return (
     <section className="explorer-confidence-inspector">
-      <h3>Confidence / Evidence Inspector</h3>
+      <h3>信頼度と根拠</h3>
       <p className="explorer-inspector-disclaimer">
-        Exact canonical fields only — no score,
-        ranking, or inferred conclusion.
+        canonicalに保存された項目だけを表示します。独自の点数付けや順位付けはしません。
       </p>
 
       {inspector.claims.length === 0 ? (
         <p className="explorer-empty">
-          No canonical Claim is attached to this node.
+          この要素にcanonical主張は結び付いていません。
         </p>
       ) : (
         <div className="explorer-inspector-claims">
@@ -1218,23 +1437,21 @@ function ConfidenceEvidenceInspector({
               className="explorer-inspector-claim"
             >
               <div className="explorer-inspector-heading">
-                <code>{claim.claim_id}</code>
+                <strong>{claim.type}</strong>
                 <SemanticBadge
-                  label={claim.status}
+                  label={statusLabel(claim.status)}
                   tone="neutral"
                 />
               </div>
 
               <dl>
-                <dt>Type</dt>
-                <dd>{claim.type}</dd>
-                <dt>Confidence</dt>
+                <dt>信頼度</dt>
                 <dd>{claim.confidence.level}</dd>
-                <dt>Confidence rationale</dt>
+                <dt>信頼度の理由</dt>
                 <dd>{claim.confidence.rationale}</dd>
-                <dt>Predicate</dt>
+                <dt>述語</dt>
                 <dd>{claim.predicate}</dd>
-                <dt>Object / value</dt>
+                <dt>対象 / 値</dt>
                 <dd>
                   <pre>{JSON.stringify(
                     claim.object_or_value,
@@ -1242,62 +1459,51 @@ function ConfidenceEvidenceInspector({
                     2
                   )}</pre>
                 </dd>
-                <dt>Coverage</dt>
+                <dt>解析範囲</dt>
                 <dd>
-                  <code>{claim.coverage.id}</code>
-                  {' · '}
-                  {claim.coverage.status}
+                  {statusLabel(claim.coverage.status)}
                   {' · '}
                   {claim.coverage.role}
                 </dd>
-                <dt>Dependency Claims</dt>
-                <dd>
-                  {claim.dependency_claim_ids.length
-                    ? claim.dependency_claim_ids.join(', ')
-                    : 'none'}
-                </dd>
-                <dt>Provenance refs</dt>
-                <dd>
-                  {claim.provenance_refs.length
-                    ? claim.provenance_refs.join(', ')
-                    : 'none'}
-                </dd>
-                <dt>Verifier results</dt>
-                <dd>{claim.verifier_results.length}</dd>
+                <dt>検証結果</dt>
+                <dd>{claim.verifier_results.length}件</dd>
               </dl>
 
               {claim.unresolved_reason ? (
                 <div className="explorer-inspector-note">
-                  <strong>Unresolved reason</strong>
+                  <strong>未解決の理由</strong>
                   <p>{claim.unresolved_reason}</p>
                 </div>
               ) : null}
 
               <EvidenceLinkGroup
-                title="Evidence links"
+                title="根拠"
                 items={claim.evidence_links}
               />
               <EvidenceLinkGroup
-                title="Counterevidence links"
+                title="反証"
                 items={claim.counterevidence_links}
               />
 
-              <details>
-                <summary>Exact verifier records</summary>
-                <pre>{JSON.stringify(
-                  claim.verifier_results,
-                  null,
-                  2
-                )}</pre>
+              <details className="explorer-technical-details">
+                <summary>技術詳細</summary>
+                <pre>{JSON.stringify({
+                  claim_id: claim.claim_id,
+                  coverage_id: claim.coverage.id,
+                  dependency_claim_ids:
+                    claim.dependency_claim_ids,
+                  provenance_refs: claim.provenance_refs,
+                  verifier_results: claim.verifier_results
+                }, null, 2)}</pre>
               </details>
             </article>
           ))}
         </div>
       )}
 
-      <details>
+      <details className="explorer-technical-details">
         <summary>
-          Node Coverage ({inspector.node_coverage.length})
+          技術詳細: 要素のCoverage ({inspector.node_coverage.length}件)
         </summary>
         <pre>{JSON.stringify(
           inspector.node_coverage,
@@ -1317,7 +1523,7 @@ function EvidenceLinkGroup({
     <div className="explorer-inspector-evidence-group">
       <h4>{title}</h4>
       {items.length === 0 ? (
-        <p className="explorer-empty">none</p>
+        <p className="explorer-empty">なし</p>
       ) : (
         <ul>
           {items.map(item => (
@@ -1329,8 +1535,6 @@ function EvidenceLinkGroup({
               }
             >
               <div>
-                <code>{item.link.evidence_id}</code>
-                {' · '}
                 {item.link.role}
                 {' · '}
                 {item.link.strength}
@@ -1340,51 +1544,24 @@ function EvidenceLinkGroup({
               ) : null}
 
               {item.record_status === 'INLINE' ? (
-                <div className="explorer-inspector-evidence-record">
-                  <dl>
-                    <dt>Record</dt>
-                    <dd>INLINE</dd>
-                    <dt>Kind</dt>
-                    <dd>{item.evidence.kind}</dd>
-                    <dt>Trust class</dt>
-                    <dd>{item.evidence.trust_class}</dd>
-                    <dt>Provider</dt>
-                    <dd>
-                      {item.evidence.provider_id}
-                      {' @ '}
-                      {item.evidence.provider_version}
-                    </dd>
-                    <dt>Integrity</dt>
-                    <dd>
-                      <code>
-                        {item.evidence.integrity_digest}
-                      </code>
-                    </dd>
-                  </dl>
-                  <details>
-                    <summary>Provenance</summary>
-                    <pre>{JSON.stringify(
-                      item.evidence.provenance,
-                      null,
-                      2
-                    )}</pre>
-                  </details>
-                  <details>
-                    <summary>Observation</summary>
-                    <pre>{JSON.stringify(
-                      item.evidence.observation,
-                      null,
-                      2
-                    )}</pre>
-                  </details>
-                </div>
+                <p className="explorer-empty">
+                  根拠記録を成果物内に同梱しています。
+                </p>
               ) : (
                 <p className="explorer-inspector-unavailable">
-                  Evidence body is unavailable inline.
-                  The canonical ref is preserved; this does
-                  not mean the Evidence is absent.
+                  根拠本文はこの成果物へ直接同梱されていません。canonical参照は保持されており、根拠が存在しないという意味ではありません。
                 </p>
               )}
+
+              <details className="explorer-technical-details">
+                <summary>根拠の技術詳細</summary>
+                <pre>{JSON.stringify({
+                  evidence_id: item.link.evidence_id,
+                  link: item.link,
+                  record_status: item.record_status,
+                  evidence: item.evidence ?? null
+                }, null, 2)}</pre>
+              </details>
             </li>
           ))}
         </ul>
@@ -1399,35 +1576,32 @@ function EdgeDetail({ detail }) {
   return (
     <div className="explorer-detail-body">
       <dl>
-        <dt>Canonical ID</dt>
-        <dd>{detail.edge_id}</dd>
-        <dt>Canonical type</dt>
+        <dt>canonical種類</dt>
         <dd>{semantic.canonical_type}</dd>
-        <dt>Source</dt>
-        <dd>{semantic.source}</dd>
-        <dt>Target</dt>
-        <dd>{semantic.target}</dd>
-        <dt>Semantic domain</dt>
+        <dt>意味領域</dt>
         <dd>
           <SemanticBadge
-            label={semantic.domain}
+            label={domainLabel(semantic.domain)}
             tone="neutral"
           />
         </dd>
-        <dt>Runtime observation</dt>
+        <dt>実行時の観測</dt>
         <dd>
-          {semantic.runtime_observation ?? 'n/a'}
+          {semantic.runtime_observation ?? '記録なし'}
         </dd>
-        <dt>Transport stage</dt>
-        <dd>{semantic.transport_stage ?? 'n/a'}</dd>
+        <dt>通信段階</dt>
+        <dd>{semantic.transport_stage ?? '記録なし'}</dd>
       </dl>
 
-      <h3>Canonical edge</h3>
-      <pre>{JSON.stringify(
-        detail.canonical_edge,
-        null,
-        2
-      )}</pre>
+      <details className="explorer-technical-details">
+        <summary>技術詳細</summary>
+        <pre>{JSON.stringify({
+          canonical_id: detail.edge_id,
+          source: semantic.source,
+          target: semantic.target,
+          canonical_edge: detail.canonical_edge
+        }, null, 2)}</pre>
+      </details>
     </div>
   );
 }
@@ -1439,16 +1613,16 @@ function SemanticLegend({
   return (
     <div className="explorer-semantic-legend">
       <div className="explorer-analysis-status">
-        <span>Analysis</span>
+        <span>解析状態</span>
         <SemanticBadge
-          label={
+          label={statusLabel(
             semanticModel.analysis.status ??
             'UNKNOWN'
-          }
+          )}
           tone={semanticModel.analysis.status_tone}
         />
         <small>
-          unknowns {semanticModel.analysis.unknown_count}
+          未解決 {semanticModel.analysis.unknown_count}件
         </small>
       </div>
       <div className="explorer-semantic-domain-list">
@@ -1461,7 +1635,7 @@ function SemanticLegend({
                 item.domain
               }
             />
-            <span>{item.domain}</span>
+            <span>{domainLabel(item.domain)}</span>
             <small>{item.count}</small>
           </div>
         ))}
@@ -1481,4 +1655,71 @@ function SemanticBadge({ label, tone }) {
       {String(label)}
     </span>
   );
+}
+
+function semanticClassTone(value) {
+  if (value === 'COVERAGE_GAP') return 'limited';
+  if (value === 'UNKNOWN') return 'unknown';
+  return 'analyzed';
+}
+
+function relationDirectionLabel(value) {
+  switch (String(value ?? '').toUpperCase()) {
+    case 'INCOMING':
+      return 'この要素へ向かう関係';
+    case 'OUTGOING':
+      return 'この要素から向かう関係';
+    default:
+      return String(value ?? '関係');
+  }
+}
+
+function domainLabel(value) {
+  switch (String(value ?? '').toLowerCase()) {
+    case 'source':
+      return 'ソース';
+    case 'forge':
+      return 'Forge';
+    case 'network':
+      return '通信';
+    case 'runtime':
+      return '実行時';
+    case 'molang':
+      return 'Molang';
+    case 'animation':
+      return 'アニメーション';
+    case 'bone':
+      return 'ボーン';
+    case 'resource':
+      return 'リソース';
+    case 'semantic':
+      return '意味解析';
+    case 'external':
+      return '外部境界';
+    case 'canonical':
+      return 'canonical';
+    default:
+      return String(value ?? '不明');
+  }
+}
+
+function statusLabel(value) {
+  switch (String(value ?? '').toUpperCase()) {
+    case 'UNKNOWN':
+      return '未確認';
+    case 'FAILED':
+      return '失敗';
+    case 'UNEXPLORED':
+      return '未探索';
+    case 'COVERAGE_GAP':
+      return '解析範囲不足';
+    case 'VERIFIED':
+      return '検証済み';
+    case 'ANALYZED':
+      return '解析済み';
+    case 'LIMITED':
+      return '限定的';
+    default:
+      return String(value ?? '不明');
+  }
 }

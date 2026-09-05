@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { ExplorerApp } from './App.jsx';
 import './styles.css';
+import './human-experience.css';
 
 const root = createRoot(
   document.getElementById('root')
@@ -10,8 +11,8 @@ const root = createRoot(
 bootstrap().catch(error => {
   root.render(
     <main className="boot-error" role="alert">
-      <h1>KNEEKURA Human Explorer</h1>
-      <p>Explorer presentation failed.</p>
+      <h1>KNEEKURA コードエクスプローラー</h1>
+      <p>コード案内の起動に失敗しました。</p>
       <pre>{String(error?.message ?? error)}</pre>
     </main>
   );
@@ -28,7 +29,7 @@ async function bootstrap() {
       'kneekura.human-experience-offline-payload/v1'
     ) {
       throw new Error(
-        'unsupported Human Experience offline payload schema'
+        '対応していないHuman Experience成果物です。'
       );
     }
     if (
@@ -36,7 +37,7 @@ async function bootstrap() {
       'kneekura.human-experience-projection/v1'
     ) {
       throw new Error(
-        'offline payload is missing Human Experience projection'
+        'Human Experience projectionが成果物に含まれていません。'
       );
     }
     projection =
@@ -49,7 +50,8 @@ async function bootstrap() {
     );
     if (!response.ok) {
       throw new Error(
-        'projection fetch failed: ' + response.status
+        'Explorer Projectionの読込に失敗しました: ' +
+        response.status
       );
     }
     projection = await response.json();
@@ -60,7 +62,7 @@ async function bootstrap() {
     'kneekura.explorer-projection/v1'
   ) {
     throw new Error(
-      'unsupported Explorer Projection schema'
+      '対応していないExplorer Projectionです。'
     );
   }
 
@@ -90,7 +92,7 @@ function readEmbeddedExperience() {
     );
   } catch (error) {
     throw new Error(
-      'embedded Human Experience payload is invalid: ' +
+      '埋め込みHuman Experienceデータを読み取れません: ' +
       String(error?.message ?? error)
     );
   }
