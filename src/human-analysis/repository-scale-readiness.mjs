@@ -13,6 +13,15 @@ export const HUMAN_ANALYSIS_REPLAY_LOCK_SCHEMA =
   'kneekura.human-analysis-replay-lock/v1';
 export const HUMAN_ANALYSIS_PERFORMANCE_SCHEMA =
   'kneekura.human-analysis-performance/v1';
+export const HUMAN_ANALYSIS_PERFORMANCE_BUDGET_PROFILE =
+  'R4_DEFAULT_V1';
+export const HUMAN_ANALYSIS_PERFORMANCE_BUDGETS = Object.freeze({
+  startup_ms: 10_000,
+  search_p95_ms: 250,
+  layout_p95_ms: 5_000,
+  zip_bytes: 400_000_000,
+  peak_heap_bytes: 1_000_000_000
+});
 
 const READY = 'READY_REPOSITORY_SCALE';
 const NOT_READY = 'NOT_READY';
@@ -153,6 +162,17 @@ export function validateRepositoryScaleReadiness(value) {
   }
   if (value.performance?.schema !== HUMAN_ANALYSIS_PERFORMANCE_SCHEMA) {
     throw new TypeError('repository-scale performance schema is invalid');
+  }
+  if (
+    value.performance.budget_profile !== HUMAN_ANALYSIS_PERFORMANCE_BUDGET_PROFILE ||
+    !sameMetricObject(value.performance.budgets, HUMAN_ANALYSIS_PERFORMANCE_BUDGETS)
+  ) {
+    throw new TypeError('repository-scale performance budget profile drift');
+  }
+  for (const key of Object.keys(HUMAN_ANALYSIS_PERFORMANCE_BUDGETS)) {
+    if (typeof value.performance.within_budget?.[key] !== 'boolean') {
+      throw new TypeError(`repository-scale performance assessment is missing: ${key}`);
+    }
   }
   if (!['READY_REPOSITORY_SCALE', 'NOT_READY'].includes(value.readiness?.status)) {
     throw new TypeError('repository-scale readiness status is invalid');
@@ -393,26 +413,25 @@ function normalizePerformance(input) {
     throw new TypeError(`performance must use ${HUMAN_ANALYSIS_PERFORMANCE_SCHEMA}`);
   }
   const metrics = normalizePositiveNumbers(input.metrics, 'performance.metrics');
-  const budgets = normalizePositiveNumbers(input.budgets, 'performance.budgets');
-  const required = [
-    'startup_ms',
-    'search_p95_ms',
-    'layout_p95_ms',
-    'zip_bytes',
-    'peak_heap_bytes'
-  ];
+  const required = Object.keys(HUMAN_ANALYSIS_PERFORMANCE_BUDGETS);
   for (const key of required) {
-    if (!(key in metrics) || !(key in budgets)) {
-      throw new TypeError(`performance metric/budget is missing: ${key}`);
+    if (!(key in metrics)) {
+      throw new TypeError(`performance metric is missing: ${key}`);
+    }
+  }
+  if (input.budgets != null) {
+    const supplied = normalizePositiveNumbers(input.budgets, 'performance.budgets');
+    if (!sameMetricObject(supplied, HUMAN_ANALYSIS_PERFORMANCE_BUDGETS)) {
+      throw new TypeError('performance budgets must match R4_DEFAULT_V1');
     }
   }
   const withinBudget = Object.fromEntries(
-    required.map(key => [key, metrics[key] <= budgets[key]])
+    required.map(key => [key, metrics[key] <= HUMAN_ANALYSIS_PERFORMANCE_BUDGETS[key]])
   );
   return {
     schema: HUMAN_ANALYSIS_PERFORMANCE_SCHEMA,
-    metrics,
-    budgets,
+    budget_profile: HUMAN_ANALYSIS_PERFORMANCE_BUDGET_PROFILE,
+    budgets: { ...HUMAN_ANALYSIS_PERFORMANCE_BUDGETS },
     within_budget: withinBudget
   };
 }
@@ -430,6 +449,15 @@ function normalizePositiveNumbers(value, label) {
     result[key] = number;
   }
   return result;
+}
+
+function sameMetricObject(left, right) {
+  const leftKeys = Object.keys(left ?? {}).sort(compareText);
+  const rightKeys = Object.keys(right ?? {}).sort(compareText);
+  return leftKeys.length === rightKeys.length &&
+    leftKeys.every((key, index) =>
+      key === rightKeys[index] && Number(left[key]) === Number(right[key])
+    );
 }
 
 function coverageAxis(covered, total, paths) {

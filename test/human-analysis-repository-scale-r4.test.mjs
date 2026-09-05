@@ -71,7 +71,7 @@ function replayLock(overrides = {}) {
   return {
     schema: HUMAN_ANALYSIS_REPLAY_LOCK_SCHEMA,
     analyzed_commit: 'f'.repeat(40),
-    node_version: '20.19.5',
+    node_version: '20.20.2',
     npm_version: '10.8.2',
     typescript_version: '6.0.2',
     vite_version: '8.2.2',
@@ -92,14 +92,6 @@ function performance(overrides = {}) {
       zip_bytes: 80_000_000,
       peak_heap_bytes: 300_000_000,
       ...(overrides.metrics ?? {})
-    },
-    budgets: {
-      startup_ms: 1500,
-      search_p95_ms: 50,
-      layout_p95_ms: 1500,
-      zip_bytes: 400_000_000,
-      peak_heap_bytes: 600_000_000,
-      ...(overrides.budgets ?? {})
     }
   };
 }
@@ -156,6 +148,18 @@ test('R4 repository-scale readiness keeps scanner, AI-read and offline-source co
   assert.equal(validateRepositoryScaleReadiness(value), true);
 });
 
+test('R4 performance measurements do not make the digest nondeterministic when budget outcomes are unchanged', () => {
+  const first = readyInput();
+  first.performance = performance({ metrics: { startup_ms: 450, search_p95_ms: 8 } });
+  const second = readyInput();
+  second.performance = performance({ metrics: { startup_ms: 920, search_p95_ms: 21 } });
+  const a = createRepositoryScaleReadiness(first);
+  const b = createRepositoryScaleReadiness(second);
+  assert.equal(a.readiness_id, b.readiness_id);
+  assert.deepEqual(a.performance, b.performance);
+  assert.equal(Object.hasOwn(a.performance, 'metrics'), false);
+});
+
 test('R4 requires every inventory file to belong to exactly one domain batch', () => {
   const missing = readyInput();
   missing.batches[1].paths = [CATALOG[2].path];
@@ -188,16 +192,31 @@ test('R4 requires AI-read source ranges to remain available in the offline artif
   assert(value.readiness.gaps.includes(`AI_READ_SOURCE_NOT_OFFLINE:${CATALOG[2].path}`));
 });
 
-test('R4 readiness fails closed without a lockfile digest or when measured budgets are exceeded', () => {
+test('R4 readiness fails closed without a lockfile digest or when fixed performance budgets are exceeded', () => {
   const unlocked = readyInput();
   unlocked.replayLock = replayLock({ lockfile_digest: null });
   const unlockedValue = createRepositoryScaleReadiness(unlocked);
   assert(unlockedValue.readiness.gaps.includes('REPLAY_LOCKFILE_DIGEST_MISSING'));
 
   const slow = readyInput();
-  slow.performance = performance({ metrics: { search_p95_ms: 90 } });
+  slow.performance = performance({ metrics: { search_p95_ms: 251 } });
   const slowValue = createRepositoryScaleReadiness(slow);
   assert(slowValue.readiness.gaps.includes('PERFORMANCE_BUDGET_EXCEEDED:search_p95_ms'));
+});
+
+test('R4 rejects callers that attempt to raise the fixed performance budgets', () => {
+  const input = readyInput();
+  input.performance.budgets = {
+    startup_ms: 100_000,
+    search_p95_ms: 100_000,
+    layout_p95_ms: 100_000,
+    zip_bytes: 9_000_000_000,
+    peak_heap_bytes: 9_000_000_000
+  };
+  assert.throws(
+    () => createRepositoryScaleReadiness(input),
+    /budgets must match R4_DEFAULT_V1/
+  );
 });
 
 test('R4 readiness is digest-protected and never acquires canonical authority', () => {
