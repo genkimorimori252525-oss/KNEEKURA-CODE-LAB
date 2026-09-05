@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { ExplorerApp } from './App.jsx';
 import { SystemMapPanel } from './SystemMapPanel.jsx';
 import { TechnicalViewsPanel } from './TechnicalViewsPanel.jsx';
+import { RepositoryScalePanel } from './RepositoryScalePanel.jsx';
 import './styles.css';
 import './human-experience.css';
 import './system-map.css';
@@ -45,6 +46,7 @@ async function bootstrap() {
       );
     }
     assertTechnicalViewsIdentity(embedded);
+    assertRepositoryScaleIdentity(embedded);
     projection =
       embedded.experience.canonical?.explorer_projection;
     offlinePayload = embedded;
@@ -81,6 +83,9 @@ async function bootstrap() {
           />
           <TechnicalViewsPanel
             projection={projection}
+            offlinePayload={offlinePayload}
+          />
+          <RepositoryScalePanel
             offlinePayload={offlinePayload}
           />
         </div>
@@ -130,6 +135,47 @@ function assertTechnicalViewsIdentity(payload) {
     authority.derived_presentation_only !== true
   ) {
     throw new Error('technical viewsがcanonical authority境界に違反しています。');
+  }
+}
+
+function assertRepositoryScaleIdentity(payload) {
+  const scale = payload?.repository_scale;
+  if (scale == null) return;
+  if (scale.schema !== 'kneekura.human-analysis-repository-scale/v1') {
+    throw new Error('対応していないrepository-scale成果物です。');
+  }
+  const repository = payload.experience?.repository;
+  if (
+    !repository?.repository_id ||
+    !repository?.snapshot_id ||
+    scale.repository?.repository_id !== repository.repository_id ||
+    scale.repository?.snapshot_id !== repository.snapshot_id
+  ) {
+    throw new Error('repository-scaleのrepository/snapshot identityが一致しません。');
+  }
+  if (
+    scale.readiness?.repository_scale_ready !== true ||
+    scale.readiness?.status !== 'READY_REPOSITORY_SCALE'
+  ) {
+    throw new Error('repository-scale成果物がREADYではありません。');
+  }
+  const authority = scale.authority ?? {};
+  if (
+    authority.canonical_authority !== false ||
+    authority.may_mint_canonical_nodes !== false ||
+    authority.may_mint_canonical_edges !== false ||
+    authority.may_mint_canonical_claims !== false ||
+    authority.derived_readiness_only !== true
+  ) {
+    throw new Error('repository-scale成果物がcanonical authority境界に違反しています。');
+  }
+  const authoring = payload.repository_scale_authoring_ir;
+  if (
+    authoring?.generation?.mode !== 'PRODUCTION' ||
+    authoring?.repository?.repository_id !== repository.repository_id ||
+    authoring?.repository?.snapshot_id !== repository.snapshot_id
+  ) {
+    throw new Error('repository-scale authoring IRのidentityが一致しません。');
   }
 }
 
