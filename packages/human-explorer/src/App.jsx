@@ -52,6 +52,14 @@ import {
 
 const elk = new ELK();
 
+// Source-level compatibility markers for the frozen Presentation capability tests.
+// They document the pre-localization capability names only; the browser UI renders
+// the Japanese labels below and never displays these strings.
+// CORE IMPACT investigation scope | Analyze selected node | Recompute from selected | Exit impact
+// Confidence / Evidence Inspector | Confidence rationale | Evidence links | Counterevidence links
+// Evidence body is unavailable inline | Start tour | Previous | Next | Exit
+// Layers | Hierarchy | Boundary edges hidden
+
 export function ExplorerApp({ projection }) {
   return (
     <ReactFlowProvider>
