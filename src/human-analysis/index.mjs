@@ -5,4 +5,5 @@ export * from './pipeline.mjs';
 export * from './author-contract.mjs';
 export * from './production.mjs';
 export * from './artifact-compiler.mjs';
+export { compileProductionHumanExperienceArtifact } from './production-artifact.mjs';
 export * from './zip.mjs';
