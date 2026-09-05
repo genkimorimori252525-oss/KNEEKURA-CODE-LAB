@@ -23,9 +23,17 @@ export function createHumanExplorerSystemMap({
   ) {
     throw new TypeError('System Map offline payload schema is invalid');
   }
+  assertOfflinePayloadIdentity(projection, offlinePayload);
 
   const entities = new Map();
-  const sourceViews = buildSourceViews(offlinePayload);
+  const sourceCatalog = buildSourceCatalog(offlinePayload);
+  const sourceCatalogByPath = new Map(
+    sourceCatalog.map(entry => [entry.path, entry])
+  );
+  const sourceViews = buildSourceViews(
+    offlinePayload,
+    sourceCatalogByPath
+  );
   const sourceEntityByKey = new Map();
   const fileEntityByPath = new Map();
   const packageEntityByPath = new Map();
@@ -37,13 +45,15 @@ export function createHumanExplorerSystemMap({
     level: 0,
     kind: 'SYSTEM',
     label: 'System Map',
+    description: 'canonical・AI由来・source-onlyを権限ごとに分けて探索します。',
     authority: SYSTEM_MAP_AUTHORITY.DERIVED_SOURCE_ONLY,
     canonical_node_id: null,
     path: null,
     parent_ids: [],
     child_ids: [],
     source_keys: [],
-    human_item_ids: []
+    human_item_ids: [],
+    catalog_entry: null
   });
 
   const ensurePackage = pathValue => {
@@ -53,78 +63,108 @@ export function createHumanExplorerSystemMap({
       return packageEntityByPath.get(packagePath);
     }
     const id = `system:package:${encode(packagePath)}`;
-    const entity = {
+    addEntity(entities, {
       selection_id: id,
       level: 2,
       kind: 'PACKAGE',
       label: packagePath,
+      description: 'source catalogのpathから導出した探索用packageです。canonical packageではありません。',
       authority: SYSTEM_MAP_AUTHORITY.DERIVED_SOURCE_ONLY,
       canonical_node_id: null,
       path: packagePath,
       parent_ids: ['system:root'],
       child_ids: [],
       source_keys: [],
-      human_item_ids: []
-    };
-    addEntity(entities, entity);
+      human_item_ids: [],
+      catalog_entry: null
+    });
     link(entities, 'system:root', id);
     packageEntityByPath.set(packagePath, id);
     return id;
   };
 
-  const ensureFile = pathValue => {
+  const ensureFile = (pathValue, catalogEntry = null) => {
     const normalizedPath = normalizePath(pathValue);
     if (!normalizedPath) return null;
     if (fileEntityByPath.has(normalizedPath)) {
-      return fileEntityByPath.get(normalizedPath);
+      const existingId = fileEntityByPath.get(normalizedPath);
+      const existing = entities.get(existingId);
+      if (existing && catalogEntry && !existing.catalog_entry) {
+        existing.catalog_entry = structuredClone(catalogEntry);
+        existing.description = 'source catalogに記録されたファイルです。本文が未同梱でも検索対象に残ります。';
+      }
+      return existingId;
     }
     const packageId = ensurePackage(normalizedPath);
     const id = `system:file:${encode(normalizedPath)}`;
-    const entity = {
+    addEntity(entities, {
       selection_id: id,
       level: 2,
       kind: 'FILE',
       label: fileName(normalizedPath),
+      description: catalogEntry
+        ? 'source catalogに記録されたファイルです。本文が未同梱でも検索対象に残ります。'
+        : '同梱source rangeから導出した探索用fileです。',
       authority: SYSTEM_MAP_AUTHORITY.DERIVED_SOURCE_ONLY,
       canonical_node_id: null,
       path: normalizedPath,
       parent_ids: packageId ? [packageId] : ['system:root'],
       child_ids: [],
       source_keys: [],
-      human_item_ids: []
-    };
-    addEntity(entities, entity);
+      human_item_ids: [],
+      catalog_entry: catalogEntry ? structuredClone(catalogEntry) : null
+    });
+    addEntity(entities, entityForFile(id, normalizedPath, packageId, catalogEntry));
     link(entities, packageId ?? 'system:root', id);
     fileEntityByPath.set(normalizedPath, id);
     return id;
   };
 
+  for (const entry of sourceCatalog) {
+    ensureFile(entry.path, entry);
+  }
+
   for (const source of sourceViews.values()) {
     if (source.kind !== 'FILE_RANGE') continue;
-    const fileId = ensureFile(source.path);
+    const fileId = ensureFile(
+      source.path,
+      sourceCatalogByPath.get(source.path) ?? null
+    );
     const id = `system:source:${encode(source.key)}`;
     addEntity(entities, {
       selection_id: id,
       level: 3,
       kind: 'SOURCE',
       label: source.label,
+      description: source.availability === 'AVAILABLE'
+        ? 'snapshot-boundの同梱source rangeです。'
+        : 'source refはありますが本文は同梱されていません。',
       authority: SYSTEM_MAP_AUTHORITY.DERIVED_SOURCE_ONLY,
       canonical_node_id: null,
       path: source.path,
       parent_ids: fileId ? [fileId] : ['system:root'],
       child_ids: [],
       source_keys: [source.key],
-      human_item_ids: [...(humanItemIdsBySourceKey.get(source.key) ?? [])]
+      human_item_ids: [...(humanItemIdsBySourceKey.get(source.key) ?? [])],
+      catalog_entry: null
     });
     link(entities, fileId ?? 'system:root', id);
     sourceEntityByKey.set(source.key, id);
+
+    const fileEntity = fileId ? entities.get(fileId) : null;
+    if (fileEntity) {
+      if (!fileEntity.source_keys.includes(source.key)) {
+        fileEntity.source_keys.push(source.key);
+      }
+      for (const itemId of humanItemIdsBySourceKey.get(source.key) ?? []) {
+        if (!fileEntity.human_item_ids.includes(itemId)) {
+          fileEntity.human_item_ids.push(itemId);
+        }
+      }
+    }
   }
 
-  addSourceScopeComponents(
-    entities,
-    fileEntityByPath,
-    sourceViews
-  );
+  addSourceScopeComponents(entities, fileEntityByPath);
   addSourceDomain(entities, fileEntityByPath);
   addCanonicalEntities({
     projection,
@@ -155,6 +195,7 @@ export function createHumanExplorerSystemMap({
     path: entity.path,
     search_text: normalizeSearch([
       entity.label,
+      entity.description,
       entity.kind,
       entity.path,
       entity.authority,
@@ -190,7 +231,11 @@ export function createHumanExplorerSystemMap({
       source_only_entities: entityList.filter(
         entity => entity.authority === SYSTEM_MAP_AUTHORITY.DERIVED_SOURCE_ONLY
       ).length,
-      source_records: sourceViews.size
+      source_records: sourceViews.size,
+      source_catalog_files: sourceCatalog.length,
+      materialized_file_ranges: [...sourceViews.values()].filter(
+        source => source.kind === 'FILE_RANGE' && source.availability === 'AVAILABLE'
+      ).length
     },
     _runtime: {
       entity_by_id: entityById,
@@ -258,6 +303,26 @@ export function resolveHumanExplorerSelection(
   });
 }
 
+function entityForFile(id, normalizedPath, packageId, catalogEntry) {
+  return {
+    selection_id: id,
+    level: 2,
+    kind: 'FILE',
+    label: fileName(normalizedPath),
+    description: catalogEntry
+      ? 'source catalogに記録されたファイルです。本文が未同梱でも検索対象に残ります。'
+      : '同梱source rangeから導出した探索用fileです。',
+    authority: SYSTEM_MAP_AUTHORITY.DERIVED_SOURCE_ONLY,
+    canonical_node_id: null,
+    path: normalizedPath,
+    parent_ids: packageId ? [packageId] : ['system:root'],
+    child_ids: [],
+    source_keys: [],
+    human_item_ids: [],
+    catalog_entry: catalogEntry ? structuredClone(catalogEntry) : null
+  };
+}
+
 function addCanonicalEntities({
   projection,
   entities,
@@ -280,13 +345,15 @@ function addCanonicalEntities({
       level: 3,
       kind: 'SYMBOL',
       label: String(meta.label ?? canonical.label ?? canonical.id),
+      description: 'Explorer Projectionが保持する実canonical nodeです。',
       authority: SYSTEM_MAP_AUTHORITY.CANONICAL,
       canonical_node_id: canonical.id,
       path: pathValue || null,
       parent_ids: fileId ? [fileId] : ['system:root'],
       child_ids: [],
       source_keys: [],
-      human_item_ids: []
+      human_item_ids: [],
+      catalog_entry: null
     });
     link(entities, fileId ?? 'system:root', id);
     canonicalEntityByNodeId.set(canonical.id, id);
@@ -300,13 +367,15 @@ function addCanonicalEntities({
           level: 1,
           kind: 'DOMAIN',
           label: family,
+          description: 'canonical nodeのdisplay familyから導出したpresentation domainです。',
           authority: SYSTEM_MAP_AUTHORITY.DERIVED_PRESENTATION,
           canonical_node_id: null,
           path: null,
           parent_ids: ['system:root'],
           child_ids: [],
           source_keys: [],
-          human_item_ids: []
+          human_item_ids: [],
+          catalog_entry: null
         });
         link(entities, 'system:root', domainId);
       }
@@ -350,7 +419,8 @@ function addPresentationComponents({
       parent_ids: ['system:root'],
       child_ids: [],
       source_keys: sourceKeys,
-      human_item_ids: [...humanItemIds]
+      human_item_ids: [...humanItemIds],
+      catalog_entry: null
     });
     link(entities, 'system:root', id);
     for (const ref of component.member_refs ?? []) {
@@ -365,13 +435,12 @@ function addPresentationComponents({
   }
 }
 
-function addSourceScopeComponents(entities, fileEntityByPath, sourceViews) {
+function addSourceScopeComponents(entities, fileEntityByPath) {
   const roots = new Map();
-  for (const source of sourceViews.values()) {
-    if (source.kind !== 'FILE_RANGE' || !source.path) continue;
-    const root = source.path.split('/')[0] || '(root)';
+  for (const pathValue of fileEntityByPath.keys()) {
+    const root = pathValue.split('/')[0] || '(root)';
     if (!roots.has(root)) roots.set(root, new Set());
-    roots.get(root).add(source.path);
+    roots.get(root).add(pathValue);
   }
   for (const [root, paths] of [...roots.entries()].sort((a, b) => compareText(a[0], b[0]))) {
     const id = `system:component:source:${encode(root)}`;
@@ -380,14 +449,15 @@ function addSourceScopeComponents(entities, fileEntityByPath, sourceViews) {
       level: 1,
       kind: 'COMPONENT',
       label: `${root}（source scope）`,
-      description: 'ソース配置から導出した探索用グループです。canonical componentではありません。',
+      description: 'source catalogの配置から導出した探索用グループです。canonical componentではありません。',
       authority: SYSTEM_MAP_AUTHORITY.DERIVED_SOURCE_ONLY,
       canonical_node_id: null,
       path: root === '(root)' ? null : root,
       parent_ids: ['system:root'],
       child_ids: [],
       source_keys: [],
-      human_item_ids: []
+      human_item_ids: [],
+      catalog_entry: null
     });
     link(entities, 'system:root', id);
     for (const pathValue of paths) {
@@ -405,14 +475,15 @@ function addSourceDomain(entities, fileEntityByPath) {
     level: 1,
     kind: 'DOMAIN',
     label: 'Source',
-    description: '同梱ソースから導出した探索用domainです。',
+    description: 'source catalogから導出した探索用domainです。',
     authority: SYSTEM_MAP_AUTHORITY.DERIVED_SOURCE_ONLY,
     canonical_node_id: null,
     path: null,
     parent_ids: ['system:root'],
     child_ids: [],
     source_keys: [],
-    human_item_ids: []
+    human_item_ids: [],
+    catalog_entry: null
   });
   link(entities, 'system:root', id);
   for (const fileId of fileEntityByPath.values()) link(entities, id, fileId);
@@ -495,7 +566,41 @@ function buildTours({
   return tours;
 }
 
-function buildSourceViews(payload) {
+function buildSourceCatalog(payload) {
+  const rows = payload?.experience?.source_index?.files ?? [];
+  if (!Array.isArray(rows)) {
+    throw new TypeError('System Map source catalog must be an array');
+  }
+  const seen = new Set();
+  return rows.map((entry, index) => {
+    if (!entry || typeof entry !== 'object') {
+      throw new TypeError(`System Map source catalog entry is invalid: ${index}`);
+    }
+    const pathValue = normalizePath(entry.path);
+    if (!pathValue) {
+      throw new TypeError(`System Map source catalog path is empty: ${index}`);
+    }
+    if (seen.has(pathValue)) {
+      throw new TypeError(`System Map duplicate source catalog path: ${pathValue}`);
+    }
+    seen.add(pathValue);
+    const digest = String(entry.content_digest ?? '');
+    if (!/^sha256:[0-9a-f]{64}$/i.test(digest)) {
+      throw new TypeError(`System Map source catalog digest is invalid: ${pathValue}`);
+    }
+    const lineCount = entry.line_count == null ? null : Number(entry.line_count);
+    if (lineCount != null && (!Number.isInteger(lineCount) || lineCount < 1)) {
+      throw new TypeError(`System Map source catalog line count is invalid: ${pathValue}`);
+    }
+    return {
+      path: pathValue,
+      content_digest: digest.toLowerCase(),
+      ...(lineCount == null ? {} : { line_count: lineCount })
+    };
+  }).sort((a, b) => compareText(a.path, b.path));
+}
+
+function buildSourceViews(payload, sourceCatalogByPath) {
   const map = new Map();
   for (const record of payload?.sources?.records ?? []) {
     const ref = record?.ref;
@@ -508,7 +613,40 @@ function buildSourceViews(payload) {
       const pathValue = normalizePath(ref.path);
       const start = Number(ref.start_line);
       const end = Number(ref.end_line);
+      if (
+        !pathValue ||
+        !Number.isInteger(start) ||
+        start < 1 ||
+        !Number.isInteger(end) ||
+        end < start
+      ) {
+        throw new TypeError(`System Map FILE_RANGE is invalid: ${key}`);
+      }
+      const digest = String(ref.content_digest ?? '').toLowerCase();
+      if (!/^sha256:[0-9a-f]{64}$/.test(digest)) {
+        throw new TypeError(`System Map FILE_RANGE digest is invalid: ${pathValue}`);
+      }
+      const catalog = sourceCatalogByPath.get(pathValue) ?? null;
+      if (catalog && catalog.content_digest !== digest) {
+        throw new TypeError(`System Map FILE_RANGE catalog digest mismatch: ${pathValue}`);
+      }
+      if (
+        catalog?.line_count != null &&
+        end > catalog.line_count
+      ) {
+        throw new TypeError(`System Map FILE_RANGE exceeds source catalog: ${pathValue}`);
+      }
+      if (
+        record.content_digest != null &&
+        String(record.content_digest).toLowerCase() !== digest
+      ) {
+        throw new TypeError(`System Map FILE_RANGE record digest mismatch: ${pathValue}`);
+      }
       const text = typeof record.text === 'string' ? record.text : null;
+      const rows = text == null ? [] : text.split('\n');
+      if (text != null && rows.length !== end - start + 1) {
+        throw new TypeError(`System Map FILE_RANGE line count mismatch: ${pathValue}:${start}-${end}`);
+      }
       map.set(key, {
         key,
         kind,
@@ -518,12 +656,10 @@ function buildSourceViews(payload) {
         path: pathValue,
         start_line: start,
         end_line: end,
-        rows: text == null
-          ? []
-          : text.split('\n').map((lineText, index) => ({
-              line: start + index,
-              text: lineText
-            })),
+        rows: rows.map((lineText, index) => ({
+          line: start + index,
+          text: lineText
+        })),
         technical_ref: structuredClone(ref)
       });
       continue;
@@ -556,6 +692,49 @@ function indexHumanItemsBySource(payload) {
   return map;
 }
 
+function assertOfflinePayloadIdentity(projection, payload) {
+  if (payload == null) return;
+  const projectionRepository = projection.source?.repository_id;
+  const projectionSnapshot = projection.source?.snapshot_id;
+  const experienceRepository = payload.experience?.repository?.repository_id;
+  const experienceSnapshot = payload.experience?.repository?.snapshot_id;
+  for (const [label, value] of [
+    ['Explorer repository', projectionRepository],
+    ['Explorer snapshot', projectionSnapshot],
+    ['Human Experience repository', experienceRepository],
+    ['Human Experience snapshot', experienceSnapshot]
+  ]) {
+    if (typeof value !== 'string' || !value.trim()) {
+      throw new TypeError(`System Map identity is missing: ${label}`);
+    }
+  }
+  if (
+    projectionRepository !== experienceRepository ||
+    projectionSnapshot !== experienceSnapshot
+  ) {
+    throw new TypeError('System Map Explorer/Human Experience identity mismatch');
+  }
+  const sourceRepository = payload.sources?.repository;
+  if (sourceRepository) {
+    if (
+      sourceRepository.repository_id !== experienceRepository ||
+      sourceRepository.snapshot_id !== experienceSnapshot
+    ) {
+      throw new TypeError('System Map source bundle identity mismatch');
+    }
+  }
+  const embeddedProjection =
+    payload.experience?.canonical?.explorer_projection;
+  if (embeddedProjection) {
+    if (
+      embeddedProjection.source?.repository_id !== projectionRepository ||
+      embeddedProjection.source?.snapshot_id !== projectionSnapshot
+    ) {
+      throw new TypeError('System Map embedded Explorer identity mismatch');
+    }
+  }
+}
+
 function addEntity(entities, entity) {
   if (entities.has(entity.selection_id)) {
     throw new TypeError(`System Map duplicate entity: ${entity.selection_id}`);
@@ -579,7 +758,10 @@ function normalizeEntity(entity) {
     parent_ids: unique(entity.parent_ids).sort(compareText),
     child_ids: unique(entity.child_ids).sort(compareText),
     source_keys: unique(entity.source_keys).sort(compareText),
-    human_item_ids: unique(entity.human_item_ids).sort(compareText)
+    human_item_ids: unique(entity.human_item_ids).sort(compareText),
+    catalog_entry: entity.catalog_entry
+      ? structuredClone(entity.catalog_entry)
+      : null
   };
 }
 
@@ -622,7 +804,7 @@ function sourceKey(ref) {
       normalizePath(ref.path),
       Number(ref.start_line),
       Number(ref.end_line),
-      String(ref.content_digest ?? '')
+      String(ref.content_digest ?? '').toLowerCase()
     ].join(':');
   }
   return `${kind}:${String(ref?.id ?? '')}`;
@@ -641,10 +823,19 @@ function fileName(pathValue) {
 }
 
 function normalizePath(value) {
-  return String(value ?? '')
+  const normalized = String(value ?? '')
     .replaceAll('\\', '/')
     .replace(/^\.\//, '')
     .replace(/\/+/g, '/');
+  if (!normalized) return '';
+  if (
+    normalized.startsWith('/') ||
+    /^[A-Za-z]:\//.test(normalized) ||
+    normalized.split('/').includes('..')
+  ) {
+    throw new TypeError(`System Map unsafe repository path: ${String(value)}`);
+  }
+  return normalized;
 }
 
 function encode(value) {

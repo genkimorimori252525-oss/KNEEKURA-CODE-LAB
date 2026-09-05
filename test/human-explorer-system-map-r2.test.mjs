@@ -31,6 +31,8 @@ function canonicalPoorFixture() {
     22,
     'b'
   );
+  const policyPath = 'packages/policy/src/rules.ts';
+  const policyDigest = 'sha256:' + 'c'.repeat(64);
   const items = [
     {
       id: 'item:component',
@@ -67,23 +69,46 @@ function canonicalPoorFixture() {
     repository_id: 'repo:test',
     snapshot_id: 'snapshot:test'
   };
-  return {
-    projection: {
-      schema: 'kneekura.explorer-projection/v1',
-      source: repository,
-      canonical: {
-        graph: { nodes: [], edges: [] },
-        result: { claims: [], coverage: { entries: [] } }
-      },
-      presentation: {
-        nodes: [], edges: [], claims: [], coverage: []
-      }
+  const projection = {
+    schema: 'kneekura.explorer-projection/v1',
+    source: repository,
+    canonical: {
+      graph: { nodes: [], edges: [] },
+      result: { claims: [], coverage: { entries: [] } }
     },
+    presentation: {
+      nodes: [], edges: [], claims: [], coverage: []
+    }
+  };
+  return {
+    projection,
     offlinePayload: {
       schema: 'kneekura.human-experience-offline-payload/v1',
       experience: {
         schema: 'kneekura.human-experience-projection/v1',
         repository,
+        canonical: {
+          explorer_projection: projection
+        },
+        source_index: {
+          files: [
+            {
+              path: agentRef.path,
+              content_digest: agentRef.content_digest,
+              line_count: 200
+            },
+            {
+              path: gitRef.path,
+              content_digest: gitRef.content_digest,
+              line_count: 200
+            },
+            {
+              path: policyPath,
+              content_digest: policyDigest,
+              line_count: 120
+            }
+          ]
+        },
         derived: {
           human_analysis_ir: {
             schema: 'kneekura.human-analysis-ir/v1',
@@ -96,10 +121,12 @@ function canonicalPoorFixture() {
         records: [
           {
             ref: agentRef,
+            content_digest: agentRef.content_digest,
             text: 'export class AgentService {\n  publish() {}\n}'
           },
           {
             ref: gitRef,
+            content_digest: gitRef.content_digest,
             text: 'export function publish() {\n  return true;\n}'
           }
         ]
@@ -206,6 +233,7 @@ test('R2 creates useful bounded L0-L3 exploration for a canonical-poor repositor
   assert(model.entities.some(entity => entity.kind === 'FILE' && entity.level === 2));
   assert(model.entities.some(entity => entity.kind === 'SOURCE' && entity.level === 3));
   assert.equal(model.stats.canonical_entities, 0);
+  assert.equal(model.stats.source_catalog_files, 3);
   for (const entity of model.entities) {
     if (entity.authority !== SYSTEM_MAP_AUTHORITY.CANONICAL) {
       assert.equal(entity.canonical_node_id, null);
@@ -213,11 +241,20 @@ test('R2 creates useful bounded L0-L3 exploration for a canonical-poor repositor
   }
 });
 
-test('R2 repository-wide search is independent from canonical visible scope', () => {
+test('R2 repository-wide search indexes catalog files even when source text was never materialized', () => {
   const model = createHumanExplorerSystemMap(canonicalPoorFixture());
-  const results = searchHumanExplorerSystemMap(model, 'packages/git/src/publish.ts');
-  assert(results.some(result => result.path === 'packages/git/src/publish.ts'));
-  assert(results.some(result => result.kind === 'SOURCE' || result.kind === 'FILE'));
+  const results = searchHumanExplorerSystemMap(
+    model,
+    'packages/policy/src/rules.ts'
+  );
+  const file = results.find(result =>
+    result.kind === 'FILE' && result.path === 'packages/policy/src/rules.ts'
+  );
+  assert(file);
+  const resolved = resolveHumanExplorerSelection(model, file.selection_id);
+  assert.equal(resolved.authority, SYSTEM_MAP_AUTHORITY.DERIVED_SOURCE_ONLY);
+  assert.equal(resolved.can_change_impact, false);
+  assert.equal(resolved.sources.length, 0);
 });
 
 test('R2 shared resolver exposes source text without inventing canonical Change Impact eligibility', () => {
@@ -232,6 +269,11 @@ test('R2 shared resolver exposes source text without inventing canonical Change 
   assert.equal(resolved.sources.length, 1);
   assert.equal(resolved.sources[0].rows[0].line, 10);
   assert.match(resolved.sources[0].rows[0].text, /AgentService/);
+
+  const file = searchHumanExplorerSystemMap(model, agentPath())
+    .find(entry => entry.kind === 'FILE');
+  const fileResolved = resolveHumanExplorerSelection(model, file.selection_id);
+  assert(fileResolved.sources.some(source => source.path === agentPath()));
 });
 
 test('R2 AI-authored tour targets use the same shared source selection resolver', () => {
@@ -266,3 +308,39 @@ test('R2 canonical selections and canonical tour retain real canonical IDs for C
   assert.equal(target.canonical_node_id, 'node:boot');
   assert.equal(target.can_change_impact, true);
 });
+
+test('R2 fails closed when Explorer and embedded Human Experience identities drift', () => {
+  const fixture = canonicalPoorFixture();
+  fixture.projection = structuredClone(fixture.projection);
+  fixture.projection.source.snapshot_id = 'snapshot:foreign';
+  assert.throws(
+    () => createHumanExplorerSystemMap(fixture),
+    /Explorer\/Human Experience identity mismatch/
+  );
+});
+
+test('R2 rejects unsafe source-catalog paths instead of building misleading hierarchy entries', () => {
+  const fixture = canonicalPoorFixture();
+  fixture.offlinePayload.experience.source_index.files.push({
+    path: '../escape.ts',
+    content_digest: 'sha256:' + 'd'.repeat(64),
+    line_count: 1
+  });
+  assert.throws(
+    () => createHumanExplorerSystemMap(fixture),
+    /unsafe repository path/
+  );
+});
+
+test('R2 rejects source text whose line count does not match the snapshot-bound FILE_RANGE', () => {
+  const fixture = canonicalPoorFixture();
+  fixture.offlinePayload.sources.records[0].text = 'only one line';
+  assert.throws(
+    () => createHumanExplorerSystemMap(fixture),
+    /FILE_RANGE line count mismatch/
+  );
+});
+
+function agentPath() {
+  return 'packages/orchestration/src/agent-service.ts';
+}
