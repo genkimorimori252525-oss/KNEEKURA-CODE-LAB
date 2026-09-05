@@ -68,14 +68,22 @@ try {
 
   assert.equal(await page.getByText('起動処理', { exact: true }).count() > 0, true);
   assert.equal(await page.getByText('boot から service へ処理が進みます。', { exact: true }).count(), 1);
+  assert.equal(
+    await page.getByRole('button', { name: 'src/main.ts:1–3（根拠record）', exact: true }).count(),
+    1
+  );
 
   const normalText = await page.locator('body').innerText();
   assert(!normalText.includes(repositoryId), 'repository_id leaked into normal UI');
+  assert(!normalText.includes('evidence:boot'), 'canonical evidence ID leaked into normal UI');
   assert(!normalText.includes('Selection'), 'English Selection label remained in normal UI');
   assert(!normalText.includes('Change impact'), 'English Change impact label remained in normal UI');
   assert(!normalText.includes('Guided tour'), 'English Guided tour label remained in normal UI');
 
-  const citation = page.getByRole('button', { name: 'src/main.ts:1–3' });
+  const citation = page.getByRole('button', {
+    name: 'src/main.ts:1–3',
+    exact: true
+  });
   await citation.click();
   await page.getByRole('region', { name: 'src/main.ts:1–3 のソースコード' }).waitFor();
 
