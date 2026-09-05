@@ -47,7 +47,7 @@ assert(technicalViews.workflow.transitions.length >= 5);
 assert.equal(technicalViews.sequence.messages.filter(row => row.confirmation === 'CONFIRMED').length, 4);
 assert.equal(technicalViews.sequence.messages.filter(row => row.confirmation === 'UNCONFIRMED').length, 1);
 assert.equal(technicalViews.sequence.messages.find(row => row.confirmation === 'UNCONFIRMED').order, null);
-assert.equal(technicalViews.data_flow.transfers.length, 4);
+assert.equal(technicalViews.data_flow.transfers.length, 5);
 assert.equal(technicalViews.lifecycle.transitions.filter(row => row.confirmation === 'UNCONFIRMED').length, 1);
 
 const shell = await buildStandaloneHumanExplorerShell();
