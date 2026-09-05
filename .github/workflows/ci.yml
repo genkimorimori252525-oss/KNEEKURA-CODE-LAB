@@ -13,6 +13,16 @@ jobs:
         with:
           node-version: 20
       - run: npm install --no-audit --no-fund --package-lock=false
+      - name: Generate R4 package lock probe
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/human-analysis-r4-repository-scale')
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Upload R4 package lock probe
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/human-analysis-r4-repository-scale')
+        uses: actions/upload-artifact@v4
+        with:
+          name: kneekura-r4-package-lock
+          path: package-lock.json
+          if-no-files-found: error
       - run: npm test
       - name: Validate live Love-Github TypeScript vertical
         if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/typescript-semantic-vertical')
