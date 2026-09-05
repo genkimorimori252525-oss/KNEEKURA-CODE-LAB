@@ -139,6 +139,18 @@ test('canonical evidence gets path/range presentation without inventing source t
   assert.deepEqual(source.lines, []);
 });
 
+test('canonical evidence without a path keeps raw identity out of the normal citation', () => {
+  const value = payload();
+  const record = value.sources.records.find(item => item.ref.kind === 'EVIDENCE');
+  delete record.record.provenance.path;
+  delete record.record.provenance.range;
+  const model = createOfflineExperienceViewModel(value);
+  const source = model.explanations[0].sources[1];
+  assert.equal(source.citation, 'canonical根拠record');
+  assert.equal(source.citation.includes('evidence:boot'), false);
+  assert.equal(source.technical.ref.id, 'evidence:boot');
+});
+
 test('missing source records remain explicit unavailable instead of becoming ABSENT', () => {
   const value = payload();
   value.sources.records = [];
@@ -148,6 +160,8 @@ test('missing source records remain explicit unavailable instead of becoming ABS
     model.explanations[0].sources[0].unavailable_reason,
     /同梱されていません/
   );
+  assert.equal(model.explanations[0].sources[1].citation, '根拠参照（未同梱）');
+  assert.equal(model.explanations[0].sources[1].citation.includes('evidence:boot'), false);
 });
 
 test('offline payload identity mismatch fails closed', () => {

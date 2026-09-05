@@ -142,8 +142,10 @@ function createSourceView(ref, record) {
       ? `${path}:${range.start_line}–${range.end_line}`
       : path
     : runtime
-      ? 'runtime observation'
-      : `${kind}:${String(ref?.id ?? '')}`;
+      ? '実行時観測'
+      : canonicalRecord
+        ? 'canonical根拠record'
+        : '根拠参照（未同梱）';
 
   return {
     key: sourceKey(ref),
