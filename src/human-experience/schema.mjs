@@ -63,11 +63,7 @@ export function createHumanExperienceProjection({
     },
     derived: {
       human_analysis_ir: structuredClone(humanAnalysisIr),
-      item_source_links: humanAnalysisIr.items.map(item => ({
-        item_id: item.id,
-        semantic_class: item.semantic_class,
-        source_refs: structuredClone(item.source_refs)
-      }))
+      item_source_links: buildItemSourceLinks(humanAnalysisIr)
     },
     source_index: sourceIndex,
     invariants: {
@@ -95,8 +91,25 @@ export function validateHumanExperienceProjection(projection) {
       `Human Experience projection must use ${HUMAN_EXPERIENCE_PROJECTION_SCHEMA}`
     );
   }
-  createExplorerUiModel(projection.canonical?.explorer_projection);
-  validateHumanAnalysisIr(projection.derived?.human_analysis_ir);
+
+  const explorerProjection = projection.canonical?.explorer_projection;
+  const humanAnalysisIr = projection.derived?.human_analysis_ir;
+  createExplorerUiModel(explorerProjection);
+  validateHumanAnalysisIr(humanAnalysisIr);
+
+  assertProjectionIdentity(
+    projection,
+    explorerProjection,
+    humanAnalysisIr
+  );
+  assertProjectionSourceIdentity(
+    projection,
+    explorerProjection,
+    humanAnalysisIr
+  );
+  assertProjectionDerivedLinks(projection, humanAnalysisIr);
+  assertProjectionSourceIndex(projection, humanAnalysisIr);
+
   const invariants = projection.invariants ?? {};
   for (const key of [
     'analysis_authority',
@@ -127,22 +140,45 @@ export function validateHumanExperienceProjection(projection) {
 }
 
 function assertIdentity(explorerProjection, evidencePack, ir) {
-  const repositoryIds = new Set([
+  const explorerRepositoryId = requireIdentity(
     explorerProjection.source?.repository_id,
+    'Explorer repository identity'
+  );
+  const evidenceRepositoryId = requireIdentity(
     evidencePack.repository?.repository_id,
-    ir.repository?.repository_id
-  ].filter(Boolean));
-  if (repositoryIds.size !== 1) {
+    'Evidence Pack repository identity'
+  );
+  const irRepositoryId = requireIdentity(
+    ir.repository?.repository_id,
+    'Human Analysis IR repository identity'
+  );
+  if (new Set([
+    explorerRepositoryId,
+    evidenceRepositoryId,
+    irRepositoryId
+  ]).size !== 1) {
     throw new TypeError(
       'Human Experience repository identity mismatch between Explorer, Evidence Pack and Human Analysis IR'
     );
   }
-  const snapshotIds = new Set([
+
+  const explorerSnapshotId = requireIdentity(
     explorerProjection.source?.snapshot_id,
+    'Explorer snapshot identity'
+  );
+  const evidenceSnapshotId = requireIdentity(
     evidencePack.repository?.snapshot_id,
-    ir.repository?.snapshot_id
-  ].filter(Boolean));
-  if (snapshotIds.size !== 1) {
+    'Evidence Pack snapshot identity'
+  );
+  const irSnapshotId = requireIdentity(
+    ir.repository?.snapshot_id,
+    'Human Analysis IR snapshot identity'
+  );
+  if (new Set([
+    explorerSnapshotId,
+    evidenceSnapshotId,
+    irSnapshotId
+  ]).size !== 1) {
     throw new TypeError(
       'Human Experience snapshot identity mismatch between Explorer, Evidence Pack and Human Analysis IR'
     );
@@ -161,10 +197,140 @@ function assertEvidencePackLink(evidencePack, ir) {
   }
 }
 
+function assertProjectionIdentity(projection, explorerProjection, ir) {
+  const outerRepositoryId = requireIdentity(
+    projection.repository?.repository_id,
+    'Human Experience repository identity'
+  );
+  const explorerRepositoryId = requireIdentity(
+    explorerProjection?.source?.repository_id,
+    'Explorer repository identity'
+  );
+  const irRepositoryId = requireIdentity(
+    ir?.repository?.repository_id,
+    'Human Analysis IR repository identity'
+  );
+  if (new Set([
+    outerRepositoryId,
+    explorerRepositoryId,
+    irRepositoryId
+  ]).size !== 1) {
+    throw new TypeError(
+      'Human Experience repository identity mismatch between outer projection, Explorer and Human Analysis IR'
+    );
+  }
+
+  const outerSnapshotId = requireIdentity(
+    projection.repository?.snapshot_id,
+    'Human Experience snapshot identity'
+  );
+  const explorerSnapshotId = requireIdentity(
+    explorerProjection?.source?.snapshot_id,
+    'Explorer snapshot identity'
+  );
+  const irSnapshotId = requireIdentity(
+    ir?.repository?.snapshot_id,
+    'Human Analysis IR snapshot identity'
+  );
+  if (new Set([
+    outerSnapshotId,
+    explorerSnapshotId,
+    irSnapshotId
+  ]).size !== 1) {
+    throw new TypeError(
+      'Human Experience snapshot identity mismatch between outer projection, Explorer and Human Analysis IR'
+    );
+  }
+}
+
+function assertProjectionSourceIdentity(projection, explorerProjection, ir) {
+  const identity = projection.source_identity ?? {};
+  if (identity.explorer_projection_schema !== explorerProjection?.schema) {
+    throw new TypeError(
+      'Human Experience Explorer projection schema identity mismatch'
+    );
+  }
+  const explorerAnalysisDigest =
+    explorerProjection?.source?.analysis_result_digest ?? null;
+  if (
+    (identity.explorer_analysis_result_digest ?? null) !==
+    explorerAnalysisDigest
+  ) {
+    throw new TypeError(
+      'Human Experience Explorer analysis result identity mismatch'
+    );
+  }
+  if (
+    identity.evidence_pack_id !== ir.evidence_pack?.pack_id ||
+    identity.evidence_pack_digest !== ir.evidence_pack?.pack_digest ||
+    identity.canonical_digest !== ir.evidence_pack?.canonical_digest ||
+    identity.human_analysis_ir_digest !== ir.ir_digest
+  ) {
+    throw new TypeError(
+      'Human Experience source identity does not match Human Analysis IR'
+    );
+  }
+}
+
+function assertProjectionDerivedLinks(projection, ir) {
+  const actual = projection.derived?.item_source_links;
+  if (!Array.isArray(actual)) {
+    throw new TypeError(
+      'Human Experience derived item source links are required'
+    );
+  }
+  const expected = buildItemSourceLinks(ir);
+  if (stableDigest(actual) !== stableDigest(expected)) {
+    throw new TypeError(
+      'Human Experience derived item source links do not match Human Analysis IR'
+    );
+  }
+}
+
+function assertProjectionSourceIndex(projection, ir) {
+  const sourceIndex = projection.source_index;
+  if (
+    !sourceIndex ||
+    !Array.isArray(sourceIndex.files) ||
+    !Array.isArray(sourceIndex.ranges)
+  ) {
+    throw new TypeError('Human Experience source index is incomplete');
+  }
+  if (
+    sourceIndex.item_count !== ir.items.length ||
+    sourceIndex.file_count !== sourceIndex.files.length
+  ) {
+    throw new TypeError('Human Experience source index counts are invalid');
+  }
+  const expected = buildSourceIndex(
+    { source_catalog: sourceIndex.files },
+    ir
+  );
+  if (stableDigest(sourceIndex.ranges) !== stableDigest(expected.ranges)) {
+    throw new TypeError(
+      'Human Experience source index ranges do not match Human Analysis IR'
+    );
+  }
+}
+
+function buildItemSourceLinks(ir) {
+  return ir.items.map(item => ({
+    item_id: item.id,
+    semantic_class: item.semantic_class,
+    source_refs: structuredClone(item.source_refs)
+  }));
+}
+
 function buildSourceIndex(evidencePack, ir) {
+  if (!Array.isArray(evidencePack?.source_catalog)) {
+    throw new TypeError('Human Experience source catalog is required');
+  }
   const catalogByPath = new Map(
     evidencePack.source_catalog.map(entry => [entry.path, entry])
   );
+  if (catalogByPath.size !== evidencePack.source_catalog.length) {
+    throw new TypeError('Human Experience source catalog paths must be unique');
+  }
   const rangesByKey = new Map();
   for (const item of ir.items) {
     for (const ref of item.source_refs ?? []) {
@@ -214,6 +380,13 @@ function normalizeLocale(value) {
     throw new TypeError(`invalid Human Experience locale: ${String(value)}`);
   }
   return locale;
+}
+
+function requireIdentity(value, label) {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new TypeError(`${label} is required`);
+  }
+  return value;
 }
 
 function compareText(a, b) {
