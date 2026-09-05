@@ -9,6 +9,7 @@ export * from './presentation-companion.mjs';
 export * from './technical-views.mjs';
 export * from './repository-scale-readiness.mjs';
 export * from './repository-batches.mjs';
+export * from './repository-scale-authoring.mjs';
 export * from './resource-budgets.mjs';
 export * from './artifact-compiler.mjs';
 export * from './technical-artifact.mjs';
