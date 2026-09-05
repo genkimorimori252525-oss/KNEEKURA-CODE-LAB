@@ -16,9 +16,11 @@ function transformArgs(file, args) {
     args.includes('--package-lock=false')
   ) {
     globalThis.__KNEEKURA_R4_NPM_CI_INTERCEPTS__ += 1;
-    return args
+    const transformed = args
       .filter(arg => arg !== '--package-lock=false')
       .map((arg, index) => index === 1 ? 'ci' : arg);
+    if (!transformed.includes('--include=dev')) transformed.push('--include=dev');
+    return transformed;
   }
   return args;
 }

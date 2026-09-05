@@ -84,7 +84,8 @@ try {
   const kneekuraLockRaw = await fs.readFile(path.join(ROOT, 'package-lock.json'), 'utf8');
   const kneekuraPackage = JSON.parse(kneekuraPackageRaw);
 
-  await npm(repoRoot, ['ci', '--no-audit', '--no-fund']);
+  await npm(repoRoot, ['ci', '--include=dev', '--no-audit', '--no-fund']);
+  await npm(repoRoot, ['ls', '@types/node', '--depth=0']);
   await npm(repoRoot, ['run', 'typecheck']);
   const npmVersion = (await npm(repoRoot, ['--version'])).stdout.trim();
   sampleHeap();
