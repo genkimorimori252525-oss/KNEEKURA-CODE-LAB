@@ -97,7 +97,13 @@ try {
   ]);
 
   await page.getByText('成果物の技術詳細', { exact: true }).click();
-  await page.getByText(repositoryId, { exact: true }).waitFor();
+  const artifactTechnicalText = await page
+    .locator('.human-guide-artifact-technical pre')
+    .textContent();
+  assert(
+    artifactTechnicalText?.includes(repositoryId),
+    'repository_id was not preserved in explicitly opened technical details'
+  );
 
   assert.deepEqual(externalRequests, [], `unexpected external requests: ${externalRequests.join(', ')}`);
   assert.deepEqual(pageErrors, [], `page errors: ${pageErrors.join(' | ')}`);
