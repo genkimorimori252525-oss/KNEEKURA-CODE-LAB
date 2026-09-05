@@ -1,0 +1,235 @@
+.human-explorer-r2-shell {
+  display: grid;
+  grid-template-columns: minmax(320px, 390px) minmax(0, 1fr);
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.human-explorer-r2-main {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.human-explorer-r2-main .explorer-shell {
+  height: 100%;
+}
+
+.system-map-panel {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  border-right: 1px solid #30363d;
+  background: #0d1117;
+  color: #e6edf3;
+}
+
+.system-map-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #30363d;
+  background: #161b22;
+}
+
+.system-map-header > div {
+  display: grid;
+  gap: 2px;
+}
+
+.system-map-header strong {
+  font-size: 16px;
+}
+
+.system-map-header span:not(.system-map-level-badge) {
+  color: #8b949e;
+  font-size: 11px;
+}
+
+.system-map-level-badge,
+.system-map-authority {
+  display: inline-flex;
+  width: fit-content;
+  padding: 3px 7px;
+  border: 1px solid #58a6ff;
+  border-radius: 999px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.system-map-authority-derived_presentation {
+  border-color: #a371f7;
+}
+
+.system-map-authority-derived_source_only {
+  border-color: #d29922;
+}
+
+.system-map-section {
+  padding: 14px 16px;
+  border-bottom: 1px solid #21262d;
+}
+
+.system-map-section h2 {
+  margin: 0 0 9px;
+  font-size: 14px;
+}
+
+.system-map-search {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 8px 10px;
+}
+
+.system-map-search-results,
+.system-map-level-items,
+.system-map-links,
+.system-map-source-buttons {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.system-map-search-results button,
+.system-map-level-items button,
+.system-map-links button {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+
+.system-map-search-results small,
+.system-map-level-items small,
+.system-map-links small,
+.system-map-muted {
+  color: #8b949e;
+  font-size: 11px;
+}
+
+.system-map-search-results code,
+.system-map-path {
+  color: #79c0ff;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.system-map-levels {
+  display: grid;
+  gap: 8px;
+}
+
+.system-map-levels summary,
+.system-map-section > details > summary,
+.system-map-technical summary {
+  cursor: pointer;
+}
+
+.system-map-selection-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.system-map-selection-heading h2 {
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+.system-map-kicker {
+  color: #8b949e;
+  font-size: 11px;
+}
+
+.system-map-source-resolver {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.system-map-source-code {
+  display: grid;
+  max-height: 300px;
+  overflow: auto;
+  margin: 0;
+  padding: 8px 0;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  background: #05070a;
+}
+
+.system-map-source-row {
+  display: grid;
+  grid-template-columns: 48px minmax(max-content, 1fr);
+  min-width: fit-content;
+  white-space: pre;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+.system-map-source-line {
+  padding-right: 8px;
+  color: #6e7681;
+  text-align: right;
+}
+
+.system-map-tour {
+  display: grid;
+  gap: 8px;
+  padding-left: 22px;
+}
+
+.system-map-tour p {
+  margin: 4px 0 0;
+  color: #8b949e;
+  font-size: 11px;
+}
+
+.system-map-impact-depth {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.system-map-impact-stats {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 10px;
+}
+
+.system-map-technical {
+  margin-top: 12px;
+}
+
+.system-map-technical pre {
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 10px;
+}
+
+.system-map-footer {
+  padding: 12px 16px 18px;
+  color: #8b949e;
+  font-size: 10px;
+}
+
+@media (max-width: 960px) {
+  .human-explorer-r2-shell {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(260px, 46vh) minmax(0, 1fr);
+  }
+
+  .system-map-panel {
+    border-right: 0;
+    border-bottom: 1px solid #30363d;
+  }
+}

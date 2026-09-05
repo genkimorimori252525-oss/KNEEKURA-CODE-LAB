@@ -1,8 +1,10 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { ExplorerApp } from './App.jsx';
+import { SystemMapPanel } from './SystemMapPanel.jsx';
 import './styles.css';
 import './human-experience.css';
+import './system-map.css';
 
 const root = createRoot(
   document.getElementById('root')
@@ -68,10 +70,18 @@ async function bootstrap() {
 
   root.render(
     <React.StrictMode>
-      <ExplorerApp
-        projection={projection}
-        offlinePayload={offlinePayload}
-      />
+      <div className="human-explorer-r2-shell">
+        <SystemMapPanel
+          projection={projection}
+          offlinePayload={offlinePayload}
+        />
+        <div className="human-explorer-r2-main">
+          <ExplorerApp
+            projection={projection}
+            offlinePayload={offlinePayload}
+          />
+        </div>
+      </div>
     </React.StrictMode>
   );
 }
