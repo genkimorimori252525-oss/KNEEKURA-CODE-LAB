@@ -30,6 +30,9 @@ jobs:
           name: love-github-r1-human-explorer
           path: dist/r1-love-github-production
           if-no-files-found: error
+      - name: Validate fixed Love-Github R2 System Map
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/human-experience-system-map-r2')
+        run: npm run validate:love-github-system-map-r2
       - run: npm run presentation:guard
       - run: npm run test:presentation-p1
       - run: npm run test:presentation-p2
