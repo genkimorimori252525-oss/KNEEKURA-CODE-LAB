@@ -8,4 +8,5 @@ export * from './production.mjs';
 export * from './presentation-companion.mjs';
 export * from './technical-views.mjs';
 export * from './artifact-compiler.mjs';
+export * from './technical-artifact.mjs';
 export * from './zip.mjs';

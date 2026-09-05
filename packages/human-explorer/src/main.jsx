@@ -2,9 +2,11 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { ExplorerApp } from './App.jsx';
 import { SystemMapPanel } from './SystemMapPanel.jsx';
+import { TechnicalViewsPanel } from './TechnicalViewsPanel.jsx';
 import './styles.css';
 import './human-experience.css';
 import './system-map.css';
+import './technical-views.css';
 
 const root = createRoot(
   document.getElementById('root')
@@ -71,10 +73,16 @@ async function bootstrap() {
   root.render(
     <React.StrictMode>
       <div className="human-explorer-r2-shell">
-        <SystemMapPanel
-          projection={projection}
-          offlinePayload={offlinePayload}
-        />
+        <div className="human-explorer-r3-sidebar">
+          <SystemMapPanel
+            projection={projection}
+            offlinePayload={offlinePayload}
+          />
+          <TechnicalViewsPanel
+            projection={projection}
+            offlinePayload={offlinePayload}
+          />
+        </div>
         <div className="human-explorer-r2-main">
           <ExplorerApp
             projection={projection}
