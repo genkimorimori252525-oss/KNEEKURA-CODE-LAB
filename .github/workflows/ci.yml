@@ -20,6 +20,16 @@ jobs:
       - name: Validate live Love-Github Human Guide acceptance
         if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/love-github-human-guide-acceptance')
         run: npm run validate:love-github-human-guide-live
+      - name: Validate fixed Love-Github production R1
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/human-analysis-production-r1')
+        run: npm run validate:love-github-human-guide-production-r1
+      - name: Upload Love-Github production R1 artifact
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/human-analysis-production-r1')
+        uses: actions/upload-artifact@v4
+        with:
+          name: love-github-r1-human-explorer
+          path: dist/r1-love-github-production
+          if-no-files-found: error
       - run: npm run presentation:guard
       - run: npm run test:presentation-p1
       - run: npm run test:presentation-p2
