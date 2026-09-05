@@ -1,8 +1,10 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { ExplorerApp } from './App.jsx';
+import { HumanGuidePanel } from './HumanGuidePanel.jsx';
 import './styles.css';
-import './human-experience.css';
+import './human-guide.css';
+import './evidence-ux.css';
 
 const root = createRoot(
   document.getElementById('root')
@@ -11,8 +13,8 @@ const root = createRoot(
 bootstrap().catch(error => {
   root.render(
     <main className="boot-error" role="alert">
-      <h1>KNEEKURA コードエクスプローラー</h1>
-      <p>コード案内の起動に失敗しました。</p>
+      <h1>KNEEKURA Human Explorer</h1>
+      <p>コード案内を起動できませんでした。</p>
       <pre>{String(error?.message ?? error)}</pre>
     </main>
   );
@@ -29,7 +31,7 @@ async function bootstrap() {
       'kneekura.human-experience-offline-payload/v1'
     ) {
       throw new Error(
-        '対応していないHuman Experience成果物です。'
+        '未対応の Human Experience offline payload です。'
       );
     }
     if (
@@ -37,7 +39,7 @@ async function bootstrap() {
       'kneekura.human-experience-projection/v1'
     ) {
       throw new Error(
-        'Human Experience projectionが成果物に含まれていません。'
+        'offline payload に Human Experience projection がありません。'
       );
     }
     projection =
@@ -50,8 +52,7 @@ async function bootstrap() {
     );
     if (!response.ok) {
       throw new Error(
-        'Explorer Projectionの読込に失敗しました: ' +
-        response.status
+        'Explorer projection の読込に失敗しました: ' + response.status
       );
     }
     projection = await response.json();
@@ -62,16 +63,18 @@ async function bootstrap() {
     'kneekura.explorer-projection/v1'
   ) {
     throw new Error(
-      '対応していないExplorer Projectionです。'
+      '未対応の Explorer Projection schema です。'
     );
   }
 
   root.render(
     <React.StrictMode>
-      <ExplorerApp
-        projection={projection}
-        offlinePayload={offlinePayload}
-      />
+      <div className="human-experience-shell">
+        <HumanGuidePanel offlinePayload={offlinePayload} />
+        <div className="human-experience-explorer">
+          <ExplorerApp projection={projection} />
+        </div>
+      </div>
     </React.StrictMode>
   );
 }
@@ -92,7 +95,7 @@ function readEmbeddedExperience() {
     );
   } catch (error) {
     throw new Error(
-      '埋め込みHuman Experienceデータを読み取れません: ' +
+      '埋め込み Human Experience payload が不正です: ' +
       String(error?.message ?? error)
     );
   }
