@@ -88,6 +88,7 @@ async function fixture() {
       provider_id: 'offline-explorer-fixture',
       provider_version: 'v1',
       path: 'src/main.ts',
+      range: { start_line: 1, end_line: 3 },
       extraction_method: 'fixture'
     },
     integrity_digest:
@@ -196,46 +197,7 @@ async function fixture() {
     humanAnalysisIr: ir
   });
 
-  const sources = [];
-  for (const item of ir.items) {
-    for (const ref of item.source_refs) {
-      const key = ref.kind === 'FILE_RANGE'
-        ? [
-            ref.kind,
-            ref.path,
-            ref.start_line,
-            ref.end_line,
-            ref.content_digest
-          ].join(':')
-        : ref.kind + ':' + ref.id;
-      if (sources.some(row => row.key === key)) continue;
-      if (ref.kind === 'FILE_RANGE') {
-        const row = await broker.readFileRange(ref);
-        sources.push({
-          key,
-          ref: structuredClone(ref),
-          instruction_authority: false,
-          trust_class: row.trust_class,
-          content_digest: row.content_digest,
-          text: row.text
-        });
-      } else {
-        const row = broker.resolveCanonicalRef(ref);
-        sources.push({
-          key,
-          ref: structuredClone(ref),
-          instruction_authority: false,
-          trust_class: row.trust_class,
-          record: row.record
-        });
-      }
-    }
-  }
-  return {
-    ir,
-    experience,
-    sources: sources.map(({ key, ...row }) => row)
-  };
+  return { ir, experience, broker };
 }
 
 test('standalone Human Explorer shell is deterministic and has no external JS/CSS dependencies', async () => {
@@ -252,31 +214,51 @@ test('standalone Human Explorer shell is deterministic and has no external JS/CS
 });
 
 test('minimal card compiler refuses PRODUCTION IR', async () => {
-  const { ir, sources } = await fixture();
+  const { ir } = await fixture();
   assert.throws(
     () => compileHumanAnalysisArtifact({
       ir,
-      sources,
+      sources: [],
       title: 'Bad production path'
     }),
     error => error?.code === 'PRODUCTION_EXPLORER_REQUIRED'
   );
 });
 
+test('production artifact rejects caller-supplied source text without a Source Broker', async () => {
+  const { experience } = await fixture();
+  const fileRef = experience.derived.human_analysis_ir.items[0].source_refs.find(
+    ref => ref.kind === 'FILE_RANGE'
+  );
+  await assert.rejects(
+    () => compileProductionHumanExperienceArtifact({
+      experience,
+      sources: [{
+        ref: fileRef,
+        instruction_authority: false,
+        trust_class: 'UNTRUSTED_REPOSITORY_DATA',
+        content_digest: fileRef.content_digest,
+        text: 'forged text with a borrowed whole-file digest'
+      }]
+    }),
+    error => error?.code === 'PRODUCTION_SOURCE_BROKER_REQUIRED'
+  );
+});
+
 test('production artifact boots the full bundled Human Explorer and preserves deterministic ZIP/security metadata', async () => {
-  const { experience, sources } = await fixture();
+  const { experience, broker } = await fixture();
   const shell = await buildStandaloneHumanExplorerShell();
   const one =
     await compileProductionHumanExperienceArtifact({
       experience,
-      sources,
+      sourceBroker: broker,
       title: 'Love-Github Human Explorer',
       explorerShell: shell
     });
   const two =
     await compileProductionHumanExperienceArtifact({
       experience,
-      sources,
+      sourceBroker: broker,
       title: 'Love-Github Human Explorer',
       explorerShell: shell
     });
