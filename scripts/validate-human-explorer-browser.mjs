@@ -247,36 +247,9 @@ async function buildArtifact() {
     evidencePack: pack,
     humanAnalysisIr: ir
   });
-  const sources = [];
-  for (const item of ir.items) {
-    for (const ref of item.source_refs) {
-      const key = sourceKey(ref);
-      if (sources.some(row => row.key === key)) continue;
-      if (ref.kind === 'FILE_RANGE') {
-        const row = await broker.readFileRange(ref);
-        sources.push({
-          key,
-          ref: structuredClone(ref),
-          instruction_authority: false,
-          trust_class: row.trust_class,
-          content_digest: row.content_digest,
-          text: row.text
-        });
-      } else {
-        const row = broker.resolveCanonicalRef(ref);
-        sources.push({
-          key,
-          ref: structuredClone(ref),
-          instruction_authority: false,
-          trust_class: row.trust_class,
-          record: row.record
-        });
-      }
-    }
-  }
   return compileProductionHumanExperienceArtifact({
     experience,
-    sources: sources.map(({ key, ...row }) => row),
+    sourceBroker: broker,
     title: 'KNEEKURA Human Explorer Browser Acceptance'
   });
 }
@@ -294,16 +267,4 @@ function findEdgeExecutable() {
 
 function digest(text) {
   return 'sha256:' + crypto.createHash('sha256').update(text).digest('hex');
-}
-
-function sourceKey(ref) {
-  return ref.kind === 'FILE_RANGE'
-    ? [
-        ref.kind,
-        ref.path,
-        ref.start_line,
-        ref.end_line,
-        ref.content_digest
-      ].join(':')
-    : `${ref.kind}:${ref.id}`;
 }
