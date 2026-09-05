@@ -70,75 +70,49 @@ function ExplorerCanvas({ projection }) {
     [model]
   );
   const semanticModel = useMemo(
-    () => createExplorerSemanticModel(
-      projection,
-      model
-    ),
+    () => createExplorerSemanticModel(projection, model),
     [projection, model]
   );
   const semanticNodeById = useMemo(
-    () => new Map(
-      semanticModel.nodes.map(item => [
-        item.node_id,
-        item
-      ])
-    ),
+    () => new Map(semanticModel.nodes.map(item => [item.node_id, item])),
     [semanticModel]
   );
   const semanticEdgeById = useMemo(
-    () => new Map(
-      semanticModel.edges.map(item => [
-        item.edge_id,
-        item
-      ])
-    ),
+    () => new Map(semanticModel.edges.map(item => [item.edge_id, item])),
     [semanticModel]
   );
   const guidedTour = useMemo(
-    () => createExplorerGuidedTour(
-      projection,
-      model
-    ),
+    () => createExplorerGuidedTour(projection, model),
     [projection, model]
   );
-  const [containerId, setContainerId] = useState(
-    EXPLORER_ROOT_CONTAINER_ID
+
+  const [containerId, setContainerId] = useState(EXPLORER_ROOT_CONTAINER_ID);
+  const [enabledLayerIds, setEnabledLayerIds] = useState(
+    () => hierarchy.layers.map(layer => layer.id)
   );
-  const [enabledLayerIds, setEnabledLayerIds] =
-    useState(() =>
-      hierarchy.layers.map(layer => layer.id)
-    );
   const [layout, setLayout] = useState(null);
   const [layoutError, setLayoutError] = useState(null);
   const [query, setQuery] = useState('');
-  const [selectedNodeId, setSelectedNodeId] =
-    useState(null);
-  const [selectedEdgeId, setSelectedEdgeId] =
-    useState(null);
-  const [tourPlayback, setTourPlayback] =
-    useState(() =>
-      createGuidedTourPlayback(guidedTour)
-    );
-  const tourReturnStateRef = useRef(null);
-  const [impactSeedNodeId, setImpactSeedNodeId] =
-    useState(null);
+  const [selectedNodeId, setSelectedNodeId] = useState(null);
+  const [selectedEdgeId, setSelectedEdgeId] = useState(null);
+  const [tourPlayback, setTourPlayback] = useState(
+    () => createGuidedTourPlayback(guidedTour)
+  );
+  const [impactSeedNodeId, setImpactSeedNodeId] = useState(null);
   const [impactDepth, setImpactDepth] = useState(3);
+  const tourReturnStateRef = useRef(null);
   const impactReturnStateRef = useRef(null);
   const { fitView } = useReactFlow();
 
   useEffect(() => {
     setContainerId(EXPLORER_ROOT_CONTAINER_ID);
-    setEnabledLayerIds(
-      hierarchy.layers.map(layer => layer.id)
-    );
+    setEnabledLayerIds(hierarchy.layers.map(layer => layer.id));
     setSelectedNodeId(null);
     setSelectedEdgeId(null);
-    setTourPlayback(
-      createGuidedTourPlayback(guidedTour)
-    );
-    tourReturnStateRef.current = null;
+    setTourPlayback(createGuidedTourPlayback(guidedTour));
     setImpactSeedNodeId(null);
     setImpactDepth(3);
+    tourReturnStateRef.current = null;
     impactReturnStateRef.current = null;
   }, [hierarchy, guidedTour]);
 
@@ -147,27 +121,14 @@ function ExplorerCanvas({ projection }) {
       container_id: containerId,
       enabled_layer_ids: enabledLayerIds
     }),
-    [
-      model,
-      hierarchy,
-      containerId,
-      enabledLayerIds
-    ]
+    [model, hierarchy, containerId, enabledLayerIds]
   );
-
   const scopedModel = useMemo(
-    () => ({
-      ...model,
-      nodes: scope.nodes,
-      edges: scope.edges
-    }),
+    () => ({ ...model, nodes: scope.nodes, edges: scope.edges }),
     [model, scope]
   );
   const semanticScopeSummary = useMemo(
-    () => summarizeExplorerSemanticScope(
-      semanticModel,
-      scope
-    ),
+    () => summarizeExplorerSemanticScope(semanticModel, scope),
     [semanticModel, scope]
   );
 
@@ -175,43 +136,25 @@ function ExplorerCanvas({ projection }) {
     let active = true;
     setLayout(null);
     setLayoutError(null);
-
     if (scopedModel.nodes.length === 0) {
-      setLayout({
-        ...scopedModel,
-        nodes: [],
-        edges: []
-      });
-      return () => {
-        active = false;
-      };
+      setLayout({ ...scopedModel, nodes: [], edges: [] });
+      return () => { active = false; };
     }
-
     layoutExplorerUiModel(scopedModel, elk)
       .then(value => {
         if (active) setLayout(value);
       })
       .catch(error => {
-        if (active) {
-          setLayoutError(
-            String(error?.message ?? error)
-          );
-        }
+        if (active) setLayoutError(String(error?.message ?? error));
       });
-
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [scopedModel]);
 
   const matches = useMemo(
     () => searchExplorerScopeNodes(scope, query),
     [scope, query]
   );
-  const matchSet = useMemo(
-    () => new Set(matches),
-    [matches]
-  );
+  const matchSet = useMemo(() => new Set(matches), [matches]);
   const visibleNodeSet = useMemo(
     () => new Set(scope.visible_node_ids),
     [scope.visible_node_ids]
@@ -222,114 +165,74 @@ function ExplorerCanvas({ projection }) {
           projection,
           model,
           impactSeedNodeId,
-          {
-            maxDepth: impactDepth,
-            maxItems: CHANGE_IMPACT_MAX_ITEMS
-          }
+          { maxDepth: impactDepth, maxItems: CHANGE_IMPACT_MAX_ITEMS }
         )
       : null,
-    [
-      projection,
-      model,
-      impactSeedNodeId,
-      impactDepth
-    ]
+    [projection, model, impactSeedNodeId, impactDepth]
   );
   const impactSelectedSet = useMemo(
-    () => new Set(
-      impactModel?.selected_node_ids ?? []
-    ),
+    () => new Set(impactModel?.selected_node_ids ?? []),
     [impactModel]
   );
   const impactBoundarySet = useMemo(
-    () => new Set(
-      impactModel?.boundary_node_ids ?? []
-    ),
+    () => new Set(impactModel?.boundary_node_ids ?? []),
     [impactModel]
   );
   const impactCausalEdgeSet = useMemo(
-    () => new Set(
-      impactModel?.causal_edge_ids ?? []
-    ),
+    () => new Set(impactModel?.causal_edge_ids ?? []),
     [impactModel]
   );
 
   useEffect(() => {
-    if (
-      selectedNodeId &&
-      !visibleNodeSet.has(selectedNodeId)
-    ) {
+    if (selectedNodeId && !visibleNodeSet.has(selectedNodeId)) {
       setSelectedNodeId(null);
     }
   }, [selectedNodeId, visibleNodeSet]);
-
   useEffect(() => {
-    if (
-      selectedEdgeId &&
-      !scope.visible_edge_ids.includes(
-        selectedEdgeId
-      )
-    ) {
+    if (selectedEdgeId && !scope.visible_edge_ids.includes(selectedEdgeId)) {
       setSelectedEdgeId(null);
     }
   }, [selectedEdgeId, scope.visible_edge_ids]);
 
   const currentTourStep = useMemo(
-    () => guidedTourCurrentStep(
-      guidedTour,
-      tourPlayback
-    ),
+    () => guidedTourCurrentStep(guidedTour, tourPlayback),
     [guidedTour, tourPlayback]
   );
   const tourHighlightSet = useMemo(
-    () => new Set(
-      currentTourStep?.highlight_node_ids ?? []
-    ),
+    () => new Set(currentTourStep?.highlight_node_ids ?? []),
     [currentTourStep]
   );
 
   const visibleNodes = useMemo(() => {
     const source = layout?.nodes ?? scope.nodes;
     return source.map(node => {
-      const semantic =
-        semanticNodeById.get(node.id);
-      const classes = [
-        'explorer-node',
-        semantic
-          ? 'explorer-node-domain-' +
-            semantic.domain
-          : null,
-        node.id === selectedNodeId
-          ? 'explorer-node-selected'
-          : null,
-        matchSet.has(node.id)
-          ? 'explorer-node-match'
-          : null,
-        tourHighlightSet.has(node.id)
-          ? 'explorer-node-tour-highlight'
-          : null,
-        node.id === impactSeedNodeId
-          ? 'explorer-node-impact-seed'
-          : impactSelectedSet.has(node.id)
-            ? 'explorer-node-impact-scope'
-            : null,
-        impactBoundarySet.has(node.id)
-          ? 'explorer-node-impact-boundary'
-          : null
-      ].filter(Boolean);
-
+      const semantic = semanticNodeById.get(node.id);
       return {
         ...node,
         draggable: false,
-        className: classes.join(' ')
+        className: [
+          'explorer-node',
+          semantic ? `explorer-node-domain-${semantic.domain}` : null,
+          node.id === selectedNodeId ? 'explorer-node-selected' : null,
+          matchSet.has(node.id) ? 'explorer-node-match' : null,
+          tourHighlightSet.has(node.id) ? 'explorer-node-tour-highlight' : null,
+          node.id === impactSeedNodeId
+            ? 'explorer-node-impact-seed'
+            : impactSelectedSet.has(node.id)
+              ? 'explorer-node-impact-scope'
+              : null,
+          impactBoundarySet.has(node.id)
+            ? 'explorer-node-impact-boundary'
+            : null
+        ].filter(Boolean).join(' ')
       };
     });
   }, [
     layout,
     scope.nodes,
-    matchSet,
-    selectedNodeId,
     semanticNodeById,
+    selectedNodeId,
+    matchSet,
     tourHighlightSet,
     impactSeedNodeId,
     impactSelectedSet,
@@ -339,14 +242,12 @@ function ExplorerCanvas({ projection }) {
   const visibleEdges = useMemo(() => {
     const source = layout?.edges ?? scope.edges;
     return source.map(edge => {
-      const semantic =
-        semanticEdgeById.get(edge.id);
+      const semantic = semanticEdgeById.get(edge.id);
       return {
         ...edge,
         className: [
           semantic
-            ? 'explorer-edge explorer-edge-domain-' +
-              semantic.domain
+            ? `explorer-edge explorer-edge-domain-${semantic.domain}`
             : 'explorer-edge',
           impactCausalEdgeSet.has(edge.id)
             ? 'explorer-edge-impact-causal'
@@ -354,24 +255,15 @@ function ExplorerCanvas({ projection }) {
         ].filter(Boolean).join(' '),
         data: {
           ...edge.data,
-          semantic_domain:
-            semantic?.domain ?? 'canonical'
+          semantic_domain: semantic?.domain ?? 'canonical'
         }
       };
     });
-  }, [
-    layout,
-    scope.edges,
-    semanticEdgeById,
-    impactCausalEdgeSet
-  ]);
+  }, [layout, scope.edges, semanticEdgeById, impactCausalEdgeSet]);
 
   const detail = useMemo(
     () => selectedNodeId
-      ? createExplorerNodeDetail(
-          projection,
-          selectedNodeId
-        )
+      ? createExplorerNodeDetail(projection, selectedNodeId)
       : null,
     [projection, selectedNodeId]
   );
@@ -383,52 +275,27 @@ function ExplorerCanvas({ projection }) {
           selectedNodeId
         )
       : null,
-    [
-      projection,
-      semanticModel,
-      selectedNodeId
-    ]
+    [projection, semanticModel, selectedNodeId]
   );
   const confidenceEvidenceInspector = useMemo(
     () => selectedNodeId
-      ? createExplorerConfidenceEvidenceInspector(
-          projection,
-          selectedNodeId
-        )
+      ? createExplorerConfidenceEvidenceInspector(projection, selectedNodeId)
       : null,
     [projection, selectedNodeId]
   );
   const edgeDetail = useMemo(
     () => selectedEdgeId
-      ? createExplorerSemanticEdgeDetail(
-          projection,
-          semanticModel,
-          selectedEdgeId
-        )
+      ? createExplorerSemanticEdgeDetail(projection, semanticModel, selectedEdgeId)
       : null,
-    [
-      projection,
-      semanticModel,
-      selectedEdgeId
-    ]
+    [projection, semanticModel, selectedEdgeId]
   );
+
   useEffect(() => {
-    if (
-      !layout ||
-      !tourPlayback.active ||
-      !currentTourStep
-    ) {
-      return;
-    }
-    const layoutNodeSet = new Set(
-      layout.nodes.map(node => node.id)
+    if (!layout || !tourPlayback.active || !currentTourStep) return;
+    const layoutNodeSet = new Set(layout.nodes.map(node => node.id));
+    const visibleHighlights = currentTourStep.highlight_node_ids.filter(
+      nodeId => visibleNodeSet.has(nodeId) && layoutNodeSet.has(nodeId)
     );
-    const visibleHighlights =
-      currentTourStep.highlight_node_ids.filter(
-        nodeId =>
-          visibleNodeSet.has(nodeId) &&
-          layoutNodeSet.has(nodeId)
-      );
     if (visibleHighlights.length === 0) {
       setSelectedNodeId(null);
       setSelectedEdgeId(null);
@@ -455,34 +322,21 @@ function ExplorerCanvas({ projection }) {
 
   useEffect(() => {
     if (!layout || !impactModel) return;
-    const layoutNodeSet = new Set(
-      layout.nodes.map(node => node.id)
-    );
-    const visibleImpactNodes = [
-      ...new Set([
-        ...impactModel.selected_node_ids,
-        ...impactModel.boundary_node_ids
-      ])
-    ].filter(
-      nodeId =>
-        visibleNodeSet.has(nodeId) &&
-        layoutNodeSet.has(nodeId)
-    );
-    if (visibleImpactNodes.length === 0) return;
+    const layoutNodeSet = new Set(layout.nodes.map(node => node.id));
+    const ids = [...new Set([
+      ...impactModel.selected_node_ids,
+      ...impactModel.boundary_node_ids
+    ])].filter(nodeId => visibleNodeSet.has(nodeId) && layoutNodeSet.has(nodeId));
+    if (ids.length === 0) return;
     queueMicrotask(() => {
       fitView({
-        nodes: visibleImpactNodes.map(id => ({ id })),
+        nodes: ids.map(id => ({ id })),
         padding: 0.55,
         duration: 240,
         maxZoom: 1.25
       });
     });
-  }, [
-    layout,
-    impactModel,
-    visibleNodeSet,
-    fitView
-  ]);
+  }, [layout, impactModel, visibleNodeSet, fitView]);
 
   function focusNode(nodeId) {
     if (!nodeId || !visibleNodeSet.has(nodeId)) return;
@@ -505,17 +359,12 @@ function ExplorerCanvas({ projection }) {
 
   function prepareTourScope() {
     setContainerId(EXPLORER_ROOT_CONTAINER_ID);
-    setEnabledLayerIds(
-      hierarchy.layers.map(layer => layer.id)
-    );
+    setEnabledLayerIds(hierarchy.layers.map(layer => layer.id));
     setSelectedEdgeId(null);
   }
 
   function beginTour() {
-    if (
-      !guidedTour.has_tour ||
-      impactSeedNodeId
-    ) return;
+    if (!guidedTour.has_tour || impactSeedNodeId) return;
     tourReturnStateRef.current = {
       containerId,
       enabledLayerIds: [...enabledLayerIds],
@@ -526,15 +375,9 @@ function ExplorerCanvas({ projection }) {
     setTourPlayback(startGuidedTour(guidedTour));
   }
 
-  function moveTour(delta) {
+  function moveTourStep(delta) {
     prepareTourScope();
-    setTourPlayback(current =>
-      moveGuidedTour(
-        guidedTour,
-        current,
-        delta
-      )
-    );
+    setTourPlayback(current => moveGuidedTour(guidedTour, current, delta));
   }
 
   function endTour() {
@@ -550,17 +393,12 @@ function ExplorerCanvas({ projection }) {
 
   function prepareImpactScope() {
     setContainerId(EXPLORER_ROOT_CONTAINER_ID);
-    setEnabledLayerIds(
-      hierarchy.layers.map(layer => layer.id)
-    );
+    setEnabledLayerIds(hierarchy.layers.map(layer => layer.id));
     setSelectedEdgeId(null);
   }
 
   function beginImpact() {
-    if (
-      !selectedNodeId ||
-      tourPlayback.active
-    ) return;
+    if (!selectedNodeId || tourPlayback.active) return;
     if (!impactSeedNodeId) {
       impactReturnStateRef.current = {
         containerId,
@@ -605,40 +443,28 @@ function ExplorerCanvas({ projection }) {
         <div>
           <strong>KNEEKURA Human Explorer</strong>
           <span className="explorer-subtitle">
-            P4 semantics · guided tours · change impact · canonical projection consumer
+            canonical構造・根拠・ガイドツアー・変更影響
           </span>
         </div>
 
-        <form
-          className="explorer-search"
-          onSubmit={submitSearch}
-        >
+        <form className="explorer-search" onSubmit={submitSearch}>
           <input
             value={query}
-            onChange={event =>
-              setQuery(event.target.value)
-            }
-            placeholder="visible node / kind / id を検索"
-            aria-label="Explorer node search"
+            onChange={event => setQuery(event.target.value)}
+            placeholder="表示中の名前・種類・識別子を検索"
+            aria-label="Explorer内を検索"
           />
-          <button type="submit">
-            Focus
-          </button>
+          <button type="submit">先頭候補へ</button>
           <span aria-live="polite">
-            {query ? matches.length + ' matches' : ''}
+            {query ? `${matches.length}件` : ''}
           </span>
         </form>
 
         <button
           type="button"
-          onClick={() =>
-            fitView({
-              padding: 0.18,
-              duration: 240
-            })
-          }
+          onClick={() => fitView({ padding: 0.18, duration: 240 })}
         >
-          Fit scope
+          表示範囲を整える
         </button>
       </header>
 
@@ -660,8 +486,8 @@ function ExplorerCanvas({ projection }) {
           onNavigate={navigateContainer}
           onToggleLayer={toggleLayer}
           onTourStart={beginTour}
-          onTourPrevious={() => moveTour(-1)}
-          onTourNext={() => moveTour(1)}
+          onTourPrevious={() => moveTourStep(-1)}
+          onTourNext={() => moveTourStep(1)}
           onTourExit={endTour}
           onImpactStart={beginImpact}
           onImpactDepthChange={setImpactDepth}
@@ -670,11 +496,8 @@ function ExplorerCanvas({ projection }) {
 
         <section className="explorer-canvas">
           {layoutError ? (
-            <div
-              className="explorer-layout-error"
-              role="alert"
-            >
-              <strong>Layout failed</strong>
+            <div className="explorer-layout-error" role="alert">
+              <strong>配置に失敗しました</strong>
               <span>{layoutError}</span>
             </div>
           ) : null}
@@ -700,17 +523,14 @@ function ExplorerCanvas({ projection }) {
               setSelectedEdgeId(null);
             }}
           >
-            <MiniMap
-              pannable
-              zoomable
-            />
+            <MiniMap pannable zoomable />
             <Controls />
             <Background gap={22} />
           </ReactFlow>
         </section>
 
         <aside className="explorer-detail">
-          <h2>Selection</h2>
+          <h2>選択内容</h2>
           {edgeDetail ? (
             <EdgeDetail detail={edgeDetail} />
           ) : detail ? (
@@ -721,7 +541,7 @@ function ExplorerCanvas({ projection }) {
             />
           ) : (
             <p className="explorer-empty">
-              Select a canonical node or edge.
+              ノードまたは関係を選ぶと詳細を確認できます。
             </p>
           )}
         </aside>
@@ -754,14 +574,11 @@ function HierarchyPanel({
   onImpactDepthChange,
   onImpactExit
 }) {
-  const current = hierarchy.containers.find(
-    item => item.id === containerId
-  );
-
+  const current = hierarchy.containers.find(item => item.id === containerId);
   return (
     <aside className="explorer-hierarchy">
       <section>
-        <h2>Change impact</h2>
+        <h2>変更影響</h2>
         <ChangeImpactPanel
           model={impactModel}
           depth={impactDepth}
@@ -775,7 +592,7 @@ function HierarchyPanel({
       </section>
 
       <section>
-        <h2>Guided tour</h2>
+        <h2>ガイドツアー</h2>
         <GuidedTourPanel
           tour={guidedTour}
           playback={tourPlayback}
@@ -789,18 +606,14 @@ function HierarchyPanel({
       </section>
 
       <section>
-        <h2>Layers</h2>
+        <h2>レイヤー</h2>
         <div className="explorer-layer-list">
           {hierarchy.layers.map(layer => (
             <label key={layer.id}>
               <input
                 type="checkbox"
-                checked={enabledLayerIds.includes(
-                  layer.id
-                )}
-                onChange={() =>
-                  onToggleLayer(layer.id)
-                }
+                checked={enabledLayerIds.includes(layer.id)}
+                onChange={() => onToggleLayer(layer.id)}
               />
               <span>{layer.label}</span>
               <small>{layer.node_ids.length}</small>
@@ -810,16 +623,11 @@ function HierarchyPanel({
       </section>
 
       <section>
-        <h2>Hierarchy</h2>
-        <nav
-          className="explorer-breadcrumbs"
-          aria-label="Explorer hierarchy breadcrumb"
-        >
+        <h2>階層</h2>
+        <nav className="explorer-breadcrumbs" aria-label="Explorer階層">
           {scope.breadcrumbs.map((item, index) => (
             <React.Fragment key={item.id}>
-              {index > 0 ? (
-                <span aria-hidden="true">/</span>
-              ) : null}
+              {index > 0 ? <span aria-hidden="true">/</span> : null}
               <button
                 type="button"
                 disabled={item.id === containerId}
@@ -830,7 +638,6 @@ function HierarchyPanel({
             </React.Fragment>
           ))}
         </nav>
-
         {scope.child_containers.length > 0 ? (
           <div className="explorer-container-list">
             {scope.child_containers.map(item => (
@@ -840,21 +647,21 @@ function HierarchyPanel({
                 onClick={() => onNavigate(item.id)}
               >
                 <span>{item.label}</span>
-                <small>{item.node_count} nodes</small>
+                <small>{item.node_count}件</small>
               </button>
             ))}
           </div>
         ) : (
           <p className="explorer-empty">
             {current?.kind === 'kind'
-              ? 'Canonical nodes in this kind are shown.'
-              : 'No visible child containers.'}
+              ? 'この種類に属するcanonicalノードを表示しています。'
+              : '下位の表示グループはありません。'}
           </p>
         )}
       </section>
 
       <section>
-        <h2>KNEEKURA semantics</h2>
+        <h2>KNEEKURA セマンティクス</h2>
         <SemanticLegend
           semanticModel={semanticModel}
           summary={semanticScopeSummary}
@@ -862,13 +669,13 @@ function HierarchyPanel({
       </section>
 
       <section className="explorer-scope-stats">
-        <h2>Scope</h2>
+        <h2>表示範囲</h2>
         <dl>
-          <dt>Nodes</dt>
+          <dt>ノード</dt>
           <dd>{scope.visible_node_ids.length}</dd>
-          <dt>Edges</dt>
+          <dt>関係</dt>
           <dd>{scope.visible_edge_ids.length}</dd>
-          <dt>Boundary edges hidden</dt>
+          <dt>範囲外の境界関係</dt>
           <dd>{scope.hidden_boundary_edge_ids.length}</dd>
         </dl>
       </section>
@@ -887,26 +694,19 @@ function ChangeImpactPanel({
   onExit
 }) {
   const active = Boolean(model && seedNodeId);
-
   return (
     <div className="explorer-impact-panel">
       <p className="explorer-impact-disclaimer">
-        CORE IMPACT investigation scope — not a
-        verified breakage claim.
+        CORE IMPACTが示す調査範囲です。破損が確定したという意味ではありません。
       </p>
-
       <label className="explorer-impact-depth">
-        <span>Depth</span>
+        <span>深さ</span>
         <select
           value={depth}
-          onChange={event =>
-            onDepthChange(Number(event.target.value))
-          }
+          onChange={event => onDepthChange(Number(event.target.value))}
         >
           {[1, 2, 3, 4, 5].map(value => (
-            <option key={value} value={value}>
-              {value}
-            </option>
+            <option key={value} value={value}>{value}</option>
           ))}
         </select>
       </label>
@@ -918,80 +718,41 @@ function ChangeImpactPanel({
             disabled={!selectedNodeId || tourActive}
             onClick={onStart}
           >
-            Analyze selected node
+            選択したノードを調査
           </button>
           {!selectedNodeId ? (
-            <p className="explorer-empty">
-              Select a canonical node first.
-            </p>
+            <p className="explorer-empty">先にノードを選んでください。</p>
           ) : tourActive ? (
             <p className="explorer-empty">
-              Exit guided tour before change impact.
+              変更影響を調べる前にガイドツアーを終了してください。
             </p>
           ) : null}
         </>
       ) : (
         <>
           <dl>
-            <dt>Seed</dt>
-            <dd>{model.seed_node_id}</dd>
-            <dt>Scope nodes</dt>
+            <dt>調査対象ノード</dt>
             <dd>{model.selected_node_ids.length}</dd>
-            <dt>Boundary nodes</dt>
+            <dt>境界ノード</dt>
             <dd>{model.boundary_node_ids.length}</dd>
-            <dt>Causal edges</dt>
+            <dt>因果関係</dt>
             <dd>{model.causal_edge_ids.length}</dd>
-            <dt>Max items</dt>
+            <dt>最大項目数</dt>
             <dd>{model.max_items}</dd>
           </dl>
-
-          <button
-            type="button"
-            disabled={!selectedNodeId}
-            onClick={onStart}
-          >
-            Recompute from selected
+          <button type="button" disabled={!selectedNodeId} onClick={onStart}>
+            選択ノードから再計算
           </button>
-          <button type="button" onClick={onExit}>
-            Exit impact
-          </button>
-
+          <button type="button" onClick={onExit}>変更影響を終了</button>
           <details>
-            <summary>
-              Planner closure / boundaries
-            </summary>
+            <summary>技術詳細（正確なScopeDecision・境界・ID）</summary>
             <pre>{JSON.stringify({
-              universe_enumerable:
-                model.universe_enumerable,
+              seed_node_id: model.seed_node_id,
+              universe_enumerable: model.universe_enumerable,
               closure: model.closure,
-              boundary: model.boundary
+              boundary: model.boundary,
+              decisions: model.decisions
             }, null, 2)}</pre>
-          </details>
-
-          <details>
-            <summary>
-              Exact ScopeDecisions ({model.decisions.length})
-            </summary>
-            <ul className="explorer-impact-decisions">
-              {model.decisions.map(item => (
-                <li key={item.decision_id}>
-                  <code>{item.decision_id}</code>
-                  <div>
-                    {item.action} · depth {item.depth}
-                    {' · '}
-                    {item.cause}
-                  </div>
-                  <div>{item.reason}</div>
-                  {item.causal_edge ? (
-                    <pre>{JSON.stringify(
-                      item.causal_edge,
-                      null,
-                      2
-                    )}</pre>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
           </details>
         </>
       )}
@@ -1012,62 +773,44 @@ function GuidedTourPanel({
   if (!tour.has_tour) {
     return (
       <p className="explorer-empty">
-        No canonical guided tour in this graph.
+        このgraphにはcanonicalガイドツアーがありません。
       </p>
     );
   }
-
   if (!playback.active || !step) {
     return (
       <div className="explorer-tour-panel">
-        <p>
-          {tour.step_count} canonical tour steps
-          available.
-        </p>
-        <button
-          type="button"
-          disabled={disabled}
-          onClick={onStart}
-        >
-          Start tour
+        <p>{tour.step_count}ステップのcanonicalツアーがあります。</p>
+        <button type="button" disabled={disabled} onClick={onStart}>
+          ツアーを開始
         </button>
         {disabled ? (
           <p className="explorer-empty">
-            Exit change impact before starting a tour.
+            変更影響を終了してからツアーを開始してください。
           </p>
         ) : null}
       </div>
     );
   }
-
   return (
-    <div
-      className="explorer-tour-panel"
-      aria-live="polite"
-    >
+    <div className="explorer-tour-panel" aria-live="polite">
       <div className="explorer-tour-progress">
-        Step {playback.index + 1} / {tour.step_count}
+        {playback.index + 1} / {tour.step_count} ステップ
       </div>
       <h3>{step.label}</h3>
-      {step.description ? (
-        <p>{step.description}</p>
-      ) : null}
+      {step.description ? <p>{step.description}</p> : null}
       {step.language_lesson ? (
         <div className="explorer-tour-lesson">
-          <strong>Language lesson</strong>
+          <strong>読み方のポイント</strong>
           <p>{step.language_lesson}</p>
         </div>
       ) : null}
       <dl>
-        <dt>Canonical step</dt>
-        <dd>{step.step_node_id}</dd>
-        <dt>Highlights</dt>
-        <dd>{step.highlight_node_ids.length}</dd>
+        <dt>強調対象</dt>
+        <dd>{step.highlight_node_ids.length}件</dd>
       </dl>
       {step.highlight_node_ids.length === 0 ? (
-        <p className="explorer-empty">
-          This canonical step has no highlight target.
-        </p>
+        <p className="explorer-empty">このステップには強調対象がありません。</p>
       ) : null}
       <div className="explorer-tour-actions">
         <button
@@ -1075,21 +818,24 @@ function GuidedTourPanel({
           disabled={playback.index === 0}
           onClick={onPrevious}
         >
-          Previous
+          前へ
         </button>
         <button
           type="button"
-          disabled={
-            playback.index === tour.step_count - 1
-          }
+          disabled={playback.index === tour.step_count - 1}
           onClick={onNext}
         >
-          Next
+          次へ
         </button>
-        <button type="button" onClick={onExit}>
-          Exit
-        </button>
+        <button type="button" onClick={onExit}>終了</button>
       </div>
+      <details>
+        <summary>技術詳細（canonical step・強調ID）</summary>
+        <pre>{JSON.stringify({
+          step_node_id: step.step_node_id,
+          highlight_node_ids: step.highlight_node_ids
+        }, null, 2)}</pre>
+      </details>
     </div>
   );
 }
@@ -1098,226 +844,164 @@ function NodeDetail({ detail, semantic, inspector }) {
   return (
     <div className="explorer-detail-body">
       <dl>
-        <dt>Label</dt>
+        <dt>名前</dt>
         <dd>{detail.label}</dd>
-        <dt>Canonical ID</dt>
-        <dd>{detail.node_id}</dd>
-        <dt>Canonical kind</dt>
+        <dt>種類</dt>
         <dd>{detail.canonical_kind}</dd>
-        <dt>Display family</dt>
+        <dt>表示分類</dt>
         <dd>{detail.display_family}</dd>
-        <dt>Semantic domain</dt>
+        <dt>意味領域</dt>
         <dd>
           <SemanticBadge
-            label={
-              semantic?.decoration?.domain ??
-              'canonical'
-            }
+            label={semantic?.decoration?.domain ?? 'canonical'}
             tone="neutral"
           />
         </dd>
-        <dt>Runtime observation</dt>
-        <dd>
-          {semantic?.decoration
-            ?.runtime_observation ?? 'n/a'}
-        </dd>
-        <dt>Relations</dt>
+        <dt>実行時観測</dt>
+        <dd>{semantic?.decoration?.runtime_observation ?? 'なし'}</dd>
+        <dt>関係</dt>
         <dd>{detail.relations.length}</dd>
-        <dt>Claims</dt>
+        <dt>主張</dt>
         <dd>{detail.claims.length}</dd>
-        <dt>Coverage entries</dt>
+        <dt>Coverage</dt>
         <dd>{detail.coverage.length}</dd>
       </dl>
 
-      <h3>Canonical node</h3>
-      <pre>{JSON.stringify(
-        detail.canonical_node,
-        null,
-        2
-      )}</pre>
+      <h3>主張・根拠の状態</h3>
+      {(semantic?.claims ?? []).length ? (
+        <ul className="explorer-semantic-trace">
+          {semantic.claims.map(item => (
+            <li key={item.claim_id}>
+              <div>
+                <SemanticBadge
+                  label={statusLabel(item.status)}
+                  tone={item.status_tone}
+                />
+                {' · '}{item.type}
+              </div>
+              <small>
+                根拠 {item.evidence_links.length}件 / 反証 {item.counterevidence_links.length}件
+              </small>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="explorer-empty">このノードに紐づく主張はありません。</p>
+      )}
 
-      <h3>Relations</h3>
-      <ul>
-        {detail.relations.map(item => (
-          <li key={item.edge_id}>
-            {item.direction} · {item.canonical_type}
-            {' · '}
-            {item.other_node_id}
-          </li>
-        ))}
-      </ul>
-
-      <h3>Claim / Evidence trace</h3>
-      <ul className="explorer-semantic-trace">
-        {(semantic?.claims ?? []).map(item => (
-          <li key={item.claim_id}>
-            <div>
-              <code>{item.claim_id}</code>
-              {' · '}
+      <h3>Coverage状態</h3>
+      {(semantic?.coverage ?? []).length ? (
+        <ul className="explorer-semantic-trace">
+          {semantic.coverage.map(item => (
+            <li key={item.coverage_id}>
               <SemanticBadge
-                label={item.status}
+                label={statusLabel(item.status)}
                 tone={item.status_tone}
               />
-            </div>
-            <div>{item.type}</div>
-            <pre>{JSON.stringify({
-              evidence_links: item.evidence_links,
-              counterevidence_links:
-                item.counterevidence_links,
-              coverage_ref: item.coverage_ref
-            }, null, 2)}</pre>
-          </li>
-        ))}
-      </ul>
+              {' · '}{item.role}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="explorer-empty">このノードのCoverage記録はありません。</p>
+      )}
 
-      <ConfidenceEvidenceInspector
-        inspector={inspector}
-      />
+      <ConfidenceEvidenceInspector inspector={inspector} />
 
-      <h3>Coverage trace</h3>
-      <ul className="explorer-semantic-trace">
-        {(semantic?.coverage ?? []).map(item => (
-          <li key={item.coverage_id}>
-            <code>{item.coverage_id}</code>
-            {' · '}
-            <SemanticBadge
-              label={item.status}
-              tone={item.status_tone}
-            />
-            {' · '}
-            {item.role}
-          </li>
-        ))}
-      </ul>
+      <details className="explorer-technical-details">
+        <summary>ノード・関係の技術詳細</summary>
+        <dl>
+          <dt>Canonical ID</dt>
+          <dd><code>{detail.node_id}</code></dd>
+        </dl>
+        <h4>Canonical node</h4>
+        <pre>{JSON.stringify(detail.canonical_node, null, 2)}</pre>
+        <h4>関係</h4>
+        <pre>{JSON.stringify(detail.relations, null, 2)}</pre>
+        <h4>主張・Coverage参照</h4>
+        <pre>{JSON.stringify({
+          claims: semantic?.claims ?? [],
+          coverage: semantic?.coverage ?? []
+        }, null, 2)}</pre>
+      </details>
     </div>
   );
 }
 
-function ConfidenceEvidenceInspector({
-  inspector
-}) {
+function ConfidenceEvidenceInspector({ inspector }) {
   if (!inspector) return null;
-
   return (
-    <section className="explorer-confidence-inspector">
-      <h3>Confidence / Evidence Inspector</h3>
+    <details className="explorer-confidence-inspector">
+      <summary>
+        信頼度・根拠の技術詳細 ({inspector.claims.length}件)
+      </summary>
       <p className="explorer-inspector-disclaimer">
-        Exact canonical fields only — no score,
-        ranking, or inferred conclusion.
+        canonicalの正確なfieldを表示します。独自スコアや推測した結論は追加しません。
       </p>
-
       {inspector.claims.length === 0 ? (
         <p className="explorer-empty">
-          No canonical Claim is attached to this node.
+          このノードにcanonical Claimはありません。
         </p>
       ) : (
         <div className="explorer-inspector-claims">
           {inspector.claims.map(claim => (
-            <article
-              key={claim.claim_id}
-              className="explorer-inspector-claim"
-            >
+            <article key={claim.claim_id} className="explorer-inspector-claim">
               <div className="explorer-inspector-heading">
                 <code>{claim.claim_id}</code>
-                <SemanticBadge
-                  label={claim.status}
-                  tone="neutral"
-                />
+                <SemanticBadge label={claim.status} tone="neutral" />
               </div>
-
               <dl>
-                <dt>Type</dt>
-                <dd>{claim.type}</dd>
-                <dt>Confidence</dt>
-                <dd>{claim.confidence.level}</dd>
-                <dt>Confidence rationale</dt>
-                <dd>{claim.confidence.rationale}</dd>
-                <dt>Predicate</dt>
-                <dd>{claim.predicate}</dd>
+                <dt>種類</dt><dd>{claim.type}</dd>
+                <dt>Confidence</dt><dd>{claim.confidence.level}</dd>
+                <dt>根拠</dt><dd>{claim.confidence.rationale}</dd>
+                <dt>Predicate</dt><dd>{claim.predicate}</dd>
                 <dt>Object / value</dt>
-                <dd>
-                  <pre>{JSON.stringify(
-                    claim.object_or_value,
-                    null,
-                    2
-                  )}</pre>
-                </dd>
+                <dd><pre>{JSON.stringify(claim.object_or_value, null, 2)}</pre></dd>
                 <dt>Coverage</dt>
                 <dd>
                   <code>{claim.coverage.id}</code>
-                  {' · '}
-                  {claim.coverage.status}
-                  {' · '}
-                  {claim.coverage.role}
+                  {' · '}{claim.coverage.status}{' · '}{claim.coverage.role}
                 </dd>
-                <dt>Dependency Claims</dt>
-                <dd>
-                  {claim.dependency_claim_ids.length
-                    ? claim.dependency_claim_ids.join(', ')
-                    : 'none'}
-                </dd>
-                <dt>Provenance refs</dt>
-                <dd>
-                  {claim.provenance_refs.length
-                    ? claim.provenance_refs.join(', ')
-                    : 'none'}
-                </dd>
-                <dt>Verifier results</dt>
-                <dd>{claim.verifier_results.length}</dd>
+                <dt>依存Claim</dt>
+                <dd>{claim.dependency_claim_ids.length
+                  ? claim.dependency_claim_ids.join(', ')
+                  : 'なし'}</dd>
+                <dt>Provenance参照</dt>
+                <dd>{claim.provenance_refs.length
+                  ? claim.provenance_refs.join(', ')
+                  : 'なし'}</dd>
+                <dt>Verifier結果</dt><dd>{claim.verifier_results.length}</dd>
               </dl>
-
               {claim.unresolved_reason ? (
                 <div className="explorer-inspector-note">
-                  <strong>Unresolved reason</strong>
+                  <strong>未解決理由</strong>
                   <p>{claim.unresolved_reason}</p>
                 </div>
               ) : null}
-
-              <EvidenceLinkGroup
-                title="Evidence links"
-                items={claim.evidence_links}
-              />
-              <EvidenceLinkGroup
-                title="Counterevidence links"
-                items={claim.counterevidence_links}
-              />
-
+              <EvidenceLinkGroup title="根拠リンク" items={claim.evidence_links} />
+              <EvidenceLinkGroup title="反証リンク" items={claim.counterevidence_links} />
               <details>
-                <summary>Exact verifier records</summary>
-                <pre>{JSON.stringify(
-                  claim.verifier_results,
-                  null,
-                  2
-                )}</pre>
+                <summary>Verifier record</summary>
+                <pre>{JSON.stringify(claim.verifier_results, null, 2)}</pre>
               </details>
             </article>
           ))}
         </div>
       )}
-
       <details>
-        <summary>
-          Node Coverage ({inspector.node_coverage.length})
-        </summary>
-        <pre>{JSON.stringify(
-          inspector.node_coverage,
-          null,
-          2
-        )}</pre>
+        <summary>Node Coverage ({inspector.node_coverage.length})</summary>
+        <pre>{JSON.stringify(inspector.node_coverage, null, 2)}</pre>
       </details>
-    </section>
+    </details>
   );
 }
 
-function EvidenceLinkGroup({
-  title,
-  items
-}) {
+function EvidenceLinkGroup({ title, items }) {
   return (
     <div className="explorer-inspector-evidence-group">
       <h4>{title}</h4>
       {items.length === 0 ? (
-        <p className="explorer-empty">none</p>
+        <p className="explorer-empty">なし</p>
       ) : (
         <ul>
           {items.map(item => (
@@ -1330,59 +1014,32 @@ function EvidenceLinkGroup({
             >
               <div>
                 <code>{item.link.evidence_id}</code>
-                {' · '}
-                {item.link.role}
-                {' · '}
-                {item.link.strength}
+                {' · '}{item.link.role}{' · '}{item.link.strength}
               </div>
-              {item.link.rationale ? (
-                <p>{item.link.rationale}</p>
-              ) : null}
-
+              {item.link.rationale ? <p>{item.link.rationale}</p> : null}
               {item.record_status === 'INLINE' ? (
                 <div className="explorer-inspector-evidence-record">
                   <dl>
-                    <dt>Record</dt>
-                    <dd>INLINE</dd>
-                    <dt>Kind</dt>
-                    <dd>{item.evidence.kind}</dd>
-                    <dt>Trust class</dt>
-                    <dd>{item.evidence.trust_class}</dd>
+                    <dt>Record</dt><dd>INLINE</dd>
+                    <dt>種類</dt><dd>{item.evidence.kind}</dd>
+                    <dt>Trust class</dt><dd>{item.evidence.trust_class}</dd>
                     <dt>Provider</dt>
-                    <dd>
-                      {item.evidence.provider_id}
-                      {' @ '}
-                      {item.evidence.provider_version}
-                    </dd>
+                    <dd>{item.evidence.provider_id} @ {item.evidence.provider_version}</dd>
                     <dt>Integrity</dt>
-                    <dd>
-                      <code>
-                        {item.evidence.integrity_digest}
-                      </code>
-                    </dd>
+                    <dd><code>{item.evidence.integrity_digest}</code></dd>
                   </dl>
                   <details>
                     <summary>Provenance</summary>
-                    <pre>{JSON.stringify(
-                      item.evidence.provenance,
-                      null,
-                      2
-                    )}</pre>
+                    <pre>{JSON.stringify(item.evidence.provenance, null, 2)}</pre>
                   </details>
                   <details>
                     <summary>Observation</summary>
-                    <pre>{JSON.stringify(
-                      item.evidence.observation,
-                      null,
-                      2
-                    )}</pre>
+                    <pre>{JSON.stringify(item.evidence.observation, null, 2)}</pre>
                   </details>
                 </div>
               ) : (
                 <p className="explorer-inspector-unavailable">
-                  Evidence body is unavailable inline.
-                  The canonical ref is preserved; this does
-                  not mean the Evidence is absent.
+                  Evidence本文はこの成果物にinline同梱されていません。参照は保持されており、Evidenceが存在しないという意味ではありません。
                 </p>
               )}
             </li>
@@ -1395,71 +1052,47 @@ function EvidenceLinkGroup({
 
 function EdgeDetail({ detail }) {
   const semantic = detail.decoration;
-
   return (
     <div className="explorer-detail-body">
       <dl>
-        <dt>Canonical ID</dt>
-        <dd>{detail.edge_id}</dd>
-        <dt>Canonical type</dt>
+        <dt>関係の種類</dt>
         <dd>{semantic.canonical_type}</dd>
-        <dt>Source</dt>
-        <dd>{semantic.source}</dd>
-        <dt>Target</dt>
-        <dd>{semantic.target}</dd>
-        <dt>Semantic domain</dt>
-        <dd>
-          <SemanticBadge
-            label={semantic.domain}
-            tone="neutral"
-          />
-        </dd>
-        <dt>Runtime observation</dt>
-        <dd>
-          {semantic.runtime_observation ?? 'n/a'}
-        </dd>
+        <dt>意味領域</dt>
+        <dd><SemanticBadge label={semantic.domain} tone="neutral" /></dd>
+        <dt>実行時観測</dt>
+        <dd>{semantic.runtime_observation ?? 'なし'}</dd>
         <dt>Transport stage</dt>
-        <dd>{semantic.transport_stage ?? 'n/a'}</dd>
+        <dd>{semantic.transport_stage ?? 'なし'}</dd>
       </dl>
-
-      <h3>Canonical edge</h3>
-      <pre>{JSON.stringify(
-        detail.canonical_edge,
-        null,
-        2
-      )}</pre>
+      <details className="explorer-technical-details">
+        <summary>関係の技術詳細</summary>
+        <dl>
+          <dt>Canonical ID</dt><dd><code>{detail.edge_id}</code></dd>
+          <dt>Source</dt><dd><code>{semantic.source}</code></dd>
+          <dt>Target</dt><dd><code>{semantic.target}</code></dd>
+        </dl>
+        <pre>{JSON.stringify(detail.canonical_edge, null, 2)}</pre>
+      </details>
     </div>
   );
 }
 
-function SemanticLegend({
-  semanticModel,
-  summary
-}) {
+function SemanticLegend({ semanticModel, summary }) {
   return (
     <div className="explorer-semantic-legend">
       <div className="explorer-analysis-status">
-        <span>Analysis</span>
+        <span>解析状態</span>
         <SemanticBadge
-          label={
-            semanticModel.analysis.status ??
-            'UNKNOWN'
-          }
+          label={statusLabel(semanticModel.analysis.status ?? 'UNKNOWN')}
           tone={semanticModel.analysis.status_tone}
         />
-        <small>
-          unknowns {semanticModel.analysis.unknown_count}
-        </small>
+        <small>未確認 {semanticModel.analysis.unknown_count}件</small>
       </div>
       <div className="explorer-semantic-domain-list">
         {summary.node_domains.map(item => (
           <div key={item.domain}>
             <span
-              className={
-                'explorer-domain-dot ' +
-                'explorer-domain-dot-' +
-                item.domain
-              }
+              className={`explorer-domain-dot explorer-domain-dot-${item.domain}`}
             />
             <span>{item.domain}</span>
             <small>{item.count}</small>
@@ -1472,13 +1105,22 @@ function SemanticLegend({
 
 function SemanticBadge({ label, tone }) {
   return (
-    <span
-      className={
-        'explorer-semantic-badge ' +
-        'explorer-semantic-badge-' + tone
-      }
-    >
+    <span className={`explorer-semantic-badge explorer-semantic-badge-${tone}`}>
       {String(label)}
     </span>
   );
+}
+
+function statusLabel(value) {
+  const status = String(value ?? '');
+  return ({
+    UNKNOWN: '未確認',
+    FAILED: '失敗',
+    COMPLETE: '完了',
+    VERIFIED: '検証済み',
+    ANALYZED: '解析済み',
+    LIMITED: '限定的',
+    PARTIAL: '部分的',
+    ABSENT: 'なし'
+  })[status] ?? status;
 }
