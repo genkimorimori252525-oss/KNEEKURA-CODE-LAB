@@ -330,10 +330,10 @@ test('guided tour UI keeps repository text inert and uses only fixed Presentatio
   const source=app+'\n'+css;
   for(const required of [
     'GuidedTourPanel',
-    'Start tour',
-    'Previous',
-    'Next',
-    'Exit',
+    'ツアーを開始',
+    '前へ',
+    '次へ',
+    '終了',
     'explorer-node-tour-highlight'
   ]){
     assert.equal(source.includes(required),true,'missing guided-tour UI: '+required);
