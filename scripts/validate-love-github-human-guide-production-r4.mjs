@@ -22,13 +22,12 @@ import {
   HUMAN_ANALYSIS_PERFORMANCE_BUDGETS,
   HUMAN_ANALYSIS_PERFORMANCE_SCHEMA,
   HUMAN_ANALYSIS_REPLAY_LOCK_SCHEMA,
-  layoutExplorerUiModel,
   planRepositoryDomainBatches,
   runRepositoryScaleProductionAuthoring,
   stableDigest,
   writeHumanAnalysisArtifact
 } from '../src/human-analysis/index.mjs';
-import { createExplorerUiModel } from '../src/presentation/explorer/ui-model.mjs';
+import { layoutExplorerUiModel } from '../src/presentation/explorer/layout.mjs';
 import {
   createHumanExplorerSystemMap,
   searchHumanExplorerSystemMap
