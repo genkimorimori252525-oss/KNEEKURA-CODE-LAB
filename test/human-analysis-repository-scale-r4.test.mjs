@@ -43,14 +43,13 @@ function receipt(path, char, suffix) {
       content_digest: 'sha256:' + char.repeat(64)
     },
     read_kind: 'FILE_RANGE',
-    trust_class: 'repository',
     content_digest: 'sha256:' + char.repeat(64),
     range_text_digest: 'sha256:' + suffix.repeat(64)
   };
   return {
     ...core,
     receipt_id:
-      'human-read:' + stableDigest(core).slice('sha256:'.length)
+      'read:' + stableDigest(core).slice('sha256:'.length)
   };
 }
 
