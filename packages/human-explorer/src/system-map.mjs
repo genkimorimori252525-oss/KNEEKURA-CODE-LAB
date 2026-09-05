@@ -97,24 +97,10 @@ export function createHumanExplorerSystemMap({
     }
     const packageId = ensurePackage(normalizedPath);
     const id = `system:file:${encode(normalizedPath)}`;
-    addEntity(entities, {
-      selection_id: id,
-      level: 2,
-      kind: 'FILE',
-      label: fileName(normalizedPath),
-      description: catalogEntry
-        ? 'source catalogに記録されたファイルです。本文が未同梱でも検索対象に残ります。'
-        : '同梱source rangeから導出した探索用fileです。',
-      authority: SYSTEM_MAP_AUTHORITY.DERIVED_SOURCE_ONLY,
-      canonical_node_id: null,
-      path: normalizedPath,
-      parent_ids: packageId ? [packageId] : ['system:root'],
-      child_ids: [],
-      source_keys: [],
-      human_item_ids: [],
-      catalog_entry: catalogEntry ? structuredClone(catalogEntry) : null
-    });
-    addEntity(entities, entityForFile(id, normalizedPath, packageId, catalogEntry));
+    addEntity(
+      entities,
+      entityForFile(id, normalizedPath, packageId, catalogEntry)
+    );
     link(entities, packageId ?? 'system:root', id);
     fileEntityByPath.set(normalizedPath, id);
     return id;
