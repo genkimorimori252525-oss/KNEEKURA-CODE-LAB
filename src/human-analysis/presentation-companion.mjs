@@ -11,6 +11,8 @@ import {
 
 export const HUMAN_ANALYSIS_PRESENTATION_SCHEMA =
   'kneekura.human-analysis-presentation/v1';
+export const HUMAN_ANALYSIS_SOURCE_AVAILABILITY_SCHEMA =
+  'kneekura.human-analysis-source-availability/v1';
 export const HUMAN_ANALYSIS_PRESENTATION_READINESS_SCHEMA =
   'kneekura.human-analysis-presentation-readiness/v1';
 
@@ -188,6 +190,12 @@ export function validateHumanAnalysisPresentationCompanion(
 
   const sourceRecords = sourceRecordMap(sources);
   for (const availability of presentation.source_availability ?? []) {
+    if (
+      availability?.schema !==
+      HUMAN_ANALYSIS_SOURCE_AVAILABILITY_SCHEMA
+    ) {
+      throw new TypeError('presentation source availability schema is invalid');
+    }
     validateSourceRef(availability.ref);
     const current = classifyAvailability(availability.ref, sourceRecords);
     if (
@@ -387,6 +395,7 @@ function buildSourceAvailability(items, sourceRecords) {
   return [...refs.values()]
     .sort((a, b) => compareText(sourceKey(a), sourceKey(b)))
     .map(ref => ({
+      schema: HUMAN_ANALYSIS_SOURCE_AVAILABILITY_SCHEMA,
       key: sourceKey(ref),
       ref,
       ...classifyAvailability(ref, sourceRecords)
