@@ -1,7 +1,9 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { ExplorerApp } from './App.jsx';
+import { HumanGuidePanel } from './HumanGuidePanel.jsx';
 import './styles.css';
+import './human-guide.css';
 
 const root = createRoot(
   document.getElementById('root')
@@ -11,7 +13,7 @@ bootstrap().catch(error => {
   root.render(
     <main className="boot-error" role="alert">
       <h1>KNEEKURA Human Explorer</h1>
-      <p>Explorer presentation failed.</p>
+      <p>コード案内を起動できませんでした。</p>
       <pre>{String(error?.message ?? error)}</pre>
     </main>
   );
@@ -28,7 +30,7 @@ async function bootstrap() {
       'kneekura.human-experience-offline-payload/v1'
     ) {
       throw new Error(
-        'unsupported Human Experience offline payload schema'
+        '未対応の Human Experience offline payload です。'
       );
     }
     if (
@@ -36,7 +38,7 @@ async function bootstrap() {
       'kneekura.human-experience-projection/v1'
     ) {
       throw new Error(
-        'offline payload is missing Human Experience projection'
+        'offline payload に Human Experience projection がありません。'
       );
     }
     projection =
@@ -49,7 +51,7 @@ async function bootstrap() {
     );
     if (!response.ok) {
       throw new Error(
-        'projection fetch failed: ' + response.status
+        'Explorer projection の読込に失敗しました: ' + response.status
       );
     }
     projection = await response.json();
@@ -60,16 +62,18 @@ async function bootstrap() {
     'kneekura.explorer-projection/v1'
   ) {
     throw new Error(
-      'unsupported Explorer Projection schema'
+      '未対応の Explorer Projection schema です。'
     );
   }
 
   root.render(
     <React.StrictMode>
-      <ExplorerApp
-        projection={projection}
-        offlinePayload={offlinePayload}
-      />
+      <div className="human-experience-shell">
+        <HumanGuidePanel offlinePayload={offlinePayload} />
+        <div className="human-experience-explorer">
+          <ExplorerApp projection={projection} />
+        </div>
+      </div>
     </React.StrictMode>
   );
 }
@@ -90,7 +94,7 @@ function readEmbeddedExperience() {
     );
   } catch (error) {
     throw new Error(
-      'embedded Human Experience payload is invalid: ' +
+      '埋め込み Human Experience payload が不正です: ' +
       String(error?.message ?? error)
     );
   }
