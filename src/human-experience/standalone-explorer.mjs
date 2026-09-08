@@ -252,25 +252,27 @@ function assertStandaloneShellSafety(html) {
 }
 
 function stableJson(value) {
-  return JSON.stringify(sortObject(value));
+  const keys = new Set();
+  collectJsonKeys(value, keys);
+  return JSON.stringify(value, [...keys].sort(compareText));
 }
 
-function sortObject(value) {
+function collectJsonKeys(value, keys) {
   if (Array.isArray(value)) {
-    return value.map(sortObject);
+    for (const child of value) collectJsonKeys(child, keys);
+    return;
   }
   if (
-    value &&
-    typeof value === 'object' &&
-    !Buffer.isBuffer(value)
+    !value ||
+    typeof value !== 'object' ||
+    Buffer.isBuffer(value)
   ) {
-    return Object.fromEntries(
-      Object.keys(value)
-        .sort(compareText)
-        .map(key => [key, sortObject(value[key])])
-    );
+    return;
   }
-  return value;
+  for (const key of Object.keys(value)) {
+    keys.add(key);
+    collectJsonKeys(value[key], keys);
+  }
 }
 
 function escapeInlineScript(value) {

@@ -8,11 +8,7 @@ export const SEMANTIC_CLASSES = Object.freeze([
   'COVERAGE_GAP'
 ]);
 export const SEMANTIC_STAGES = Object.freeze([
-  'ARCHITECTURE',
-  'DOMAIN',
-  'FLOW',
-  'TOUR',
-  'REVIEWER'
+  'ARCHITECTURE', 'DOMAIN', 'FLOW', 'TOUR', 'REVIEWER'
 ]);
 
 const CLASS_SET = new Set(SEMANTIC_CLASSES);
@@ -37,9 +33,9 @@ const SOURCE_REF_KINDS = new Set([
 ]);
 
 export function stableDigest(value) {
-  return 'sha256:' + crypto.createHash('sha256')
-    .update(stableStringify(value))
-    .digest('hex');
+  const hash = crypto.createHash('sha256');
+  updateStableHash(hash, value, 'ROOT');
+  return 'sha256:' + hash.digest('hex');
 }
 
 export function stableDerivedItemId(item) {
@@ -169,6 +165,41 @@ function canonicalSourceRefs(refs) {
     seen.add(key);
     return true;
   }).sort((a, b) => stableStringify(a).localeCompare(stableStringify(b)));
+}
+
+function updateStableHash(hash, value, context) {
+  if (Array.isArray(value)) {
+    hash.update('[');
+    for (let index = 0; index < value.length; index += 1) {
+      if (index > 0) hash.update(',');
+      updateStableHash(hash, value[index], 'ARRAY');
+    }
+    hash.update(']');
+    return;
+  }
+  if (value && typeof value === 'object') {
+    hash.update('{');
+    const keys = Object.keys(value).sort();
+    for (let index = 0; index < keys.length; index += 1) {
+      if (index > 0) hash.update(',');
+      const key = keys[index];
+      hash.update(JSON.stringify(key));
+      hash.update(':');
+      updateStableHash(hash, value[key], 'OBJECT');
+    }
+    hash.update('}');
+    return;
+  }
+  const encoded = JSON.stringify(value);
+  if (encoded === undefined) {
+    if (context === 'ARRAY') return;
+    if (context === 'ROOT') {
+      throw new TypeError('stableDigest root value is not JSON serializable');
+    }
+    hash.update('undefined');
+    return;
+  }
+  hash.update(encoded);
 }
 
 function stableStringify(value) {

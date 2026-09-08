@@ -190,9 +190,11 @@ function readEmbeddedExperience() {
       atob(raw),
       character => character.charCodeAt(0)
     );
-    return JSON.parse(
+    const payload = JSON.parse(
       new TextDecoder().decode(bytes)
     );
+    node.textContent = '';
+    return payload;
   } catch (error) {
     throw new Error(
       '埋め込みHuman Experienceデータを読み取れません: ' +
