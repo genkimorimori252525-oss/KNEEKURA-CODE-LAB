@@ -4,9 +4,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { syncBuiltinESMExports } from 'node:module';
 import { promisify } from 'node:util';
+import { gunzipSync } from 'node:zlib';
 
 const originalExecFile = childProcess.execFile;
 const originalSpawnSync = childProcess.spawnSync;
+const originalJsonParse = JSON.parse;
+const GZIP_ENVELOPE_SCHEMA =
+  'kneekura.human-experience-offline-envelope/v1';
+const GZIP_ENCODING = 'GZIP_BASE64_JSON';
 globalThis.__KNEEKURA_R4_NPM_CI_INTERCEPTS__ = 0;
 
 function transformArgs(file, args) {
@@ -202,6 +207,25 @@ function consumeDomChunk(text, initialMode, initialOutput, startMarker, endMarke
   return { mode, output, carry };
 }
 
+JSON.parse = function parseR4Envelope(text, reviver) {
+  const parsed = originalJsonParse(text, reviver);
+  if (parsed?.schema !== GZIP_ENVELOPE_SCHEMA) return parsed;
+  if (
+    parsed.encoding !== GZIP_ENCODING ||
+    parsed.payload_schema !== 'kneekura.human-experience-offline-payload/v1' ||
+    typeof parsed.data !== 'string'
+  ) {
+    throw new TypeError('R4 gzip Human Experience envelope is invalid');
+  }
+  const inner = originalJsonParse(
+    gunzipSync(Buffer.from(parsed.data, 'base64')).toString('utf8'),
+    reviver
+  );
+  if (inner?.schema !== parsed.payload_schema) {
+    throw new TypeError('R4 gzip Human Experience payload schema mismatch');
+  }
+  return inner;
+};
 childProcess.execFile = execFileWithLockedTargetInstall;
 childProcess.spawnSync = spawnSyncWithLargeDomSpill;
 syncBuiltinESMExports();

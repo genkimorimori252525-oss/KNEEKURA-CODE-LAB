@@ -16,6 +16,7 @@ import {
 } from './repository-scale-readiness.mjs';
 import {
   buildStandaloneHumanExplorerShell,
+  HUMAN_EXPERIENCE_GZIP_ENCODING,
   injectHumanExperienceOfflinePayload
 } from '../human-experience/standalone-explorer.mjs';
 import { createDeterministicZip } from './zip.mjs';
@@ -73,7 +74,8 @@ export async function compileProductionRepositoryScaleHumanExplorerArtifact({
   };
   const indexHtml = injectHumanExperienceOfflinePayload(shell, {
     payload,
-    title: base.manifest.title
+    title: base.manifest.title,
+    compression: HUMAN_EXPERIENCE_GZIP_ENCODING
   });
 
   const primary = new Map(
@@ -90,6 +92,10 @@ export async function compileProductionRepositoryScaleHumanExplorerArtifact({
   delete manifestCore.artifact_id;
   delete manifestCore.files;
   manifestCore.offline_payload_digest = stableDigest(payload);
+  manifestCore.security = {
+    ...manifestCore.security,
+    embedded_payload_encoding: 'BASE64_GZIP_JSON_ENVELOPE'
+  };
   manifestCore.semantic_readiness = {
     ...manifestCore.semantic_readiness,
     repository_scale_ready: true,

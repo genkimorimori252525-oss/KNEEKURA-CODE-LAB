@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gzipSync } from 'node:zlib';
 
 import {
   validateHumanExperienceProjection
@@ -10,6 +11,10 @@ export const HUMAN_EXPLORER_STANDALONE_SHELL_SCHEMA =
   'kneekura.human-explorer-standalone-shell/v1';
 export const HUMAN_EXPERIENCE_OFFLINE_PAYLOAD_SCHEMA =
   'kneekura.human-experience-offline-payload/v1';
+export const HUMAN_EXPERIENCE_GZIP_ENVELOPE_SCHEMA =
+  'kneekura.human-experience-offline-envelope/v1';
+export const HUMAN_EXPERIENCE_GZIP_ENCODING =
+  'GZIP_BASE64_JSON';
 export const HUMAN_EXPERIENCE_PAYLOAD_PLACEHOLDER =
   '__KNEEKURA_HUMAN_EXPERIENCE_BASE64_V1__';
 export const HUMAN_EXPLORER_TITLE_PLACEHOLDER =
@@ -123,7 +128,11 @@ export async function buildStandaloneHumanExplorerShell() {
 
 export function injectHumanExperienceOfflinePayload(
   shell,
-  { payload, title = 'KNEEKURA Human Explorer' } = {}
+  {
+    payload,
+    title = 'KNEEKURA Human Explorer',
+    compression = 'NONE'
+  } = {}
 ) {
   if (
     !shell ||
@@ -175,10 +184,7 @@ export function injectHumanExperienceOfflinePayload(
     );
   }
 
-  const encoded = Buffer.from(
-    stableJson(payload),
-    'utf8'
-  ).toString('base64');
+  const encoded = encodeOfflinePayload(payload, compression);
   const normalizedTitle = String(title ?? '').trim();
   if (!normalizedTitle) {
     throw new TypeError(
@@ -204,6 +210,29 @@ export function injectHumanExperienceOfflinePayload(
   }
   assertStandaloneShellSafety(html);
   return html;
+}
+
+function encodeOfflinePayload(payload, compression) {
+  const normalized = String(compression ?? 'NONE').toUpperCase();
+  const payloadJson = stableJson(payload);
+  if (normalized === 'NONE') {
+    return Buffer.from(payloadJson, 'utf8').toString('base64');
+  }
+  if (normalized !== HUMAN_EXPERIENCE_GZIP_ENCODING) {
+    throw new TypeError(`unsupported offline payload compression: ${compression}`);
+  }
+  const compressed = gzipSync(Buffer.from(payloadJson, 'utf8'), { level: 9 });
+  if (compressed.length >= 10) {
+    compressed.writeUInt32LE(0, 4);
+    compressed[9] = 255;
+  }
+  const envelope = {
+    schema: HUMAN_EXPERIENCE_GZIP_ENVELOPE_SCHEMA,
+    encoding: HUMAN_EXPERIENCE_GZIP_ENCODING,
+    payload_schema: HUMAN_EXPERIENCE_OFFLINE_PAYLOAD_SCHEMA,
+    data: compressed.toString('base64')
+  };
+  return Buffer.from(stableJson(envelope), 'utf8').toString('base64');
 }
 
 function normalizeBuildOutputs(result) {

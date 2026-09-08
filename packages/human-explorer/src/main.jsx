@@ -12,6 +12,9 @@ import './technical-views.css';
 const root = createRoot(
   document.getElementById('root')
 );
+const GZIP_ENVELOPE_SCHEMA =
+  'kneekura.human-experience-offline-envelope/v1';
+const GZIP_ENCODING = 'GZIP_BASE64_JSON';
 
 bootstrap().catch(error => {
   root.render(
@@ -24,7 +27,7 @@ bootstrap().catch(error => {
 });
 
 async function bootstrap() {
-  const embedded = readEmbeddedExperience();
+  const embedded = await readEmbeddedExperience();
   let projection;
   let offlinePayload = null;
 
@@ -179,20 +182,38 @@ function assertRepositoryScaleIdentity(payload) {
   }
 }
 
-function readEmbeddedExperience() {
+async function readEmbeddedExperience() {
   const node = document.getElementById(
     'kneekura-human-experience'
   );
   const raw = node?.textContent?.trim() ?? '';
   if (!raw) return null;
   try {
-    const bytes = Uint8Array.from(
-      atob(raw),
-      character => character.charCodeAt(0)
+    const outerBytes = decodeBase64(raw);
+    const outer = JSON.parse(
+      new TextDecoder().decode(outerBytes)
     );
-    const payload = JSON.parse(
-      new TextDecoder().decode(bytes)
-    );
+    let payload = outer;
+    if (outer?.schema === GZIP_ENVELOPE_SCHEMA) {
+      if (
+        outer.encoding !== GZIP_ENCODING ||
+        outer.payload_schema !==
+          'kneekura.human-experience-offline-payload/v1' ||
+        typeof outer.data !== 'string' ||
+        typeof DecompressionStream !== 'function'
+      ) {
+        throw new Error('gzip Human Experience envelope is invalid or unsupported');
+      }
+      const compressed = decodeBase64(outer.data);
+      const stream = new Blob([compressed])
+        .stream()
+        .pipeThrough(new DecompressionStream('gzip'));
+      const json = await new Response(stream).text();
+      payload = JSON.parse(json);
+      if (payload?.schema !== outer.payload_schema) {
+        throw new Error('gzip Human Experience payload schema mismatch');
+      }
+    }
     node.textContent = '';
     return payload;
   } catch (error) {
@@ -201,4 +222,11 @@ function readEmbeddedExperience() {
       String(error?.message ?? error)
     );
   }
+}
+
+function decodeBase64(value) {
+  return Uint8Array.from(
+    atob(value),
+    character => character.charCodeAt(0)
+  );
 }
