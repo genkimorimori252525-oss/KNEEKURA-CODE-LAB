@@ -73,7 +73,7 @@ jobs:
       - name: Validate fixed Love-Github production R4 repository scale
         if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/human-analysis-r4-repository-scale')
         env:
-          NODE_OPTIONS: --max-old-space-size=896
+          NODE_OPTIONS: --max-old-space-size=960
         run: npm run validate:love-github-human-guide-production-r4
       - name: Upload Love-Github production R4 artifact
         if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/human-analysis-r4-repository-scale')
