@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import os from 'node:os';
@@ -19,6 +20,7 @@ import {
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const R1_ROOT = path.join(ROOT, 'dist', 'r1-love-github-production');
 const OUTPUT_ROOT = path.join(ROOT, 'dist', 'r3-love-github-production');
+const sha = value => 'sha256:' + crypto.createHash('sha256').update(value).digest('hex');
 
 await import('./validate-love-github-human-guide-production-r1.mjs');
 
@@ -59,12 +61,7 @@ const compile = () => compileProductionHumanExperienceArtifactWithTechnicalViews
   title: 'Love-Github Human Explorer — R3 evidence-backed technical views',
   explorerShell: shell
 });
-const one = await compile();
-const two = await compile();
-assert.equal(one.artifact_id, two.artifact_id);
-assert.equal(one.index_html, two.index_html);
-assert(one.zip_bytes.equals(two.zip_bytes));
-assert.equal(one.zip_digest, two.zip_digest);
+let one = await compile();
 assert.equal(one.manifest.technical_views.view_set_id, technicalViews.view_set_id);
 assert(one.files.some(file => file.path === 'technical-views.json'));
 
@@ -75,6 +72,20 @@ const written = await writeHumanAnalysisArtifact({
   zipFile: 'love-github-r3-human-explorer.zip'
 });
 validateFileBrowser(written.index_path);
+
+const firstArtifactId = one.artifact_id;
+const firstIndexDigest = sha(one.index_html);
+const firstZipDigest = one.zip_digest;
+const firstZipBytes = one.zip_bytes.length;
+one = null;
+globalThis.gc?.();
+
+const two = await compile();
+assert.equal(two.artifact_id, firstArtifactId);
+assert.equal(sha(two.index_html), firstIndexDigest);
+assert.equal(two.zip_digest, firstZipDigest);
+assert.equal(two.zip_bytes.length, firstZipBytes);
+assert.equal(sha(two.zip_bytes), firstZipDigest);
 
 const report = {
   schema: 'kneekura.live-love-github-production-r3/v1',
@@ -94,9 +105,9 @@ const report = {
   technical_views_file_present: true,
   deterministic_replay: true,
   file_browser_verified: true,
-  artifact_id: one.artifact_id,
-  zip_digest: one.zip_digest,
-  zip_bytes: one.zip_bytes.length
+  artifact_id: firstArtifactId,
+  zip_digest: firstZipDigest,
+  zip_bytes: firstZipBytes
 };
 await fs.writeFile(
   path.join(OUTPUT_ROOT, 'r3-production-report.json'),
