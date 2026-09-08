@@ -4,31 +4,18 @@ import os from 'node:os';
 import path from 'node:path';
 import { syncBuiltinESMExports } from 'node:module';
 import { promisify } from 'node:util';
-import {
-  isMainThread,
-  parentPort,
-  Worker,
-  workerData
-} from 'node:worker_threads';
+import { fileURLToPath } from 'node:url';
 
 const inheritedR4Wrapper =
   typeof globalThis.__KNEEKURA_R4_NPM_CI_INTERCEPTS__ === 'number';
+const r4Child = process.env.KNEEKURA_R4_R3_CHILD === '1';
 
-if (workerData?.r4Child === true) {
-  if (typeof workerData.chromePath === 'string' && workerData.chromePath) {
-    process.env.CHROME_PATH = workerData.chromePath;
-  }
-  if (typeof workerData.npmExecPath === 'string' && workerData.npmExecPath) {
-    process.env.npm_execpath = workerData.npmExecPath;
-  }
-}
-
-if (inheritedR4Wrapper && isMainThread) {
-  const result = await runR3InIsolatedWorker();
+if (inheritedR4Wrapper && !r4Child) {
+  const result = await runR3InIsolatedProcess();
   globalThis.__KNEEKURA_R4_NPM_CI_INTERCEPTS__ += result.npmCiIntercepts;
 } else {
   let npmCiIntercepts = 0;
-  if (workerData?.r4Child === true) {
+  if (r4Child) {
     const originalExecFile = childProcess.execFile;
     function transformArgs(file, args) {
       const npmExecPath = process.env.npm_execpath;
@@ -144,34 +131,42 @@ if (inheritedR4Wrapper && isMainThread) {
 
   syncBuiltinESMExports();
   await import('./validate-love-github-human-guide-production-r3.mjs');
-  if (workerData?.r4Child === true) {
-    parentPort?.postMessage({ npmCiIntercepts });
+  if (r4Child && typeof process.send === 'function') {
+    process.send({ npmCiIntercepts });
   }
 }
 
-function runR3InIsolatedWorker() {
+function runR3InIsolatedProcess() {
   const chromePath = resolveChromePath();
   const npmExecPath = process.env.npm_execpath ?? null;
+  const env = {
+    ...process.env,
+    KNEEKURA_R4_R3_CHILD: '1',
+    CHROME_PATH: chromePath
+  };
+  if (npmExecPath) env.npm_execpath = npmExecPath;
+  delete env.NODE_OPTIONS;
+
   return new Promise((resolve, reject) => {
-    const worker = new Worker(new URL(import.meta.url), {
-      workerData: {
-        r4Child: true,
-        chromePath,
-        npmExecPath
-      }
+    const child = childProcess.fork(fileURLToPath(import.meta.url), [], {
+      env,
+      windowsHide: true,
+      stdio: ['inherit', 'inherit', 'inherit', 'ipc']
     });
     let result = null;
-    worker.on('message', value => {
-      result = value;
+    child.on('message', value => {
+      if (value && Number.isInteger(value.npmCiIntercepts)) {
+        result = value;
+      }
     });
-    worker.on('error', reject);
-    worker.on('exit', code => {
+    child.on('error', reject);
+    child.on('exit', code => {
       if (code !== 0) {
-        reject(new Error(`R4_NESTED_R3_WORKER_FAILED:${code}`));
+        reject(new Error(`R4_NESTED_R3_PROCESS_FAILED:${code}`));
         return;
       }
       if (!result || !Number.isInteger(result.npmCiIntercepts)) {
-        reject(new Error('R4_NESTED_R3_WORKER_RESULT_MISSING'));
+        reject(new Error('R4_NESTED_R3_PROCESS_RESULT_MISSING'));
         return;
       }
       resolve(result);
