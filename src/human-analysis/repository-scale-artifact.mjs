@@ -21,6 +21,9 @@ import {
 import { createDeterministicZip } from './zip.mjs';
 import { stableDigest } from './schema.mjs';
 
+const OFFLINE_PAYLOAD_SCHEMA =
+  'kneekura.human-experience-offline-payload/v1';
+
 export async function compileProductionRepositoryScaleHumanExplorerArtifact({
   experience,
   sources,
@@ -52,13 +55,22 @@ export async function compileProductionRepositoryScaleHumanExplorerArtifact({
     title,
     explorerShell: shell
   });
-  const payload = extractOfflinePayload(base.index_html);
-  payload.repository_scale = structuredClone(repositoryScale);
-  payload.repository_scale_authoring_ir = structuredClone(repositoryAuthoringIr);
-  payload.sources.records = mergeSourceRecords(
-    payload.sources.records,
-    repositorySources
-  );
+  const baseSources = sourceBundleFromArtifact(base);
+  const payload = {
+    schema: OFFLINE_PAYLOAD_SCHEMA,
+    experience,
+    sources: {
+      ...baseSources,
+      records: mergeSourceRecords(
+        baseSources.records,
+        repositorySources
+      )
+    },
+    ...(presentation == null ? {} : { presentation }),
+    technical_views: technicalViews,
+    repository_scale: repositoryScale,
+    repository_scale_authoring_ir: repositoryAuthoringIr
+  };
   const indexHtml = injectHumanExperienceOfflinePayload(shell, {
     payload,
     title: base.manifest.title
@@ -185,6 +197,18 @@ function assertRepositoryAuthoring(scale, ir) {
   }
 }
 
+function sourceBundleFromArtifact(artifact) {
+  const sourceFile = artifact.files.find(file => file.path === 'sources.json');
+  if (!sourceFile || typeof sourceFile.content !== 'string') {
+    throw new TypeError('repository-scale base source bundle is missing');
+  }
+  const bundle = JSON.parse(sourceFile.content);
+  if (bundle?.schema !== 'kneekura.human-analysis-source-bundle/v1') {
+    throw new TypeError('repository-scale base source bundle schema is invalid');
+  }
+  return bundle;
+}
+
 function mergeSourceRecords(base, extra) {
   const map = new Map();
   for (const record of [...(base ?? []), ...(extra ?? [])]) {
@@ -194,7 +218,7 @@ function mergeSourceRecords(base, extra) {
     if (existing && stableDigest(existing) !== stableDigest(record)) {
       throw new TypeError(`repository-scale source record conflict: ${key}`);
     }
-    map.set(key, structuredClone(record));
+    map.set(key, record);
   }
   return [...map.entries()]
     .sort((a, b) => compareText(a[0], b[0]))
@@ -209,21 +233,6 @@ function sourceKey(ref) {
     ].join(':');
   }
   return `${String(ref.kind ?? '').toUpperCase()}:${String(ref.id ?? '')}`;
-}
-
-function extractOfflinePayload(html) {
-  const marker = '<script id="kneekura-human-experience" type="application/octet-stream">';
-  const start = html.indexOf(marker);
-  if (start < 0) throw new TypeError('repository-scale artifact offline payload marker is missing');
-  const bodyStart = start + marker.length;
-  const end = html.indexOf('</script>', bodyStart);
-  if (end < 0) throw new TypeError('repository-scale artifact offline payload terminator is missing');
-  const encoded = html.slice(bodyStart, end).trim();
-  const payload = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
-  if (payload.schema !== 'kneekura.human-experience-offline-payload/v1') {
-    throw new TypeError('repository-scale artifact offline payload schema is invalid');
-  }
-  return payload;
 }
 
 function stableJson(value) {
