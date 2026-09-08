@@ -23,7 +23,9 @@ import { stableDigest } from './schema.mjs';
 
 const OFFLINE_PAYLOAD_SCHEMA =
   'kneekura.human-experience-offline-payload/v1';
-const TECHNICAL_BASE_CACHE = new WeakMap();
+const R4_DEDUPLICATED_SIDECARS = Object.freeze([
+  'explorer-projection.json'
+]);
 
 export async function compileProductionRepositoryScaleHumanExplorerArtifact({
   experience,
@@ -47,15 +49,30 @@ export async function compileProductionRepositoryScaleHumanExplorerArtifact({
   assertRepositoryInventory(repositoryScale, experience);
   assertRepositoryAuthoring(repositoryScale, repositoryAuthoringIr);
 
-  const { shell, base } = await resolveTechnicalBaseArtifact({
+  const shell = explorerShell ?? await buildStandaloneHumanExplorerShell();
+  let base = await compileProductionHumanExperienceArtifactWithTechnicalViews({
     experience,
     sources,
     presentation,
     technicalViews,
     title,
-    explorerShell
+    explorerShell: shell
   });
   const baseSources = sourceBundleFromArtifact(base);
+  const baseTitle = base.manifest.title;
+  const primary = new Map(
+    base.files
+      .filter(file =>
+        file.path !== 'manifest.json' &&
+        !R4_DEDUPLICATED_SIDECARS.includes(file.path)
+      )
+      .map(file => [file.path, file.content])
+  );
+  const manifestCore = structuredClone(base.manifest);
+  delete manifestCore.artifact_id;
+  delete manifestCore.files;
+  base = null;
+
   const payload = {
     schema: OFFLINE_PAYLOAD_SCHEMA,
     experience,
@@ -73,22 +90,14 @@ export async function compileProductionRepositoryScaleHumanExplorerArtifact({
   };
   const indexHtml = await injectHumanExperienceOfflinePayloadStreaming(shell, {
     payload,
-    title: base.manifest.title
+    title: baseTitle
   });
 
-  const primary = new Map(
-    base.files
-      .filter(file => file.path !== 'manifest.json')
-      .map(file => [file.path, file.content])
-  );
   primary.set('index.html', indexHtml);
   primary.set('sources.json', stableJson(payload.sources));
   primary.set('repository-scale.json', stableJson(repositoryScale));
   primary.set('repository-authoring-analysis.json', stableJson(repositoryAuthoringIr));
 
-  const manifestCore = structuredClone(base.manifest);
-  delete manifestCore.artifact_id;
-  delete manifestCore.files;
   manifestCore.offline_payload_digest = stableDigest(payload);
   manifestCore.security = {
     ...manifestCore.security,
@@ -103,7 +112,8 @@ export async function compileProductionRepositoryScaleHumanExplorerArtifact({
     schema: HUMAN_ANALYSIS_REPOSITORY_SCALE_SCHEMA,
     readiness_id: repositoryScale.readiness_id,
     authoring_ir_digest: repositoryAuthoringIr.ir_digest,
-    batch_count: repositoryScale.batches.length
+    batch_count: repositoryScale.batches.length,
+    deduplicated_sidecars: [...R4_DEDUPLICATED_SIDECARS]
   };
   manifestCore.files = [...primary.entries()]
     .map(([filePath, content]) => ({
@@ -133,59 +143,6 @@ export async function compileProductionRepositoryScaleHumanExplorerArtifact({
     zip_bytes: zip,
     zip_digest: digestBytes(zip)
   });
-}
-
-async function resolveTechnicalBaseArtifact({
-  experience,
-  sources,
-  presentation,
-  technicalViews,
-  title,
-  explorerShell
-}) {
-  if (!experience || typeof experience !== 'object') {
-    const shell = explorerShell ?? await buildStandaloneHumanExplorerShell();
-    const base = await compileProductionHumanExperienceArtifactWithTechnicalViews({
-      experience,
-      sources,
-      presentation,
-      technicalViews,
-      title,
-      explorerShell: shell
-    });
-    return { shell, base };
-  }
-
-  const cached = TECHNICAL_BASE_CACHE.get(experience);
-  if (
-    cached &&
-    cached.sources === sources &&
-    cached.presentation === presentation &&
-    cached.technicalViews === technicalViews &&
-    cached.title === title &&
-    (explorerShell == null || cached.shell === explorerShell)
-  ) {
-    return { shell: cached.shell, base: cached.base };
-  }
-
-  const shell = explorerShell ?? await buildStandaloneHumanExplorerShell();
-  const base = await compileProductionHumanExperienceArtifactWithTechnicalViews({
-    experience,
-    sources,
-    presentation,
-    technicalViews,
-    title,
-    explorerShell: shell
-  });
-  TECHNICAL_BASE_CACHE.set(experience, {
-    sources,
-    presentation,
-    technicalViews,
-    title,
-    shell,
-    base
-  });
-  return { shell, base };
 }
 
 function assertRepositoryScaleIdentity(scale, experience) {
