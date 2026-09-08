@@ -38,13 +38,12 @@ function transformArgs(file, args) {
   return transformed;
 }
 
-function isLockedNpmCi(file, args) {
+function isNpmInvocation(file, args) {
   return (
     file === process.execPath &&
     typeof process.env.npm_execpath === 'string' &&
     Array.isArray(args) &&
-    args[0] === process.env.npm_execpath &&
-    args[1] === 'ci'
+    args[0] === process.env.npm_execpath
   );
 }
 
@@ -75,7 +74,7 @@ function lockedNpmEnvironment(options) {
 
 function execFileWithLockedTargetInstall(file, args = [], options, callback) {
   const transformed = transformArgs(file, args);
-  const nextOptions = isLockedNpmCi(file, transformed)
+  const nextOptions = isNpmInvocation(file, transformed)
     ? { ...(options ?? {}), env: lockedNpmEnvironment(options) }
     : options;
   return originalExecFile.call(
