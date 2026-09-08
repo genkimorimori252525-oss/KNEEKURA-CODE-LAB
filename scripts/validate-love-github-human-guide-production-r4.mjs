@@ -230,15 +230,19 @@ try {
   });
   sampleHeap();
 
-  const offlinePayload = extractOfflinePayload(artifact.index_html);
-  const systemMapStarted = performance.now();
-  const systemMap = createHumanExplorerSystemMap({
-    projection: experience.canonical.explorer_projection,
-    offlinePayload
-  });
-  const systemMapBuildMs = performance.now() - systemMapStarted;
-  assert.equal(systemMap.stats.source_catalog_files, EXPECTED_INVENTORY_FILES);
-  const searchP95Ms = benchmarkSearch(systemMap, catalog);
+  let systemMapBuildMs;
+  let searchP95Ms;
+  {
+    const offlinePayload = extractOfflinePayload(artifact.index_html);
+    const systemMapStarted = performance.now();
+    const systemMap = createHumanExplorerSystemMap({
+      projection: experience.canonical.explorer_projection,
+      offlinePayload
+    });
+    systemMapBuildMs = performance.now() - systemMapStarted;
+    assert.equal(systemMap.stats.source_catalog_files, EXPECTED_INVENTORY_FILES);
+    searchP95Ms = benchmarkSearch(systemMap, catalog);
+  }
   const layoutResult = await benchmarkEnlargedLayout();
   sampleHeap();
 
@@ -252,8 +256,12 @@ try {
   sampleHeap();
 
   const firstArtifactId = artifact.artifact_id;
+  const firstIndexDigest = sha(artifact.index_html);
   const firstZipDigest = artifact.zip_digest;
   const firstZipBytes = artifact.zip_bytes.length;
+  artifact = null;
+  await new Promise(resolve => setImmediate(resolve));
+
   const replayArtifact = await compileProductionRepositoryScaleHumanExplorerArtifact({
     experience,
     sources: baseSources.records,
@@ -266,9 +274,9 @@ try {
   });
   sampleHeap();
   assert.equal(replayArtifact.artifact_id, firstArtifactId);
+  assert.equal(sha(replayArtifact.index_html), firstIndexDigest);
   assert.equal(replayArtifact.zip_digest, firstZipDigest);
   assert.equal(replayArtifact.zip_bytes.length, firstZipBytes);
-  assert(replayArtifact.zip_bytes.equals(artifact.zip_bytes));
 
   clearInterval(heapSampler);
   sampleHeap();
@@ -353,7 +361,6 @@ try {
     'utf8'
   );
   process.stdout.write(JSON.stringify(report, null, 2) + '\n');
-  artifact = null;
 } finally {
   clearInterval(heapSampler);
   await fs.rm(temp, { recursive: true, force: true });
