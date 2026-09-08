@@ -23,6 +23,7 @@ export const HUMAN_EXPLORER_TITLE_PLACEHOLDER =
 
 const CSP =
   "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; worker-src blob:";
+const GZIP_WRITE_BATCH_CHARS = 16 * 1024;
 
 export async function buildStandaloneHumanExplorerShell() {
   let viteBuild;
@@ -261,11 +262,31 @@ async function gzipStableJson(value) {
   const chunks = [];
   gzip.on('data', chunk => chunks.push(Buffer.from(chunk)));
   const ended = once(gzip, 'end');
-  for (const chunk of stableJsonChunks(value)) {
-    if (!gzip.write(chunk, 'utf8')) {
+  let pending = '';
+
+  const flushPending = async () => {
+    if (!pending) return;
+    const batch = pending;
+    pending = '';
+    if (!gzip.write(batch, 'utf8')) {
       await once(gzip, 'drain');
     }
+  };
+
+  for (const chunk of stableJsonChunks(value)) {
+    let remaining = chunk;
+    while (remaining.length > 0) {
+      const capacity = GZIP_WRITE_BATCH_CHARS - pending.length;
+      if (remaining.length <= capacity) {
+        pending += remaining;
+        break;
+      }
+      pending += remaining.slice(0, capacity);
+      remaining = remaining.slice(capacity);
+      await flushPending();
+    }
   }
+  await flushPending();
   gzip.end();
   await ended;
   return Buffer.concat(chunks);
