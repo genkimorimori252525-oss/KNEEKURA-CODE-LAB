@@ -14,6 +14,15 @@ import {
 const inheritedR4Wrapper =
   typeof globalThis.__KNEEKURA_R4_NPM_CI_INTERCEPTS__ === 'number';
 
+if (workerData?.r4Child === true) {
+  if (typeof workerData.chromePath === 'string' && workerData.chromePath) {
+    process.env.CHROME_PATH = workerData.chromePath;
+  }
+  if (typeof workerData.npmExecPath === 'string' && workerData.npmExecPath) {
+    process.env.npm_execpath = workerData.npmExecPath;
+  }
+}
+
 if (inheritedR4Wrapper && isMainThread) {
   const result = await runR3InIsolatedWorker();
   globalThis.__KNEEKURA_R4_NPM_CI_INTERCEPTS__ += result.npmCiIntercepts;
@@ -141,9 +150,15 @@ if (inheritedR4Wrapper && isMainThread) {
 }
 
 function runR3InIsolatedWorker() {
+  const chromePath = resolveChromePath();
+  const npmExecPath = process.env.npm_execpath ?? null;
   return new Promise((resolve, reject) => {
     const worker = new Worker(new URL(import.meta.url), {
-      workerData: { r4Child: true }
+      workerData: {
+        r4Child: true,
+        chromePath,
+        npmExecPath
+      }
     });
     let result = null;
     worker.on('message', value => {
@@ -162,4 +177,16 @@ function runR3InIsolatedWorker() {
       resolve(result);
     });
   });
+}
+
+function resolveChromePath() {
+  const candidates = [
+    process.env.CHROME_PATH,
+    process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    process.env.PROGRAMFILES && path.join(process.env.PROGRAMFILES, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+    process.env['PROGRAMFILES(X86)'] && path.join(process.env['PROGRAMFILES(X86)'], 'Google', 'Chrome', 'Application', 'chrome.exe')
+  ].filter(Boolean);
+  const found = candidates.find(candidate => fs.existsSync(candidate));
+  if (!found) throw new Error('R4_NESTED_R3_CHROME_NOT_FOUND');
+  return found;
 }
