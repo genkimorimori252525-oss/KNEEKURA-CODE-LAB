@@ -83,6 +83,7 @@ try {
   const kneekuraPackageRaw = await fs.readFile(path.join(ROOT, 'package.json'), 'utf8');
   const kneekuraLockRaw = await fs.readFile(path.join(ROOT, 'package-lock.json'), 'utf8');
   const kneekuraPackage = JSON.parse(kneekuraPackageRaw);
+  const kneekuraLock = JSON.parse(kneekuraLockRaw);
 
   await npm(repoRoot, ['ci', '--include=dev', '--no-audit', '--no-fund']);
   await npm(repoRoot, ['ls', '@types/node', '--depth=0']);
@@ -93,7 +94,15 @@ try {
   const require = createRequire(import.meta.url);
   const imported = require('@typescript/typescript6');
   const ts = typeof imported?.createProgram === 'function' ? imported : imported.default;
-  assert.equal(String(ts.version), String(kneekuraPackage.devDependencies['@typescript/typescript6']));
+  const typescriptWrapperVersion =
+    kneekuraLock.packages?.['node_modules/@typescript/typescript6']?.version;
+  const analyzerTypeScriptVersion =
+    kneekuraLock.packages?.['node_modules/@typescript/old']?.version;
+  assert.equal(
+    String(typescriptWrapperVersion),
+    String(kneekuraPackage.devDependencies['@typescript/typescript6'])
+  );
+  assert.equal(String(ts.version), String(analyzerTypeScriptVersion));
 
   const vertical = await runTypeScriptSemanticVertical({
     rootDirectory: repoRoot,
@@ -316,6 +325,7 @@ try {
     generator_toolchain: {
       node: process.version,
       npm: npmVersion,
+      typescript_wrapper: String(typescriptWrapperVersion),
       analyzer_typescript: String(ts.version),
       vite: String(kneekuraPackage.devDependencies.vite),
       package_manifest_digest: sha(kneekuraPackageRaw),
