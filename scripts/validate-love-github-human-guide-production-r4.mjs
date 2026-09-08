@@ -42,6 +42,14 @@ const FIXED_COMMIT = '5d647785bfeee1b8892e9ba782b04a76f1b63fff';
 const EXPECTED_INVENTORY_FILES = 87;
 const EXPECTED_BATCHES = 16;
 const OFFLINE_PAYLOAD_SCHEMA = 'kneekura.human-experience-offline-payload/v1';
+const R4_TITLE = 'Love-Github Human Explorer — R4 repository-scale production';
+const R3_REUSABLE_SIDECARS = new Set([
+  'analysis.json',
+  'coverage.json',
+  'experience.json',
+  'presentation.json',
+  'technical-views.json'
+]);
 const cmp = (a, b) => String(a) < String(b) ? -1 : String(a) > String(b) ? 1 : 0;
 const sha = value => 'sha256:' + crypto.createHash('sha256').update(value).digest('hex');
 let peakHeapBytes = process.memoryUsage().heapUsed;
@@ -225,6 +233,9 @@ try {
   assert.equal(candidateScale.coverage.scanner.covered_files, EXPECTED_INVENTORY_FILES);
   assert.equal(candidateScale.coverage.ai_read.covered_files, EXPECTED_BATCHES);
 
+  const prebuiltTechnicalBase = await loadR3TechnicalBase(baseSources);
+  logStage('r3-sidecars-loaded');
+
   let artifact = await compileProductionRepositoryScaleHumanExplorerArtifact({
     experience,
     sources: baseSources.records,
@@ -233,7 +244,8 @@ try {
     repositoryScale: candidateScale,
     repositoryAuthoringIr: authoring.ir,
     repositorySources: authoring.sources,
-    title: 'Love-Github Human Explorer — R4 repository-scale production'
+    title: R4_TITLE,
+    prebuiltTechnicalBase
   });
   logStage('first-artifact-compiled');
 
@@ -284,7 +296,8 @@ try {
     repositoryScale: candidateScale,
     repositoryAuthoringIr: authoring.ir,
     repositorySources: authoring.sources,
-    title: 'Love-Github Human Explorer — R4 repository-scale production'
+    title: R4_TITLE,
+    prebuiltTechnicalBase
   });
   logStage('replay-artifact-compiled');
   assert.equal(replayArtifact.artifact_id, firstArtifactId);
@@ -365,6 +378,7 @@ try {
     },
     deterministic_artifact_replay: true,
     file_browser_verified: true,
+    isolated_r3_sidecar_reuse: true,
     artifact_id: firstArtifactId,
     zip_digest: firstZipDigest,
     zip_bytes: firstZipBytes
@@ -463,6 +477,25 @@ async function buildCatalog(root, files) {
     });
   }
   return rows.sort((a, b) => cmp(a.path, b.path));
+}
+
+async function loadR3TechnicalBase(sourceBundle) {
+  const manifest = await readJson(path.join(R3_ROOT, 'manifest.json'));
+  const files = [];
+  for (const meta of manifest.files ?? []) {
+    if (!R3_REUSABLE_SIDECARS.has(meta.path)) continue;
+    files.push({
+      path: meta.path,
+      content: await fs.readFile(path.join(R3_ROOT, meta.path), 'utf8')
+    });
+  }
+  const paths = new Set(files.map(file => file.path));
+  for (const required of R3_REUSABLE_SIDECARS) {
+    if (!paths.has(required)) {
+      throw new Error(`R4_R3_REUSABLE_SIDECAR_MISSING:${required}`);
+    }
+  }
+  return { manifest, files, sourceBundle };
 }
 
 function createSystemMapBenchmarkPayload({
