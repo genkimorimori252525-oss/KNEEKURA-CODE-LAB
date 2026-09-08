@@ -41,17 +41,24 @@ const RECORD_PATH = path.join(ROOT, 'golden', 'human-analysis', 'love-github-r4-
 const FIXED_COMMIT = '5d647785bfeee1b8892e9ba782b04a76f1b63fff';
 const EXPECTED_INVENTORY_FILES = 87;
 const EXPECTED_BATCHES = 16;
+const OFFLINE_PAYLOAD_SCHEMA = 'kneekura.human-experience-offline-payload/v1';
 const cmp = (a, b) => String(a) < String(b) ? -1 : String(a) > String(b) ? 1 : 0;
 const sha = value => 'sha256:' + crypto.createHash('sha256').update(value).digest('hex');
 let peakHeapBytes = process.memoryUsage().heapUsed;
 const sampleHeap = () => {
   peakHeapBytes = Math.max(peakHeapBytes, process.memoryUsage().heapUsed);
 };
+const logStage = stage => {
+  sampleHeap();
+  process.stdout.write(
+    `[R4_STAGE] ${stage} heap_used=${process.memoryUsage().heapUsed} peak_heap=${peakHeapBytes}\n`
+  );
+};
 const heapSampler = setInterval(sampleHeap, 25);
 heapSampler.unref();
 
 await import('./run-love-github-human-guide-production-r3.mjs');
-sampleHeap();
+logStage('nested-r3-complete');
 assert(
   (globalThis.__KNEEKURA_R4_NPM_CI_INTERCEPTS__ ?? 0) >= 1,
   'R4 must force the nested fixed Love-Github R1/R3 generation path through npm ci'
@@ -89,7 +96,7 @@ try {
   await npm(repoRoot, ['ls', '@types/node', '--depth=0']);
   await npm(repoRoot, ['run', 'typecheck']);
   const npmVersion = (await npm(repoRoot, ['--version'])).stdout.trim();
-  sampleHeap();
+  logStage('target-toolchain-ready');
 
   const require = createRequire(import.meta.url);
   const imported = require('@typescript/typescript6');
@@ -115,7 +122,7 @@ try {
   const catalog = await buildCatalog(repoRoot, vertical.profile.files);
   assert.equal(catalog.length, EXPECTED_INVENTORY_FILES);
   assert.equal(vertical.summary.typescript_files, EXPECTED_INVENTORY_FILES);
-  sampleHeap();
+  logStage('typescript-inventory-ready');
 
   const graph = await scanRepository(repoRoot, {
     repositoryIdentity: vertical.repository,
@@ -176,7 +183,7 @@ try {
   assert.equal(authoring.ir.review.accepted_item_ids.length, EXPECTED_BATCHES);
   assert.equal(authoring.ir.review.rejected_item_ids.length, 0);
   assert.equal(authoring.read_receipts.filter(row => row.read_kind === 'FILE_RANGE').length, EXPECTED_BATCHES);
-  sampleHeap();
+  logStage('repository-authoring-ready');
 
   const mergedSources = [...baseSources.records, ...authoring.sources];
   const sourcePayload = assertHumanAnalysisSourcePayloadBudget(mergedSources);
@@ -228,12 +235,17 @@ try {
     repositorySources: authoring.sources,
     title: 'Love-Github Human Explorer — R4 repository-scale production'
   });
-  sampleHeap();
+  logStage('first-artifact-compiled');
 
   let systemMapBuildMs;
   let searchP95Ms;
   {
-    const offlinePayload = extractOfflinePayload(artifact.index_html);
+    const offlinePayload = createSystemMapBenchmarkPayload({
+      experience,
+      baseSources,
+      presentation,
+      repositorySources: authoring.sources
+    });
     const systemMapStarted = performance.now();
     const systemMap = createHumanExplorerSystemMap({
       projection: experience.canonical.explorer_projection,
@@ -243,8 +255,9 @@ try {
     assert.equal(systemMap.stats.source_catalog_files, EXPECTED_INVENTORY_FILES);
     searchP95Ms = benchmarkSearch(systemMap, catalog);
   }
+  logStage('system-map-benchmark-complete');
   const layoutResult = await benchmarkEnlargedLayout();
-  sampleHeap();
+  logStage('layout-benchmark-complete');
 
   await fs.rm(OUTPUT_ROOT, { recursive: true, force: true });
   const written = await writeHumanAnalysisArtifact({
@@ -253,7 +266,7 @@ try {
     zipFile: 'love-github-r4-human-explorer.zip'
   });
   const startup = validateAndMeasureFileBrowser(written.index_path);
-  sampleHeap();
+  logStage('artifact-written-browser-verified');
 
   const firstArtifactId = artifact.artifact_id;
   const firstIndexDigest = sha(artifact.index_html);
@@ -261,6 +274,7 @@ try {
   const firstZipBytes = artifact.zip_bytes.length;
   artifact = null;
   await new Promise(resolve => setImmediate(resolve));
+  logStage('before-replay');
 
   const replayArtifact = await compileProductionRepositoryScaleHumanExplorerArtifact({
     experience,
@@ -272,7 +286,7 @@ try {
     repositorySources: authoring.sources,
     title: 'Love-Github Human Explorer — R4 repository-scale production'
   });
-  sampleHeap();
+  logStage('replay-artifact-compiled');
   assert.equal(replayArtifact.artifact_id, firstArtifactId);
   assert.equal(sha(replayArtifact.index_html), firstIndexDigest);
   assert.equal(replayArtifact.zip_digest, firstZipDigest);
@@ -451,14 +465,47 @@ async function buildCatalog(root, files) {
   return rows.sort((a, b) => cmp(a.path, b.path));
 }
 
-function extractOfflinePayload(html) {
-  const marker = '<script id="kneekura-human-experience" type="application/octet-stream">';
-  const start = html.indexOf(marker);
-  assert(start >= 0, 'R4 offline payload marker is missing');
-  const bodyStart = start + marker.length;
-  const end = html.indexOf('</script>', bodyStart);
-  assert(end >= 0, 'R4 offline payload terminator is missing');
-  return JSON.parse(Buffer.from(html.slice(bodyStart, end).trim(), 'base64').toString('utf8'));
+function createSystemMapBenchmarkPayload({
+  experience,
+  baseSources,
+  presentation,
+  repositorySources
+}) {
+  return {
+    schema: OFFLINE_PAYLOAD_SCHEMA,
+    experience,
+    sources: {
+      ...baseSources,
+      records: mergeSourceRecords(baseSources.records, repositorySources)
+    },
+    ...(presentation == null ? {} : { presentation })
+  };
+}
+
+function mergeSourceRecords(base, extra) {
+  const map = new Map();
+  for (const record of [...(base ?? []), ...(extra ?? [])]) {
+    const key = sourceKey(record?.ref);
+    if (!key) throw new TypeError('R4 System Map source record ref is invalid');
+    const existing = map.get(key);
+    if (existing && stableDigest(existing) !== stableDigest(record)) {
+      throw new TypeError(`R4 System Map source record conflict: ${key}`);
+    }
+    map.set(key, record);
+  }
+  return [...map.entries()]
+    .sort((a, b) => cmp(a[0], b[0]))
+    .map(([, record]) => record);
+}
+
+function sourceKey(ref) {
+  if (!ref || typeof ref !== 'object') return null;
+  if (String(ref.kind).toUpperCase() === 'FILE_RANGE') {
+    return [
+      'FILE_RANGE', ref.path, ref.start_line, ref.end_line, ref.content_digest ?? ''
+    ].join(':');
+  }
+  return `${String(ref.kind ?? '').toUpperCase()}:${String(ref.id ?? '')}`;
 }
 
 function benchmarkSearch(systemMap, catalog) {
