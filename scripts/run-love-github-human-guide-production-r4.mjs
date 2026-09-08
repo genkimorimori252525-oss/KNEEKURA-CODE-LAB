@@ -49,18 +49,27 @@ function isLockedNpmCi(file, args) {
 }
 
 function lockedNpmEnvironment(options) {
-  return {
+  const env = {
     ...process.env,
-    ...(options?.env ?? {}),
+    ...(options?.env ?? {})
+  };
+  const controlled = new Set([
+    'node_env',
+    'npm_config_production',
+    'npm_config_omit',
+    'npm_config_only',
+    'npm_config_include'
+  ]);
+  for (const key of Object.keys(env)) {
+    if (controlled.has(key.toLowerCase())) delete env[key];
+  }
+  return {
+    ...env,
     NODE_ENV: 'development',
     NPM_CONFIG_PRODUCTION: 'false',
     NPM_CONFIG_OMIT: '',
     NPM_CONFIG_ONLY: '',
-    NPM_CONFIG_INCLUDE: 'dev',
-    npm_config_production: 'false',
-    npm_config_omit: '',
-    npm_config_only: '',
-    npm_config_include: 'dev'
+    NPM_CONFIG_INCLUDE: 'dev'
   };
 }
 
