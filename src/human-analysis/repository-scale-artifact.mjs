@@ -24,6 +24,7 @@ import { stableDigest } from './schema.mjs';
 
 const OFFLINE_PAYLOAD_SCHEMA =
   'kneekura.human-experience-offline-payload/v1';
+const TECHNICAL_BASE_CACHE = new WeakMap();
 
 export async function compileProductionRepositoryScaleHumanExplorerArtifact({
   experience,
@@ -47,14 +48,13 @@ export async function compileProductionRepositoryScaleHumanExplorerArtifact({
   assertRepositoryInventory(repositoryScale, experience);
   assertRepositoryAuthoring(repositoryScale, repositoryAuthoringIr);
 
-  const shell = explorerShell ?? await buildStandaloneHumanExplorerShell();
-  const base = await compileProductionHumanExperienceArtifactWithTechnicalViews({
+  const { shell, base } = await resolveTechnicalBaseArtifact({
     experience,
     sources,
     presentation,
     technicalViews,
     title,
-    explorerShell: shell
+    explorerShell
   });
   const baseSources = sourceBundleFromArtifact(base);
   const payload = {
@@ -135,6 +135,59 @@ export async function compileProductionRepositoryScaleHumanExplorerArtifact({
     zip_bytes: zip,
     zip_digest: digestBytes(zip)
   });
+}
+
+async function resolveTechnicalBaseArtifact({
+  experience,
+  sources,
+  presentation,
+  technicalViews,
+  title,
+  explorerShell
+}) {
+  if (!experience || typeof experience !== 'object') {
+    const shell = explorerShell ?? await buildStandaloneHumanExplorerShell();
+    const base = await compileProductionHumanExperienceArtifactWithTechnicalViews({
+      experience,
+      sources,
+      presentation,
+      technicalViews,
+      title,
+      explorerShell: shell
+    });
+    return { shell, base };
+  }
+
+  const cached = TECHNICAL_BASE_CACHE.get(experience);
+  if (
+    cached &&
+    cached.sources === sources &&
+    cached.presentation === presentation &&
+    cached.technicalViews === technicalViews &&
+    cached.title === title &&
+    (explorerShell == null || cached.shell === explorerShell)
+  ) {
+    return { shell: cached.shell, base: cached.base };
+  }
+
+  const shell = explorerShell ?? await buildStandaloneHumanExplorerShell();
+  const base = await compileProductionHumanExperienceArtifactWithTechnicalViews({
+    experience,
+    sources,
+    presentation,
+    technicalViews,
+    title,
+    explorerShell: shell
+  });
+  TECHNICAL_BASE_CACHE.set(experience, {
+    sources,
+    presentation,
+    technicalViews,
+    title,
+    shell,
+    base
+  });
+  return { shell, base };
 }
 
 function assertRepositoryScaleIdentity(scale, experience) {
