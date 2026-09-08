@@ -26,6 +26,7 @@ const OFFLINE_PAYLOAD_SCHEMA =
 const R4_DEDUPLICATED_SIDECARS = Object.freeze([
   'explorer-projection.json'
 ]);
+const TECHNICAL_BASE_CACHE = new WeakMap();
 
 export async function compileProductionRepositoryScaleHumanExplorerArtifact({
   experience,
@@ -49,30 +50,15 @@ export async function compileProductionRepositoryScaleHumanExplorerArtifact({
   assertRepositoryInventory(repositoryScale, experience);
   assertRepositoryAuthoring(repositoryScale, repositoryAuthoringIr);
 
-  const shell = explorerShell ?? await buildStandaloneHumanExplorerShell();
-  let base = await compileProductionHumanExperienceArtifactWithTechnicalViews({
+  const { shell, base } = await resolveTechnicalBaseArtifact({
     experience,
     sources,
     presentation,
     technicalViews,
     title,
-    explorerShell: shell
+    explorerShell
   });
   const baseSources = sourceBundleFromArtifact(base);
-  const baseTitle = base.manifest.title;
-  const primary = new Map(
-    base.files
-      .filter(file =>
-        file.path !== 'manifest.json' &&
-        !R4_DEDUPLICATED_SIDECARS.includes(file.path)
-      )
-      .map(file => [file.path, file.content])
-  );
-  const manifestCore = structuredClone(base.manifest);
-  delete manifestCore.artifact_id;
-  delete manifestCore.files;
-  base = null;
-
   const payload = {
     schema: OFFLINE_PAYLOAD_SCHEMA,
     experience,
@@ -90,14 +76,20 @@ export async function compileProductionRepositoryScaleHumanExplorerArtifact({
   };
   const indexHtml = await injectHumanExperienceOfflinePayloadStreaming(shell, {
     payload,
-    title: baseTitle
+    title: base.manifest.title
   });
 
+  const primary = new Map(
+    base.files.map(file => [file.path, file.content])
+  );
   primary.set('index.html', indexHtml);
   primary.set('sources.json', stableJson(payload.sources));
   primary.set('repository-scale.json', stableJson(repositoryScale));
   primary.set('repository-authoring-analysis.json', stableJson(repositoryAuthoringIr));
 
+  const manifestCore = structuredClone(base.manifest);
+  delete manifestCore.artifact_id;
+  delete manifestCore.files;
   manifestCore.offline_payload_digest = stableDigest(payload);
   manifestCore.security = {
     ...manifestCore.security,
@@ -142,6 +134,73 @@ export async function compileProductionRepositoryScaleHumanExplorerArtifact({
     index_html: indexHtml,
     zip_bytes: zip,
     zip_digest: digestBytes(zip)
+  });
+}
+
+async function resolveTechnicalBaseArtifact({
+  experience,
+  sources,
+  presentation,
+  technicalViews,
+  title,
+  explorerShell
+}) {
+  if (!experience || typeof experience !== 'object') {
+    const shell = explorerShell ?? await buildStandaloneHumanExplorerShell();
+    const compiled = await compileProductionHumanExperienceArtifactWithTechnicalViews({
+      experience,
+      sources,
+      presentation,
+      technicalViews,
+      title,
+      explorerShell: shell
+    });
+    return { shell, base: projectTechnicalBaseArtifact(compiled) };
+  }
+
+  const cached = TECHNICAL_BASE_CACHE.get(experience);
+  if (
+    cached &&
+    cached.sources === sources &&
+    cached.presentation === presentation &&
+    cached.technicalViews === technicalViews &&
+    cached.title === title &&
+    (explorerShell == null || cached.shell === explorerShell)
+  ) {
+    return { shell: cached.shell, base: cached.base };
+  }
+
+  const shell = explorerShell ?? await buildStandaloneHumanExplorerShell();
+  const compiled = await compileProductionHumanExperienceArtifactWithTechnicalViews({
+    experience,
+    sources,
+    presentation,
+    technicalViews,
+    title,
+    explorerShell: shell
+  });
+  const base = projectTechnicalBaseArtifact(compiled);
+  TECHNICAL_BASE_CACHE.set(experience, {
+    sources,
+    presentation,
+    technicalViews,
+    title,
+    shell,
+    base
+  });
+  return { shell, base };
+}
+
+function projectTechnicalBaseArtifact(artifact) {
+  return deepFreeze({
+    manifest: artifact.manifest,
+    files: artifact.files
+      .filter(file =>
+        file.path !== 'manifest.json' &&
+        file.path !== 'index.html' &&
+        !R4_DEDUPLICATED_SIDECARS.includes(file.path)
+      )
+      .map(file => ({ path: file.path, content: file.content }))
   });
 }
 
