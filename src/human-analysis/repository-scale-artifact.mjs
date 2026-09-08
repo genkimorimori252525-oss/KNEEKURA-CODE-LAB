@@ -16,8 +16,7 @@ import {
 } from './repository-scale-readiness.mjs';
 import {
   buildStandaloneHumanExplorerShell,
-  HUMAN_EXPERIENCE_GZIP_ENCODING,
-  injectHumanExperienceOfflinePayload
+  injectHumanExperienceOfflinePayloadStreaming
 } from '../human-experience/standalone-explorer.mjs';
 import { createDeterministicZip } from './zip.mjs';
 import { stableDigest } from './schema.mjs';
@@ -72,10 +71,9 @@ export async function compileProductionRepositoryScaleHumanExplorerArtifact({
     repository_scale: repositoryScale,
     repository_scale_authoring_ir: repositoryAuthoringIr
   };
-  const indexHtml = injectHumanExperienceOfflinePayload(shell, {
+  const indexHtml = await injectHumanExperienceOfflinePayloadStreaming(shell, {
     payload,
-    title: base.manifest.title,
-    compression: HUMAN_EXPERIENCE_GZIP_ENCODING
+    title: base.manifest.title
   });
 
   const primary = new Map(
