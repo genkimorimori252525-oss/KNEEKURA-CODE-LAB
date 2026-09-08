@@ -23,8 +23,16 @@ import { stableDigest } from './schema.mjs';
 
 const OFFLINE_PAYLOAD_SCHEMA =
   'kneekura.human-experience-offline-payload/v1';
+const SOURCE_BUNDLE_SCHEMA =
+  'kneekura.human-analysis-source-bundle/v1';
 const R4_DEDUPLICATED_SIDECARS = Object.freeze([
   'explorer-projection.json'
+]);
+const REQUIRED_PREBUILT_SIDECARS = Object.freeze([
+  'analysis.json',
+  'coverage.json',
+  'experience.json',
+  'technical-views.json'
 ]);
 const TECHNICAL_BASE_CACHE = new WeakMap();
 
@@ -37,7 +45,8 @@ export async function compileProductionRepositoryScaleHumanExplorerArtifact({
   repositoryAuthoringIr,
   repositorySources = [],
   title = null,
-  explorerShell = null
+  explorerShell = null,
+  prebuiltTechnicalBase = null
 } = {}) {
   validateRepositoryScaleReadiness(repositoryScale);
   if (
@@ -50,15 +59,16 @@ export async function compileProductionRepositoryScaleHumanExplorerArtifact({
   assertRepositoryInventory(repositoryScale, experience);
   assertRepositoryAuthoring(repositoryScale, repositoryAuthoringIr);
 
-  const { shell, base } = await resolveTechnicalBaseArtifact({
+  const { shell, base, sourceBundle } = await resolveTechnicalBaseArtifact({
     experience,
     sources,
     presentation,
     technicalViews,
     title,
-    explorerShell
+    explorerShell,
+    prebuiltTechnicalBase
   });
-  const baseSources = sourceBundleFromArtifact(base);
+  const baseSources = sourceBundle ?? sourceBundleFromArtifact(base);
   const payload = {
     schema: OFFLINE_PAYLOAD_SCHEMA,
     experience,
@@ -143,8 +153,22 @@ async function resolveTechnicalBaseArtifact({
   presentation,
   technicalViews,
   title,
-  explorerShell
+  explorerShell,
+  prebuiltTechnicalBase
 }) {
+  if (prebuiltTechnicalBase != null) {
+    const shell = explorerShell ?? await buildStandaloneHumanExplorerShell();
+    return projectPrebuiltTechnicalBaseArtifact({
+      prebuiltTechnicalBase,
+      experience,
+      sources,
+      presentation,
+      technicalViews,
+      title,
+      shell
+    });
+  }
+
   if (!experience || typeof experience !== 'object') {
     const shell = explorerShell ?? await buildStandaloneHumanExplorerShell();
     const compiled = await compileProductionHumanExperienceArtifactWithTechnicalViews({
@@ -155,7 +179,8 @@ async function resolveTechnicalBaseArtifact({
       title,
       explorerShell: shell
     });
-    return { shell, base: projectTechnicalBaseArtifact(compiled) };
+    const base = projectTechnicalBaseArtifact(compiled);
+    return { shell, base, sourceBundle: sourceBundleFromArtifact(base) };
   }
 
   const cached = TECHNICAL_BASE_CACHE.get(experience);
@@ -167,7 +192,11 @@ async function resolveTechnicalBaseArtifact({
     cached.title === title &&
     (explorerShell == null || cached.shell === explorerShell)
   ) {
-    return { shell: cached.shell, base: cached.base };
+    return {
+      shell: cached.shell,
+      base: cached.base,
+      sourceBundle: cached.sourceBundle
+    };
   }
 
   const shell = explorerShell ?? await buildStandaloneHumanExplorerShell();
@@ -180,15 +209,153 @@ async function resolveTechnicalBaseArtifact({
     explorerShell: shell
   });
   const base = projectTechnicalBaseArtifact(compiled);
+  const sourceBundle = sourceBundleFromArtifact(base);
   TECHNICAL_BASE_CACHE.set(experience, {
     sources,
     presentation,
     technicalViews,
     title,
     shell,
-    base
+    base,
+    sourceBundle
   });
-  return { shell, base };
+  return { shell, base, sourceBundle };
+}
+
+function projectPrebuiltTechnicalBaseArtifact({
+  prebuiltTechnicalBase,
+  experience,
+  sources,
+  presentation,
+  technicalViews,
+  title,
+  shell
+}) {
+  const value = prebuiltTechnicalBase;
+  if (!value || typeof value !== 'object') {
+    throw new TypeError('prebuilt technical base must be an object');
+  }
+  const manifest = value.manifest;
+  if (
+    !manifest ||
+    manifest.schema !== HUMAN_ARTIFACT_MANIFEST_SCHEMA ||
+    typeof manifest.artifact_id !== 'string' ||
+    !Array.isArray(manifest.files)
+  ) {
+    throw new TypeError('prebuilt technical base manifest is invalid');
+  }
+  const manifestCore = structuredClone(manifest);
+  delete manifestCore.artifact_id;
+  const expectedArtifactId =
+    'artifact:sha256:' + stableDigest(manifestCore).slice('sha256:'.length);
+  if (manifest.artifact_id !== expectedArtifactId) {
+    throw new TypeError('prebuilt technical base manifest digest mismatch');
+  }
+
+  const ir = experience?.derived?.human_analysis_ir;
+  assertProductionHumanAnalysisIr(ir);
+  if (
+    manifest.repository?.repository_id !== experience?.repository?.repository_id ||
+    manifest.repository?.snapshot_id !== experience?.repository?.snapshot_id ||
+    manifest.ir_digest !== ir.ir_digest ||
+    manifest.human_experience_projection_id !== experience?.projection_id
+  ) {
+    throw new TypeError('prebuilt technical base identity mismatch');
+  }
+  if (
+    manifest.technical_views?.view_set_id !== technicalViews?.view_set_id
+  ) {
+    throw new TypeError('prebuilt technical base technical-view identity mismatch');
+  }
+  if (
+    presentation != null &&
+    manifest.semantic_readiness?.presentation_id !== presentation.presentation_id
+  ) {
+    throw new TypeError('prebuilt technical base presentation identity mismatch');
+  }
+
+  const sourceBundle = value.sourceBundle;
+  if (
+    !sourceBundle ||
+    sourceBundle.schema !== SOURCE_BUNDLE_SCHEMA ||
+    sourceBundle.repository?.repository_id !== experience.repository.repository_id ||
+    sourceBundle.repository?.snapshot_id !== experience.repository.snapshot_id ||
+    sourceBundle.ir_digest !== ir.ir_digest ||
+    !Array.isArray(sourceBundle.records)
+  ) {
+    throw new TypeError('prebuilt technical base source bundle identity mismatch');
+  }
+  if (
+    sourceBundle.records !== sources &&
+    stableDigest(sourceBundle.records) !== stableDigest(sources)
+  ) {
+    throw new TypeError('prebuilt technical base source records mismatch');
+  }
+
+  if (!Array.isArray(value.files)) {
+    throw new TypeError('prebuilt technical base files must be an array');
+  }
+  const manifestFileMeta = new Map(
+    manifest.files.map(file => [file.path, file])
+  );
+  const fileMap = new Map();
+  for (const file of value.files) {
+    if (
+      !file ||
+      typeof file.path !== 'string' ||
+      typeof file.content !== 'string' ||
+      file.path === 'manifest.json' ||
+      file.path === 'index.html' ||
+      R4_DEDUPLICATED_SIDECARS.includes(file.path)
+    ) {
+      throw new TypeError(`prebuilt technical base file is invalid: ${String(file?.path)}`);
+    }
+    if (fileMap.has(file.path)) {
+      throw new TypeError(`prebuilt technical base file is duplicated: ${file.path}`);
+    }
+    const meta = manifestFileMeta.get(file.path);
+    if (
+      !meta ||
+      meta.digest !== digestBytes(file.content) ||
+      meta.bytes !== Buffer.byteLength(file.content)
+    ) {
+      throw new TypeError(`prebuilt technical base file digest mismatch: ${file.path}`);
+    }
+    fileMap.set(file.path, file.content);
+  }
+  for (const required of REQUIRED_PREBUILT_SIDECARS) {
+    if (!fileMap.has(required)) {
+      throw new TypeError(`prebuilt technical base sidecar is missing: ${required}`);
+    }
+  }
+  if (presentation != null && !fileMap.has('presentation.json')) {
+    throw new TypeError('prebuilt technical base presentation sidecar is missing');
+  }
+
+  fileMap.set(
+    'README.md',
+    renderProductionReadme(
+      ir,
+      normalizeTitle(title),
+      presentation?.readiness ?? null
+    )
+  );
+  const projectedManifest = {
+    ...structuredClone(manifest),
+    title: normalizeTitle(title),
+    human_explorer_shell_digest: shell.digest
+  };
+  return {
+    shell,
+    base: deepFreeze({
+      manifest: projectedManifest,
+      files: [...fileMap.entries()]
+        .filter(([filePath]) => filePath !== 'sources.json')
+        .map(([filePath, content]) => ({ path: filePath, content }))
+        .sort((a, b) => compareText(a.path, b.path))
+    }),
+    sourceBundle
+  };
 }
 
 function projectTechnicalBaseArtifact(artifact) {
@@ -276,7 +443,7 @@ function sourceBundleFromArtifact(artifact) {
     throw new TypeError('repository-scale base source bundle is missing');
   }
   const bundle = JSON.parse(sourceFile.content);
-  if (bundle?.schema !== 'kneekura.human-analysis-source-bundle/v1') {
+  if (bundle?.schema !== SOURCE_BUNDLE_SCHEMA) {
     throw new TypeError('repository-scale base source bundle schema is invalid');
   }
   return bundle;
@@ -306,6 +473,16 @@ function sourceKey(ref) {
     ].join(':');
   }
   return `${String(ref.kind ?? '').toUpperCase()}:${String(ref.id ?? '')}`;
+}
+
+function renderProductionReadme(ir, title, readiness = null) {
+  return `# ${title}\n\nPortable KNEEKURA Human Explorer production artifact.\n\n- IR: ${ir.ir_digest}\n- Repository: ${ir.repository.repository_id}\n- Snapshot: ${ir.repository.snapshot_id}\n- Renderer: HUMAN_EXPLORER_V2\n- Semantic readiness: ${readiness?.status ?? 'UNASSESSED'}\n- Repository-scale ready: ${readiness?.repository_scale_ready === true ? 'yes' : 'no'}\n- The full ReactFlow/ELK Human Explorer is bundled into index.html.\n- Repository/source text remains inert data and never gains instruction authority.\n- Open index.html directly in a browser; no server or network connection is required.\n`;
+}
+
+function normalizeTitle(title) {
+  const value = String(title ?? 'KNEEKURA Human Analysis').trim();
+  if (!value) throw new TypeError('artifact title must not be empty');
+  return value.slice(0, 200);
 }
 
 function stableJson(value) {
