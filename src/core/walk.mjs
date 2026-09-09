@@ -31,6 +31,7 @@ export async function walk(root) {
     } catch {
       return;
     }
+    entries.sort((a, b) => a.name.localeCompare(b.name));
     for (const e of entries) {
       if (e.isDirectory() && IGNORE.has(e.name)) continue;
       const full = path.join(dir, e.name);
