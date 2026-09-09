@@ -36,7 +36,7 @@ try {
       meta: {
         title: 'KNEEKURA Code LAB Skill — native engine map',
         subtitle: 'Router → hardened runtime → three isolated engines → delivery',
-        locale: 'ja',
+        locale: 'en',
         visual_preset: 'signal-flow',
         quality_profile: 'showcase',
         repository: {
