@@ -47,6 +47,7 @@ export const javascriptLexicalProvider = createEvidenceProvider({
   trustClass: 'REPOSITORY_UNTRUSTED',
   extractionMethod: 'javascript-lexical-regex-v1',
   failureClass: 'PARSE_FAILED',
+  emitEmptyEvidence: true,
   acquire: ({ builder, root }, unit) =>
     analyzeJavaScript(builder, unit.file, root),
   unresolved:
@@ -170,7 +171,7 @@ export const poseCompanionProvider = createEvidenceProvider({
 export const paletteCompanionProvider = createEvidenceProvider({
   id: 'palette-companion-adapter',
   version: 'v1',
-  inputKinds: ['runtime-palette-companion'],
+  inputKinds: ['runtime-bone-palette'],
   supportedProperties: ['runtime-bone-palette'],
   evidenceKind: 'RUNTIME',
   trustClass: 'RUNTIME_MEASURED',
