@@ -47,6 +47,7 @@ export const javascriptLexicalProvider = createEvidenceProvider({
   trustClass: 'REPOSITORY_UNTRUSTED',
   extractionMethod: 'javascript-lexical-regex-v1',
   failureClass: 'PARSE_FAILED',
+  emitEmptyEvidence: true,
   acquire: ({ builder, root }, unit) =>
     analyzeJavaScript(builder, unit.file, root),
   unresolved:
