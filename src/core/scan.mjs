@@ -181,50 +181,5 @@ export async function scanRepository(root, opts={}) {
     assertWorkspaceSnapshotUnchanged(snapshotIdentity, currentSnapshot);
   }
 
-  return finalizeScanGraph(b.finish(), snapshotIdentity);
-}
-
-function finalizeScanGraph(graph, snapshotIdentity) {
-  if (snapshotIdentity.kind !== 'COMMIT') return graph;
-
-  // A commit snapshot is portable. Wall-clock generation time and the local
-  // checkout root describe this execution, not the committed repository.
-  delete graph.generatedAt;
-  delete graph.root;
-
-  graph.nodes.sort((a, b) => compareText(a.id, b.id));
-  graph.edges.sort((a, b) => compareText(a.id, b.id));
-  graph.diagnostics.sort((a, b) =>
-    compareText(stableText(a), stableText(b))
-  );
-  if (Array.isArray(graph.meta?.analyzers)) {
-    graph.meta.analyzers.sort((a, b) =>
-      compareText(a.name, b.name) ||
-      compareText(a.version, b.version)
-    );
-  }
-  if (Array.isArray(graph.meta?.evidence)) {
-    graph.meta.evidence.sort((a, b) =>
-      compareText(a?.id ?? stableText(a), b?.id ?? stableText(b))
-    );
-  }
-  return graph;
-}
-
-function stableText(value) {
-  if (Array.isArray(value)) {
-    return '[' + value.map(stableText).join(',') + ']';
-  }
-  if (value && typeof value === 'object') {
-    return '{' + Object.keys(value).sort().map(key =>
-      JSON.stringify(key) + ':' + stableText(value[key])
-    ).join(',') + '}';
-  }
-  return JSON.stringify(value);
-}
-
-function compareText(a, b) {
-  const left = String(a);
-  const right = String(b);
-  return left < right ? -1 : left > right ? 1 : 0;
+  return b.finish();
 }

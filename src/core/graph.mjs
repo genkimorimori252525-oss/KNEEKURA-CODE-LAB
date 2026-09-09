@@ -5,6 +5,48 @@ export function stableId(kind, key) {
   return `${kind}:${h}`;
 }
 
+/**
+ * Return the graph view that is safe to treat as canonical input.
+ *
+ * Raw GraphBuilder output intentionally retains execution metadata such as
+ * generatedAt and the local checkout root for diagnostics/self-audit. Those
+ * values are not properties of a pinned Git commit, so a COMMIT snapshot must
+ * exclude them before digest-protected Evidence Pack / Explorer identities are
+ * derived. WORKSPACE graphs remain verbatim because their local root and
+ * generation context are part of the live workspace observation.
+ */
+export function canonicalizeGraphForSnapshot(graph) {
+  if (!graph || typeof graph !== 'object' || Array.isArray(graph)) {
+    throw new TypeError('graph must be an object');
+  }
+  const clone = structuredClone(graph);
+  if (clone.meta?.snapshot?.kind !== 'COMMIT') return clone;
+
+  delete clone.generatedAt;
+  delete clone.root;
+
+  if (Array.isArray(clone.nodes)) {
+    clone.nodes.sort((a, b) => compareText(a?.id, b?.id));
+  }
+  if (Array.isArray(clone.edges)) {
+    clone.edges.sort((a, b) => compareText(a?.id, b?.id));
+  }
+  if (Array.isArray(clone.diagnostics)) {
+    clone.diagnostics.sort((a, b) => compareText(stableText(a), stableText(b)));
+  }
+  if (Array.isArray(clone.meta?.analyzers)) {
+    clone.meta.analyzers.sort((a, b) =>
+      compareText(a?.name, b?.name) || compareText(a?.version, b?.version)
+    );
+  }
+  if (Array.isArray(clone.meta?.evidence)) {
+    clone.meta.evidence.sort((a, b) =>
+      compareText(a?.id ?? stableText(a), b?.id ?? stableText(b))
+    );
+  }
+  return clone;
+}
+
 export class GraphBuilder {
   constructor(root) {
     this.graph = {
@@ -55,4 +97,20 @@ export class GraphBuilder {
     this.graph.meta.edgeCount = this.graph.edges.length;
     return this.graph;
   }
+}
+
+function stableText(value) {
+  if (Array.isArray(value)) return '[' + value.map(stableText).join(',') + ']';
+  if (value && typeof value === 'object') {
+    return '{' + Object.keys(value).sort().map(key =>
+      JSON.stringify(key) + ':' + stableText(value[key])
+    ).join(',') + '}';
+  }
+  return JSON.stringify(value);
+}
+
+function compareText(a, b) {
+  const left = String(a ?? '');
+  const right = String(b ?? '');
+  return left < right ? -1 : left > right ? 1 : 0;
 }
