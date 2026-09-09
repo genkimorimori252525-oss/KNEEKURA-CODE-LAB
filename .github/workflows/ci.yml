@@ -16,7 +16,7 @@ jobs:
       - run: npm test
       - name: Prepare pinned Archify v2.16.0
         if: github.event_name == 'push' && startsWith(github.ref_name, 'jolly/kneekura-code-lab-skill-v1')
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           $zip = Join-Path $env:RUNNER_TEMP 'kneekura-archify-v2.16.0.zip'
