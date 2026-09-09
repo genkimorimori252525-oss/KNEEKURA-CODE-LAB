@@ -9,7 +9,8 @@
     "./mailbox": "./src/mailbox.mjs",
     "./ask-graph": "./src/ask-graph.mjs",
     "./human-analysis": "./src/human-analysis/index.mjs",
-    "./human-experience": "./src/human-experience/index.mjs"
+    "./human-experience": "./src/human-experience/index.mjs",
+    "./skill": "./src/skill/index.mjs"
   },
   "scripts": {
     "scan": "node src/cli.mjs scan",
