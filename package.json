@@ -38,11 +38,10 @@
     "validate:love-github-human-guide-production-r3": "node scripts/run-love-github-human-guide-production-r3.mjs",
     "validate:love-github-human-guide-production-r4": "node scripts/run-love-github-human-guide-production-r4.mjs",
     "validate:love-github-human-guide-production-r5": "node scripts/validate-love-github-human-guide-production-r5.mjs",
-    "validate:archify-native": "node scripts/validate-kneekura-code-lab-archify-native.mjs"
+    "validate:archify-native": "node scripts/validate-kneekura-code-lab-archify-native.mjs",
+    "validate:ua-native": "node scripts/validate-kneekura-code-lab-ua-native.mjs"
   },
-  "engines": {
-    "node": ">=20"
-  },
+  "engines": { "node": ">=20" },
   "dependencies": {
     "@xyflow/react": "12.11.5",
     "elkjs": "0.12.0",
