@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -12,6 +13,14 @@ import {
 } from '../walk.mjs';
 
 const execFileAsync = promisify(execFile);
+
+export const HARDENED_GIT_READ_POLICY = Object.freeze({
+  global_args: Object.freeze(['--no-replace-objects']),
+  environment: Object.freeze({
+    GIT_NO_REPLACE_OBJECTS: '1',
+    GIT_NO_LAZY_FETCH: '1'
+  })
+});
 
 export async function materializeCommitAnalysisRoot(
   repositoryRoot,
@@ -33,7 +42,7 @@ export async function materializeCommitAnalysisRoot(
   );
   const commit = snapshotIdentity.base_commit;
 
-  await assertCommitObject(sourceRoot, commit);
+  const commitIntegrity = await assertCommitObject(sourceRoot, commit);
 
   const materializedRoot = await fs.mkdtemp(
     path.join(materializationParent, 'kneekura-commit-')
@@ -57,8 +66,10 @@ export async function materializeCommitAnalysisRoot(
         entry.mode !== '120000' &&
         isAnalyzableRepositoryPath(entry.path)
       )
-      .sort((a, b) => a.path.localeCompare(b.path));
+      .sort((a, b) => compareText(a.path, b.path));
+    assertPortablePathSet(selected.map(entry => entry.path));
 
+    let verifiedBlobs = 0;
     for (const entry of selected) {
       const destination = safeDestination(
         materializedRoot,
@@ -68,6 +79,8 @@ export async function materializeCommitAnalysisRoot(
         sourceRoot,
         ['cat-file', 'blob', entry.object_id]
       );
+      assertGitObjectDigest('blob', bytes, entry.object_id);
+      verifiedBlobs += 1;
       await fs.mkdir(path.dirname(destination), {
         recursive: true
       });
@@ -78,6 +91,15 @@ export async function materializeCommitAnalysisRoot(
       root: materializedRoot,
       snapshotIdentity,
       materialized_files: selected.map(entry => entry.path),
+      integrity: Object.freeze({
+        replace_objects_disabled: true,
+        lazy_fetch_disabled: true,
+        commit_object_verified: true,
+        tree_object_verified: true,
+        commit_object_id: commitIntegrity.commit_object_id,
+        tree_object_id: commitIntegrity.tree_object_id,
+        blobs_verified: verifiedBlobs
+      }),
       cleanup
     };
   } catch (error) {
@@ -164,6 +186,30 @@ async function assertCommitObject(root, commit) {
       'snapshot_selector commit did not resolve to the exact requested object'
     );
   }
+
+  const commitBytes = await gitBuffer(
+    root,
+    ['cat-file', 'commit', commit]
+  );
+  assertGitObjectDigest('commit', commitBytes, commit);
+  const treeMatch = commitBytes.toString('utf8').match(/^tree ([0-9a-f]{40,64})\n/);
+  if (!treeMatch) {
+    throw codedError(
+      'GIT_OBJECT_INTEGRITY_FAILURE',
+      'commit object does not contain a valid tree object id'
+    );
+  }
+  const treeObjectId = treeMatch[1].toLowerCase();
+  const treeBytes = await gitBuffer(
+    root,
+    ['cat-file', 'tree', treeObjectId]
+  );
+  assertGitObjectDigest('tree', treeBytes, treeObjectId);
+
+  return Object.freeze({
+    commit_object_id: commit.toLowerCase(),
+    tree_object_id: treeObjectId
+  });
 }
 
 async function listCommitTree(root, commit) {
@@ -213,6 +259,7 @@ function safeRelativeGitPath(value) {
     value.includes('\uFFFD') ||
     value.includes('\\') ||
     value.includes('\0') ||
+    /[\u0000-\u001f\u007f\u202a-\u202e\u2066-\u2069]/u.test(value) ||
     path.posix.isAbsolute(value) ||
     /^[A-Za-z]:/.test(value)
   ) {
@@ -239,6 +286,42 @@ function safeRelativeGitPath(value) {
   return normalized;
 }
 
+function assertPortablePathSet(paths) {
+  const seen = new Map();
+  for (const repoPath of paths) {
+    const portable = repoPath
+      .split('/')
+      .map(segment => portableSegment(segment))
+      .join('/');
+    const previous = seen.get(portable);
+    if (previous && previous !== repoPath) {
+      throw codedError(
+        'TRUST_BOUNDARY_VIOLATION',
+        `commit tree contains a portable path collision: ${previous} <> ${repoPath}`
+      );
+    }
+    seen.set(portable, repoPath);
+  }
+}
+
+function portableSegment(segment) {
+  const normalized = segment.normalize('NFC').replace(/[ .]+$/g, '').toLowerCase();
+  const base = normalized.split('.')[0];
+  if (/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(base)) {
+    throw codedError(
+      'TRUST_BOUNDARY_VIOLATION',
+      `commit tree contains a Windows-reserved path segment: ${segment}`
+    );
+  }
+  if (!normalized) {
+    throw codedError(
+      'TRUST_BOUNDARY_VIOLATION',
+      `commit tree contains a non-portable path segment: ${segment}`
+    );
+  }
+  return normalized;
+}
+
 function safeDestination(root, relativePath) {
   const destination = path.resolve(
     root,
@@ -259,14 +342,42 @@ function safeDestination(root, relativePath) {
   return destination;
 }
 
+function assertGitObjectDigest(type, bytes, expectedObjectId) {
+  const algorithm = expectedObjectId.length === 40
+    ? 'sha1'
+    : expectedObjectId.length === 64
+      ? 'sha256'
+      : null;
+  if (!algorithm) {
+    throw codedError(
+      'GIT_OBJECT_INTEGRITY_FAILURE',
+      `unsupported Git object id length: ${expectedObjectId.length}`
+    );
+  }
+  const header = Buffer.from(`${type} ${bytes.length}\0`, 'utf8');
+  const actual = crypto
+    .createHash(algorithm)
+    .update(header)
+    .update(bytes)
+    .digest('hex');
+  if (actual !== expectedObjectId.toLowerCase()) {
+    throw codedError(
+      'GIT_OBJECT_INTEGRITY_FAILURE',
+      `Git ${type} object hash mismatch: expected ${expectedObjectId}, got ${actual}`
+    );
+  }
+  return true;
+}
+
 async function gitText(root, args) {
   const { stdout } = await execFileAsync(
     'git',
-    ['-C', root, ...args],
+    [...HARDENED_GIT_READ_POLICY.global_args, '-C', root, ...args],
     {
       encoding: 'utf8',
       windowsHide: true,
-      maxBuffer: 32 * 1024 * 1024
+      maxBuffer: 32 * 1024 * 1024,
+      env: hardenedGitEnvironment()
     }
   );
   return stdout;
@@ -275,16 +386,28 @@ async function gitText(root, args) {
 async function gitBuffer(root, args) {
   const { stdout } = await execFileAsync(
     'git',
-    ['-C', root, ...args],
+    [...HARDENED_GIT_READ_POLICY.global_args, '-C', root, ...args],
     {
       encoding: null,
       windowsHide: true,
-      maxBuffer: 64 * 1024 * 1024
+      maxBuffer: 64 * 1024 * 1024,
+      env: hardenedGitEnvironment()
     }
   );
   return Buffer.isBuffer(stdout)
     ? stdout
     : Buffer.from(stdout);
+}
+
+function hardenedGitEnvironment() {
+  return {
+    ...process.env,
+    ...HARDENED_GIT_READ_POLICY.environment
+  };
+}
+
+function compareText(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 function codedError(code, message, cause = null) {
