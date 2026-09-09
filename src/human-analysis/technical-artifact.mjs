@@ -7,7 +7,7 @@ import {
 } from './artifact-compiler.mjs';
 import {
   buildStandaloneHumanExplorerShell,
-  injectHumanExperienceOfflinePayload
+  injectHumanExperienceOfflinePayloadStreaming
 } from '../human-experience/standalone-explorer.mjs';
 import { createDeterministicZip } from './zip.mjs';
 import { stableDigest } from './schema.mjs';
@@ -15,6 +15,9 @@ import {
   HUMAN_ANALYSIS_TECHNICAL_VIEWS_SCHEMA,
   validateHumanAnalysisTechnicalViews
 } from './technical-views-v1.mjs';
+
+const OFFLINE_PAYLOAD_SCHEMA =
+  'kneekura.human-experience-offline-payload/v1';
 
 export async function compileProductionHumanExperienceArtifactWithTechnicalViews({
   experience,
@@ -34,9 +37,14 @@ export async function compileProductionHumanExperienceArtifactWithTechnicalViews
     title,
     explorerShell: shell
   });
-  const payload = extractOfflinePayload(base.index_html);
-  payload.technical_views = structuredClone(technicalViews);
-  const indexHtml = injectHumanExperienceOfflinePayload(shell, {
+  const payload = {
+    schema: OFFLINE_PAYLOAD_SCHEMA,
+    experience,
+    sources: sourceBundleFromArtifact(base),
+    ...(presentation == null ? {} : { presentation }),
+    technical_views: technicalViews
+  };
+  const indexHtml = await injectHumanExperienceOfflinePayloadStreaming(shell, {
     payload,
     title: base.manifest.title
   });
@@ -53,6 +61,10 @@ export async function compileProductionHumanExperienceArtifactWithTechnicalViews
   delete manifestCore.artifact_id;
   delete manifestCore.files;
   manifestCore.offline_payload_digest = stableDigest(payload);
+  manifestCore.security = {
+    ...manifestCore.security,
+    embedded_payload_encoding: 'BASE64_GZIP_JSON_ENVELOPE'
+  };
   manifestCore.technical_views = {
     schema: HUMAN_ANALYSIS_TECHNICAL_VIEWS_SCHEMA,
     view_set_id: technicalViews.view_set_id
@@ -87,22 +99,16 @@ export async function compileProductionHumanExperienceArtifactWithTechnicalViews
   });
 }
 
-function extractOfflinePayload(html) {
-  const marker = '<script id="kneekura-human-experience" type="application/octet-stream">';
-  const start = html.indexOf(marker);
-  if (start < 0) throw new TypeError('production artifact offline payload marker is missing');
-  const bodyStart = start + marker.length;
-  const end = html.indexOf('</script>', bodyStart);
-  if (end < 0) throw new TypeError('production artifact offline payload terminator is missing');
-  const encoded = html.slice(bodyStart, end).trim();
-  if (!encoded || !/^[A-Za-z0-9+/=]+$/.test(encoded)) {
-    throw new TypeError('production artifact offline payload encoding is invalid');
+function sourceBundleFromArtifact(artifact) {
+  const sourceFile = artifact.files.find(file => file.path === 'sources.json');
+  if (!sourceFile || typeof sourceFile.content !== 'string') {
+    throw new TypeError('production artifact normalized source bundle is missing');
   }
-  const payload = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
-  if (payload.schema !== 'kneekura.human-experience-offline-payload/v1') {
-    throw new TypeError('production artifact offline payload schema is invalid');
+  const bundle = JSON.parse(sourceFile.content);
+  if (bundle?.schema !== 'kneekura.human-analysis-source-bundle/v1') {
+    throw new TypeError('production artifact normalized source bundle schema is invalid');
   }
-  return payload;
+  return bundle;
 }
 
 function stableJson(value) {

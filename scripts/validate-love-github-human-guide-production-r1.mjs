@@ -519,22 +519,18 @@ async function main() {
       title: 'Love-Github Human Explorer — R1 bounded production preview',
       explorerShell: shell
     });
-    const one = await compile();
-    const two = await compile();
-    if (
-      one.artifact_id !== two.artifact_id ||
-      one.index_html !== two.index_html ||
-      !one.zip_bytes.equals(two.zip_bytes) ||
-      one.zip_digest !== two.zip_digest
-    ) {
-      throw new Error('R1_PRODUCTION_REPLAY_NONDETERMINISTIC');
-    }
+
+    let one = await compile();
     if (one.manifest.semantic_readiness?.status !== 'READY_BOUNDED_PREVIEW') {
       throw new Error('R1_ARTIFACT_READINESS_MISSING');
     }
     if (!one.files.some(file => file.path === 'presentation.json')) {
       throw new Error('R1_PRESENTATION_FILE_MISSING');
     }
+    const firstArtifactId = one.artifact_id;
+    const firstIndexDigest = sha(one.index_html);
+    const firstZipDigest = one.zip_digest;
+    const firstZipBytes = one.zip_bytes.length;
 
     await fs.rm(OUTPUT_ROOT, { recursive: true, force: true });
     const written = await writeHumanAnalysisArtifact({
@@ -543,6 +539,17 @@ async function main() {
       zipFile: 'love-github-r1-human-explorer.zip'
     });
     validateFileBrowser(written.index_path);
+    one = null;
+
+    const two = await compile();
+    if (
+      two.artifact_id !== firstArtifactId ||
+      sha(two.index_html) !== firstIndexDigest ||
+      two.zip_digest !== firstZipDigest ||
+      two.zip_bytes.length !== firstZipBytes
+    ) {
+      throw new Error('R1_PRODUCTION_REPLAY_NONDETERMINISTIC');
+    }
 
     const report = {
       schema: 'kneekura.live-love-github-production-r1/v1',
@@ -571,9 +578,9 @@ async function main() {
       readiness_gaps: presentation.readiness.gaps,
       presentation_id: presentation.presentation_id,
       human_experience_projection_id: experience.projection_id,
-      artifact_id: one.artifact_id,
-      zip_digest: one.zip_digest,
-      zip_bytes: one.zip_bytes.length,
+      artifact_id: firstArtifactId,
+      zip_digest: firstZipDigest,
+      zip_bytes: firstZipBytes,
       deterministic_saved_replay: true,
       file_browser_verified: true
     };

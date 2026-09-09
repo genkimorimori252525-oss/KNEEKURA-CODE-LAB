@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { ExplorerApp } from './App.jsx';
 import { SystemMapPanel } from './SystemMapPanel.jsx';
 import { TechnicalViewsPanel } from './TechnicalViewsPanel.jsx';
+import { RepositoryScalePanel } from './RepositoryScalePanel.jsx';
 import './styles.css';
 import './human-experience.css';
 import './system-map.css';
@@ -11,6 +12,9 @@ import './technical-views.css';
 const root = createRoot(
   document.getElementById('root')
 );
+const GZIP_ENVELOPE_SCHEMA =
+  'kneekura.human-experience-offline-envelope/v1';
+const GZIP_ENCODING = 'GZIP_BASE64_JSON';
 
 bootstrap().catch(error => {
   root.render(
@@ -23,7 +27,7 @@ bootstrap().catch(error => {
 });
 
 async function bootstrap() {
-  const embedded = readEmbeddedExperience();
+  const embedded = await readEmbeddedExperience();
   let projection;
   let offlinePayload = null;
 
@@ -45,6 +49,7 @@ async function bootstrap() {
       );
     }
     assertTechnicalViewsIdentity(embedded);
+    assertRepositoryScaleIdentity(embedded);
     projection =
       embedded.experience.canonical?.explorer_projection;
     offlinePayload = embedded;
@@ -81,6 +86,9 @@ async function bootstrap() {
           />
           <TechnicalViewsPanel
             projection={projection}
+            offlinePayload={offlinePayload}
+          />
+          <RepositoryScalePanel
             offlinePayload={offlinePayload}
           />
         </div>
@@ -133,24 +141,92 @@ function assertTechnicalViewsIdentity(payload) {
   }
 }
 
-function readEmbeddedExperience() {
+function assertRepositoryScaleIdentity(payload) {
+  const scale = payload?.repository_scale;
+  if (scale == null) return;
+  if (scale.schema !== 'kneekura.human-analysis-repository-scale/v1') {
+    throw new Error('対応していないrepository-scale成果物です。');
+  }
+  const repository = payload.experience?.repository;
+  if (
+    !repository?.repository_id ||
+    !repository?.snapshot_id ||
+    scale.repository?.repository_id !== repository.repository_id ||
+    scale.repository?.snapshot_id !== repository.snapshot_id
+  ) {
+    throw new Error('repository-scaleのrepository/snapshot identityが一致しません。');
+  }
+  if (
+    scale.readiness?.repository_scale_ready !== true ||
+    scale.readiness?.status !== 'READY_REPOSITORY_SCALE'
+  ) {
+    throw new Error('repository-scale成果物がREADYではありません。');
+  }
+  const authority = scale.authority ?? {};
+  if (
+    authority.canonical_authority !== false ||
+    authority.may_mint_canonical_nodes !== false ||
+    authority.may_mint_canonical_edges !== false ||
+    authority.may_mint_canonical_claims !== false ||
+    authority.derived_readiness_only !== true
+  ) {
+    throw new Error('repository-scale成果物がcanonical authority境界に違反しています。');
+  }
+  const authoring = payload.repository_scale_authoring_ir;
+  if (
+    authoring?.generation?.mode !== 'PRODUCTION' ||
+    authoring?.repository?.repository_id !== repository.repository_id ||
+    authoring?.repository?.snapshot_id !== repository.snapshot_id
+  ) {
+    throw new Error('repository-scale authoring IRのidentityが一致しません。');
+  }
+}
+
+async function readEmbeddedExperience() {
   const node = document.getElementById(
     'kneekura-human-experience'
   );
   const raw = node?.textContent?.trim() ?? '';
   if (!raw) return null;
   try {
-    const bytes = Uint8Array.from(
-      atob(raw),
-      character => character.charCodeAt(0)
+    const outerBytes = decodeBase64(raw);
+    const outer = JSON.parse(
+      new TextDecoder().decode(outerBytes)
     );
-    return JSON.parse(
-      new TextDecoder().decode(bytes)
-    );
+    let payload = outer;
+    if (outer?.schema === GZIP_ENVELOPE_SCHEMA) {
+      if (
+        outer.encoding !== GZIP_ENCODING ||
+        outer.payload_schema !==
+          'kneekura.human-experience-offline-payload/v1' ||
+        typeof outer.data !== 'string' ||
+        typeof DecompressionStream !== 'function'
+      ) {
+        throw new Error('gzip Human Experience envelope is invalid or unsupported');
+      }
+      const compressed = decodeBase64(outer.data);
+      const stream = new Blob([compressed])
+        .stream()
+        .pipeThrough(new DecompressionStream('gzip'));
+      const json = await new Response(stream).text();
+      payload = JSON.parse(json);
+      if (payload?.schema !== outer.payload_schema) {
+        throw new Error('gzip Human Experience payload schema mismatch');
+      }
+    }
+    node.textContent = '';
+    return payload;
   } catch (error) {
     throw new Error(
       '埋め込みHuman Experienceデータを読み取れません: ' +
       String(error?.message ?? error)
     );
   }
+}
+
+function decodeBase64(value) {
+  return Uint8Array.from(
+    atob(value),
+    character => character.charCodeAt(0)
+  );
 }

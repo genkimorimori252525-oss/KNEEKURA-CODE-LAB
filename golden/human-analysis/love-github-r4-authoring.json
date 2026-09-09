@@ -1,0 +1,111 @@
+{
+  "schema": "kneekura.saved-repository-scale-authoring/v1",
+  "authoring_run_id": "love-github-r4-2026-09-06-gpt-5.6-sol",
+  "authoring_origin": "SAVED_AI_AUTHORING_RUN",
+  "repository": "genkimorimori252525-oss/Love-Github",
+  "commit": "5d647785bfeee1b8892e9ba782b04a76f1b63fff",
+  "semantic_author": {
+    "id": "love-github-r4-saved-repository-author",
+    "provider_id": "chatgpt:gpt-5.6-sol",
+    "locale": "ja-JP",
+    "acceptance_fixture": false
+  },
+  "records": [
+    {
+      "domain": "adapters/cli",
+      "representative_path": "adapters/cli/src/index.ts",
+      "title": "CLI JSONL入口",
+      "body": "代表sourceでは、標準入力のJSONL requestを解析してAgentToolRouterへ渡し、成功・失敗をJSONとして標準出力へ返します。この説明はCLI代表sourceに限定し、batch内の未読sourceへ一般化しません。"
+    },
+    {
+      "domain": "adapters/mcp-http",
+      "representative_path": "adapters/mcp-http/src/auth.ts",
+      "title": "HTTP認証境界",
+      "body": "代表sourceでは、Bearer tokenをSHA-256で照合し、保存済みtenant/actor identityへ変換します。token本体はAuthInfoへ保持せずverified表現へ置き換えます。この説明は認証代表sourceに限定します。"
+    },
+    {
+      "domain": "adapters/mcp-stdio",
+      "representative_path": "adapters/mcp-stdio/src/index.ts",
+      "title": "MCP stdio入口",
+      "body": "代表sourceでは、runtime・AgentToolRouter・環境由来identityを組み立て、Love-Github MCP serverをstdio transportで公開します。この説明はstdio adapter代表sourceに限定します。"
+    },
+    {
+      "domain": "adapters/shared",
+      "representative_path": "adapters/shared/src/identity.ts",
+      "title": "共有identity読込",
+      "body": "代表sourceでは、LOVE_GITHUB_TENANT_IDとLOVE_GITHUB_ACTOR_IDを必須環境変数として読み、AgentIdentityを構成します。この説明は共有identity helperに限定します。"
+    },
+    {
+      "domain": "apps/runtime",
+      "representative_path": "apps/runtime/src/private-key.ts",
+      "title": "GitHub App秘密鍵の厳格読込",
+      "body": "代表sourceでは、秘密鍵をbase64または絶対file pathのどちらか一方から読み、サイズ・UTF-8・PEM envelope・RSA種別を検証してPKCS#8へ正規化します。この説明はprivate-key loaderに限定します。"
+    },
+    {
+      "domain": "packages/agent-api",
+      "representative_path": "packages/agent-api/src/mcp.ts",
+      "title": "Agent APIのMCP投影",
+      "body": "代表sourceでは、AGENT_TOOL_DEFINITIONSをMCP toolとして登録し、AgentToolRouterの結果をtextとstructuredContentへ変換します。またAuthInfoからtenant/actor identityを要求します。この説明はMCP adapter代表sourceに限定します。"
+    },
+    {
+      "domain": "packages/audit",
+      "representative_path": "packages/audit/src/jsonl.ts",
+      "title": "監査JSONLと機密redaction",
+      "body": "代表sourceでは、監査eventを書込前に機密key/valueをredactし、絶対path配下へ逐次JSONL appendします。循環objectも[CIRCULAR]として扱います。この説明はJSONL audit sink代表sourceに限定します。"
+    },
+    {
+      "domain": "packages/control-plane",
+      "representative_path": "packages/control-plane/src/index.ts",
+      "title": "Guard付きGitHub provider集約",
+      "body": "代表sourceでは、PolicyEngineとAuditSinkからGuardedOperationExecutorを作り、repository・git・issue・pull・actions等のGitHub providerを1つのcontrol planeへ束ねます。この説明はcontrol-plane constructorに限定します。"
+    },
+    {
+      "domain": "packages/core",
+      "representative_path": "packages/core/src/guard.ts",
+      "title": "Policy評価と監査を伴う操作guard",
+      "body": "代表sourceでは、操作前にpolicyを評価し、deny/approval-requiredならactionを実行せず結果を返し、実行結果や例外も含めてauditへ記録します。この説明はGuardedOperationExecutorに限定します。"
+    },
+    {
+      "domain": "packages/github",
+      "representative_path": "packages/github/src/actions.ts",
+      "title": "GitHub Actions操作provider",
+      "body": "代表sourceでは、workflow run/job/artifactの取得・診断とdispatch/rerun/cancelをGitHubRequester経由で扱い、mutationはGuardedOperationExecutorへ通します。この説明はActionsProvider代表sourceに限定します。"
+    },
+    {
+      "domain": "packages/orchestration",
+      "representative_path": "packages/orchestration/src/agent-service.ts",
+      "title": "Agent操作のオーケストレーション境界",
+      "body": "代表sourceでは、Agent向け操作をservice methodとして束ね、idempotencyやworkspace境界を伴う高位操作へ接続します。この説明はAgentService代表sourceから確認できる範囲に限定し、全orchestration sourceの挙動は断定しません。"
+    },
+    {
+      "domain": "packages/policy",
+      "representative_path": "packages/policy/src/index.ts",
+      "title": "操作riskと安全境界のPolicyEngine",
+      "body": "代表sourceでは、repository allowlist・hard-forbidden操作・power mode・protected branch・risk class等を評価し、allow/deny/require_approvalを返します。この説明はDefaultPolicyEngine代表sourceに限定します。"
+    },
+    {
+      "domain": "packages/protocol",
+      "representative_path": "packages/protocol/src/index.ts",
+      "title": "操作結果とPolicyの共有protocol",
+      "body": "代表sourceでは、ErrorCode・RiskClass・OperationContext・PolicyDecision・OperationResultなど、各層が共有する型契約を定義します。この説明はprotocol index代表sourceに限定します。"
+    },
+    {
+      "domain": "packages/runner",
+      "representative_path": "packages/runner/src/docker.ts",
+      "title": "制約付きDocker実行backend",
+      "body": "代表sourceでは、read-only root・cap drop・no-new-privileges・PID/CPU/memory制限・workspace bind mountを付けてDocker commandを組み立て、cwdがworkspace base外なら拒否します。この説明はDockerRunner代表sourceに限定します。"
+    },
+    {
+      "domain": "packages/workspace",
+      "representative_path": "packages/workspace/src/errors.ts",
+      "title": "Workspace error正規化",
+      "body": "代表sourceでは、WorkspaceBoundaryErrorやNode error codeをOperationResultのNOT_FOUND・SANDBOX_VIOLATION・UPSTREAM_ERROR等へ正規化し、retryable属性も決めます。この説明はworkspace error helperに限定します。"
+    },
+    {
+      "domain": "tests/integration",
+      "representative_path": "tests/integration/coding-agent-loop.test.ts",
+      "title": "Coding agent loop統合検証",
+      "body": "このbatchはintegration test群です。代表test sourceを直接読むことで、複数層をまたぐcoding-agent loopを統合検証する領域であることだけを説明し、production実装の仕様そのものとは扱いません。"
+    }
+  ]
+}

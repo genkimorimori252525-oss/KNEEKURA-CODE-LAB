@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
+import { once } from 'node:events';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createGzip, gzipSync } from 'node:zlib';
 
 import {
   validateHumanExperienceProjection
@@ -10,6 +12,10 @@ export const HUMAN_EXPLORER_STANDALONE_SHELL_SCHEMA =
   'kneekura.human-explorer-standalone-shell/v1';
 export const HUMAN_EXPERIENCE_OFFLINE_PAYLOAD_SCHEMA =
   'kneekura.human-experience-offline-payload/v1';
+export const HUMAN_EXPERIENCE_GZIP_ENVELOPE_SCHEMA =
+  'kneekura.human-experience-offline-envelope/v1';
+export const HUMAN_EXPERIENCE_GZIP_ENCODING =
+  'GZIP_BASE64_JSON';
 export const HUMAN_EXPERIENCE_PAYLOAD_PLACEHOLDER =
   '__KNEEKURA_HUMAN_EXPERIENCE_BASE64_V1__';
 export const HUMAN_EXPLORER_TITLE_PLACEHOLDER =
@@ -17,6 +23,7 @@ export const HUMAN_EXPLORER_TITLE_PLACEHOLDER =
 
 const CSP =
   "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; worker-src blob:";
+const GZIP_WRITE_BATCH_CHARS = 16 * 1024;
 
 export async function buildStandaloneHumanExplorerShell() {
   let viteBuild;
@@ -123,12 +130,33 @@ export async function buildStandaloneHumanExplorerShell() {
 
 export function injectHumanExperienceOfflinePayload(
   shell,
-  { payload, title = 'KNEEKURA Human Explorer' } = {}
+  {
+    payload,
+    title = 'KNEEKURA Human Explorer',
+    compression = 'NONE'
+  } = {}
 ) {
+  assertOfflinePayloadInjection(shell, payload);
+  const encoded = encodeOfflinePayload(payload, compression);
+  return injectEncodedPayload(shell, encoded, title);
+}
+
+export async function injectHumanExperienceOfflinePayloadStreaming(
+  shell,
+  {
+    payload,
+    title = 'KNEEKURA Human Explorer'
+  } = {}
+) {
+  assertOfflinePayloadInjection(shell, payload);
+  const encoded = await encodeOfflinePayloadStreaming(payload);
+  return injectEncodedPayload(shell, encoded, title);
+}
+
+function assertOfflinePayloadInjection(shell, payload) {
   if (
     !shell ||
-    shell.schema !==
-      HUMAN_EXPLORER_STANDALONE_SHELL_SCHEMA ||
+    shell.schema !== HUMAN_EXPLORER_STANDALONE_SHELL_SCHEMA ||
     typeof shell.html !== 'string'
   ) {
     throw new TypeError(
@@ -137,12 +165,10 @@ export function injectHumanExperienceOfflinePayload(
   }
   if (
     !payload ||
-    payload.schema !==
-      HUMAN_EXPERIENCE_OFFLINE_PAYLOAD_SCHEMA
+    payload.schema !== HUMAN_EXPERIENCE_OFFLINE_PAYLOAD_SCHEMA
   ) {
     throw new TypeError(
-      'offline payload must use ' +
-      HUMAN_EXPERIENCE_OFFLINE_PAYLOAD_SCHEMA
+      'offline payload must use ' + HUMAN_EXPERIENCE_OFFLINE_PAYLOAD_SCHEMA
     );
   }
   validateHumanExperienceProjection(payload.experience);
@@ -153,14 +179,12 @@ export function injectHumanExperienceOfflinePayload(
     payload.sources.repository?.snapshot_id !==
       payload.experience.repository.snapshot_id ||
     payload.sources.ir_digest !==
-      payload.experience.source_identity
-        .human_analysis_ir_digest
+      payload.experience.source_identity.human_analysis_ir_digest
   ) {
     throw new TypeError(
       'offline source bundle identity does not match Human Experience'
     );
   }
-
   const payloadCount = countOccurrences(
     shell.html,
     HUMAN_EXPERIENCE_PAYLOAD_PLACEHOLDER
@@ -174,11 +198,9 @@ export function injectHumanExperienceOfflinePayload(
       'standalone Human Explorer shell placeholders are invalid'
     );
   }
+}
 
-  const encoded = Buffer.from(
-    stableJson(payload),
-    'utf8'
-  ).toString('base64');
+function injectEncodedPayload(shell, encoded, title) {
   const normalizedTitle = String(title ?? '').trim();
   if (!normalizedTitle) {
     throw new TypeError(
@@ -186,10 +208,7 @@ export function injectHumanExperienceOfflinePayload(
     );
   }
   const html = shell.html
-    .replace(
-      HUMAN_EXPERIENCE_PAYLOAD_PLACEHOLDER,
-      encoded
-    )
+    .replace(HUMAN_EXPERIENCE_PAYLOAD_PLACEHOLDER, encoded)
     .replace(
       HUMAN_EXPLORER_TITLE_PLACEHOLDER,
       escapeHtmlText(normalizedTitle.slice(0, 200))
@@ -206,10 +225,137 @@ export function injectHumanExperienceOfflinePayload(
   return html;
 }
 
+function encodeOfflinePayload(payload, compression) {
+  const normalized = String(compression ?? 'NONE').toUpperCase();
+  const payloadJson = stableJson(payload);
+  if (normalized === 'NONE') {
+    return Buffer.from(payloadJson, 'utf8').toString('base64');
+  }
+  if (normalized !== HUMAN_EXPERIENCE_GZIP_ENCODING) {
+    throw new TypeError(`unsupported offline payload compression: ${compression}`);
+  }
+  const compressed = normalizeGzipHeader(
+    gzipSync(Buffer.from(payloadJson, 'utf8'), { level: 9 })
+  );
+  return encodeCompressedEnvelope(compressed);
+}
+
+async function encodeOfflinePayloadStreaming(payload) {
+  const compressed = normalizeGzipHeader(
+    await gzipStableJson(payload)
+  );
+  return encodeCompressedEnvelope(compressed);
+}
+
+function encodeCompressedEnvelope(compressed) {
+  const envelope = {
+    schema: HUMAN_EXPERIENCE_GZIP_ENVELOPE_SCHEMA,
+    encoding: HUMAN_EXPERIENCE_GZIP_ENCODING,
+    payload_schema: HUMAN_EXPERIENCE_OFFLINE_PAYLOAD_SCHEMA,
+    data: compressed.toString('base64')
+  };
+  return Buffer.from(stableJson(envelope), 'utf8').toString('base64');
+}
+
+async function gzipStableJson(value) {
+  const gzip = createGzip({ level: 9 });
+  const chunks = [];
+  gzip.on('data', chunk => chunks.push(Buffer.from(chunk)));
+  const ended = once(gzip, 'end');
+  let pending = '';
+
+  const flushPending = async () => {
+    if (!pending) return;
+    const batch = pending;
+    pending = '';
+    if (!gzip.write(batch, 'utf8')) {
+      await once(gzip, 'drain');
+    }
+  };
+
+  for (const chunk of stableJsonChunks(value)) {
+    let remaining = chunk;
+    while (remaining.length > 0) {
+      const capacity = GZIP_WRITE_BATCH_CHARS - pending.length;
+      if (remaining.length <= capacity) {
+        pending += remaining;
+        break;
+      }
+      pending += remaining.slice(0, capacity);
+      remaining = remaining.slice(capacity);
+      await flushPending();
+    }
+  }
+  await flushPending();
+  gzip.end();
+  await ended;
+  return Buffer.concat(chunks);
+}
+
+function* stableJsonChunks(value, context = 'ROOT') {
+  if (Array.isArray(value)) {
+    yield '[';
+    for (let index = 0; index < value.length; index += 1) {
+      if (index > 0) yield ',';
+      const child = value[index];
+      if (isJsonOmittedValue(child)) {
+        yield 'null';
+      } else {
+        yield* stableJsonChunks(child, 'ARRAY');
+      }
+    }
+    yield ']';
+    return;
+  }
+  if (value && typeof value === 'object' && !Buffer.isBuffer(value)) {
+    const normalized = typeof value.toJSON === 'function'
+      ? value.toJSON()
+      : value;
+    if (normalized !== value) {
+      yield* stableJsonChunks(normalized, context);
+      return;
+    }
+    yield '{';
+    let first = true;
+    for (const key of Object.keys(value).sort(compareText)) {
+      const child = value[key];
+      if (isJsonOmittedValue(child)) continue;
+      if (!first) yield ',';
+      first = false;
+      yield JSON.stringify(key);
+      yield ':';
+      yield* stableJsonChunks(child, 'OBJECT');
+    }
+    yield '}';
+    return;
+  }
+  const encoded = JSON.stringify(value);
+  if (encoded === undefined) {
+    if (context === 'ARRAY') {
+      yield 'null';
+      return;
+    }
+    throw new TypeError('offline payload contains a non-JSON root/object value');
+  }
+  yield encoded;
+}
+
+function isJsonOmittedValue(value) {
+  return value === undefined ||
+    typeof value === 'function' ||
+    typeof value === 'symbol';
+}
+
+function normalizeGzipHeader(compressed) {
+  if (compressed.length >= 10) {
+    compressed.writeUInt32LE(0, 4);
+    compressed[9] = 255;
+  }
+  return compressed;
+}
+
 function normalizeBuildOutputs(result) {
-  const results = Array.isArray(result)
-    ? result
-    : [result];
+  const results = Array.isArray(result) ? result : [result];
   const outputs = [];
   for (const item of results) {
     if (!item || !Array.isArray(item.output)) {
@@ -252,35 +398,31 @@ function assertStandaloneShellSafety(html) {
 }
 
 function stableJson(value) {
-  return JSON.stringify(sortObject(value));
+  const keys = new Set();
+  collectJsonKeys(value, keys);
+  return JSON.stringify(value, [...keys].sort(compareText));
 }
 
-function sortObject(value) {
+function collectJsonKeys(value, keys) {
   if (Array.isArray(value)) {
-    return value.map(sortObject);
+    for (const child of value) collectJsonKeys(child, keys);
+    return;
   }
-  if (
-    value &&
-    typeof value === 'object' &&
-    !Buffer.isBuffer(value)
-  ) {
-    return Object.fromEntries(
-      Object.keys(value)
-        .sort(compareText)
-        .map(key => [key, sortObject(value[key])])
-    );
+  if (!value || typeof value !== 'object' || Buffer.isBuffer(value)) {
+    return;
   }
-  return value;
+  for (const key of Object.keys(value)) {
+    keys.add(key);
+    collectJsonKeys(value[key], keys);
+  }
 }
 
 function escapeInlineScript(value) {
-  return String(value)
-    .replaceAll('</script', '<\\/script');
+  return String(value).replaceAll('</script', '<\\/script');
 }
 
 function escapeInlineStyle(value) {
-  return String(value)
-    .replaceAll('</style', '<\\/style');
+  return String(value).replaceAll('</style', '<\\/style');
 }
 
 function escapeHtmlText(value) {
