@@ -1,3 +1,4 @@
+import { canonicalizeGraphForSnapshot } from '../core/graph.mjs';
 import { EVIDENCE_PACK_SCHEMA, stableDigest } from './schema.mjs';
 
 export function createHumanAnalysisEvidencePack({
@@ -21,7 +22,7 @@ export function createHumanAnalysisEvidencePack({
   if (!Array.isArray(source_catalog)) throw new TypeError('source_catalog must be an array');
 
   const canonical = {
-    graph: structuredClone(graph),
+    graph: canonicalizeGraphForSnapshot(graph),
     result: {
       claims: structuredClone(claims),
       unknowns: structuredClone(unknowns),
