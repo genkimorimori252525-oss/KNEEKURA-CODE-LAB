@@ -37,7 +37,8 @@
     "validate:love-github-system-map-r2": "node scripts/validate-love-github-system-map-r2.mjs",
     "validate:love-github-human-guide-production-r3": "node scripts/run-love-github-human-guide-production-r3.mjs",
     "validate:love-github-human-guide-production-r4": "node scripts/run-love-github-human-guide-production-r4.mjs",
-    "validate:love-github-human-guide-production-r5": "node scripts/validate-love-github-human-guide-production-r5.mjs"
+    "validate:love-github-human-guide-production-r5": "node scripts/validate-love-github-human-guide-production-r5.mjs",
+    "validate:archify-native": "node scripts/validate-kneekura-code-lab-archify-native.mjs"
   },
   "engines": {
     "node": ">=20"
