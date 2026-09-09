@@ -171,7 +171,7 @@ export const poseCompanionProvider = createEvidenceProvider({
 export const paletteCompanionProvider = createEvidenceProvider({
   id: 'palette-companion-adapter',
   version: 'v1',
-  inputKinds: ['runtime-bone-palette'],
+  inputKinds: ['runtime-palette-companion'],
   supportedProperties: ['runtime-bone-palette'],
   evidenceKind: 'RUNTIME',
   trustClass: 'RUNTIME_MEASURED',
