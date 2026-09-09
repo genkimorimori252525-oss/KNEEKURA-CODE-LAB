@@ -1,0 +1,93 @@
+{
+  "schema": "kneekura.code-lab.engine-lock/v1",
+  "product": {
+    "id": "kneekura-code-lab",
+    "authorityRepository": "genkimorimori252525-oss/KNEEKURA-CODE-LAB",
+    "adapterVersion": "1.0.0-dev",
+    "adapterSourceBinding": "SELF_COMMIT_AT_RUNTIME"
+  },
+  "engines": {
+    "kneekura": {
+      "implementationOrigin": "first-party",
+      "sourceRepository": "genkimorimori252525-oss/KNEEKURA-CODE-LAB",
+      "sourceBinding": "SELF_COMMIT_AT_RUNTIME",
+      "nativeAcceptanceProfile": "kneekura-human-guide/v1"
+    },
+    "understand-anything": {
+      "implementationOrigin": "pinned-upstream",
+      "sourceRepository": "Egonex-AI/Understand-Anything",
+      "release": "v2.9.0",
+      "version": "2.9.0",
+      "commit": "f08763d11d0202a8a8f52b5dedda6d1b2e2ebac8",
+      "pluginTree": {
+        "algorithm": "git-sha1",
+        "value": "c79dd16babb26a39aca4a15156bc488bcfc69587"
+      },
+      "packageManifest": {
+        "path": "understand-anything-plugin/package.json",
+        "algorithm": "git-blob-sha1",
+        "value": "e06bc5863abcafdd9c4108e34cbbf5fd6448cedf"
+      },
+      "lockfile": {
+        "path": "understand-anything-plugin/pnpm-lock.yaml",
+        "algorithm": "git-blob-sha1",
+        "value": "fd4cf7539627856d6b166c39dc1041165fa2ce87"
+      },
+      "skillContract": {
+        "path": "understand-anything-plugin/skills/understand/SKILL.md",
+        "algorithm": "git-blob-sha1",
+        "value": "99bede1a9a7e008e621011d6c984a6b97518946f"
+      },
+      "license": {
+        "spdx": "MIT",
+        "path": "LICENSE",
+        "algorithm": "git-blob-sha1",
+        "value": "5df102e8a2e29cdfb881ae7ec5040f2766564680"
+      },
+      "viewerReleaseArtifact": {
+        "name": "understand-anything-viewer.tgz",
+        "algorithm": "sha256",
+        "value": "a8626ff3ad90041e807bfdb8994eefdd986e891593c4759d08222667e5405330"
+      },
+      "nativeAcceptanceProfile": "understand-anything-native/v1"
+    },
+    "archify": {
+      "implementationOrigin": "pinned-upstream",
+      "sourceRepository": "tt-a1i/archify",
+      "release": "v2.16.0",
+      "version": "2.16.0",
+      "commit": "c826e6c3a7abad19c0f3cd1ca57207d54b1ad8de",
+      "skillTree": {
+        "algorithm": "git-sha1",
+        "value": "a198a3e0d03cd08eb582062a52dc4b0bd5b0aa4f"
+      },
+      "packageManifest": {
+        "path": "archify/package.json",
+        "algorithm": "git-blob-sha1",
+        "value": "f727bdb17214de090d5ba6b1100ad135b8491585"
+      },
+      "lockfile": {
+        "path": "archify/package-lock.json",
+        "algorithm": "git-blob-sha1",
+        "value": "fe4d05f9c3f1c9ff0fb81e5a46653015cd48e081"
+      },
+      "skillContract": {
+        "path": "archify/SKILL.md",
+        "algorithm": "git-blob-sha1",
+        "value": "b130e5cbcb4a781ccb25c3fff02efe197bf7e1b3"
+      },
+      "license": {
+        "spdx": "MIT",
+        "path": "archify/LICENSE",
+        "algorithm": "git-blob-sha1",
+        "value": "4c27b7152c7e4593dfdd153761ce178177d30464"
+      },
+      "releaseArtifact": {
+        "name": "archify.zip",
+        "algorithm": "sha256",
+        "value": "4c59fa6557a2385beaaef8c7219cc414573acc9f0c30a932d5053b0b20689a46"
+      },
+      "nativeAcceptanceProfile": "archify-native/v1"
+    }
+  }
+}
