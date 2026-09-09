@@ -1,0 +1,44 @@
+{
+  "schema": "kneekura.love-github-production-golden/v1",
+  "analyzed_repository": "genkimorimori252525-oss/Love-Github",
+  "analyzed_commit": "5d647785bfeee1b8892e9ba782b04a76f1b63fff",
+  "source_ci_run": 947,
+  "source_head_sha": "2e025cc0738fec041df1d66ab67aa9f08463f034",
+  "expected": {
+    "repository_scale_readiness_id": "repository-scale:3066e3ef1c45ee2b43b1ba6b1a11c44e8bd6183852db5799b5661d129cbbfc06",
+    "artifact_id": "artifact:sha256:955dfba6a01f9feebb3ce936d12f7248381da8c4f0f7055378fc0f14c2b03d29",
+    "zip_digest": "sha256:50d2556267a84d7183cf86a71c2c6af853e24c7323d75932cb03ead8887d8b97",
+    "zip_bytes": 155922228,
+    "inventory_files": 87,
+    "domain_batches": 16,
+    "accepted_domain_items": 16,
+    "rejected_domain_items": 0,
+    "direct_ai_file_reads": 16,
+    "scanner_covered_files": 87,
+    "ai_read_covered_files": 16,
+    "offline_source_covered_files": 19,
+    "canonical_graph_nodes": 0,
+    "canonical_claims": 0,
+    "peak_heap_budget_bytes": 1000000000
+  },
+  "known_coverage_gaps": [
+    {
+      "id": "DIRECT_AI_READ_REPRESENTATIVE_NOT_EXHAUSTIVE",
+      "covered_files": 16,
+      "total_files": 87,
+      "explanation": "Repository-scale authoring directly reads one representative source for each deterministic domain batch rather than claiming exhaustive AI inspection of all 87 files."
+    },
+    {
+      "id": "OFFLINE_SOURCE_MATERIALIZATION_PARTIAL",
+      "covered_files": 19,
+      "total_files": 87,
+      "explanation": "Only source ranges needed by accepted human analysis are materialized into the portable artifact; the full 87-file inventory remains searchable without pretending all source text is embedded."
+    },
+    {
+      "id": "CANONICAL_CORE_FACTS_BOUNDED",
+      "canonical_graph_nodes": 0,
+      "canonical_claims": 0,
+      "explanation": "The fixed Love-Github TypeScript vertical establishes repository inventory/evidence boundaries but does not upgrade AI-authored architecture semantics into canonical CORE nodes or claims."
+    }
+  ]
+}

@@ -82,3 +82,23 @@ jobs:
           name: love-github-r4-human-explorer
           path: dist/r4-love-github-production
           if-no-files-found: error
+      - name: Use Node 22 for final Love-Github R5 production golden
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/human-analysis-r5-production-golden')
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Reinstall locked KNEEKURA dependencies for R5
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/human-analysis-r5-production-golden')
+        run: npm ci --no-audit --no-fund
+      - name: Validate final Love-Github R5 production golden
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/human-analysis-r5-production-golden')
+        env:
+          NODE_OPTIONS: --max-old-space-size=960
+        run: npm run validate:love-github-human-guide-production-r5
+      - name: Upload final Love-Github R5 production golden
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/human-analysis-r5-production-golden')
+        uses: actions/upload-artifact@v4
+        with:
+          name: love-github-r5-production-golden
+          path: dist/r4-love-github-production
+          if-no-files-found: error
