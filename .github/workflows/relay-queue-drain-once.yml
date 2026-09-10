@@ -31,6 +31,7 @@ jobs:
             'jolly/github-relay-v1-p3d5-repin-runtime',
             'jolly/github-relay-v1-p3e-stable-task-identity'
           ]);
+          const exactRunIds = new Set([34523937337, 34524359979]);
           const headers = {Accept:'application/vnd.github+json',Authorization:`Bearer ${token}`,'X-GitHub-Api-Version':'2022-11-28','User-Agent':'kneekura-relay-queue-drain-once'};
           await new Promise(resolve => setTimeout(resolve, 3000));
           const candidates = [];
@@ -40,13 +41,13 @@ jobs:
             const payload = await response.json();
             candidates.push(...(Array.isArray(payload.workflow_runs) ? payload.workflow_runs : []));
           }
-          const selected = candidates.filter(run => run.name === 'CI' && maintenanceBranches.has(String(run.head_branch || '')) && ['queued','in_progress'].includes(run.status));
-          console.log(`Selected ${selected.length} Relay-maintenance CI run(s) for force-cancel.`);
+          const selected = candidates.filter(run => run.name === 'CI' && (maintenanceBranches.has(String(run.head_branch || '')) || exactRunIds.has(Number(run.id))) && ['queued','in_progress'].includes(run.status));
+          console.log(`Selected ${selected.length} explicitly bounded Relay CI run(s) for force-cancel.`);
           for (const run of selected) {
             const response = await fetch(`https://api.github.com/repos/${repo}/actions/runs/${run.id}/force-cancel`, {method:'POST',headers});
             if (![202,409].includes(response.status)) throw new Error(`force-cancel ${run.id} failed: HTTP ${response.status}`);
-            console.log(`Force-cancel requested for maintenance CI ${run.id}.`);
+            console.log(`Force-cancel requested for bounded CI ${run.id}.`);
           }
           NODE
 
-# one-shot: p3e-stable-task-identity-drain
+# one-shot: pr105-archify-acceptance-drain
