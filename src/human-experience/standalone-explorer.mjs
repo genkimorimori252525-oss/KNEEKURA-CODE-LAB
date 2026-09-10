@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
 import { once } from 'node:events';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,6 +27,9 @@ const CSP =
 const GZIP_WRITE_BATCH_CHARS = 16 * 1024;
 
 export async function buildStandaloneHumanExplorerShell() {
+  const prebuilt = await readAdjacentPrebuiltHumanExplorerShell();
+  if (prebuilt) return prebuilt;
+
   let viteBuild;
   try {
     ({ build: viteBuild } = await import('vite'));
@@ -352,6 +356,39 @@ function normalizeGzipHeader(compressed) {
     compressed[9] = 255;
   }
   return compressed;
+}
+
+async function readAdjacentPrebuiltHumanExplorerShell() {
+  const url = new URL('./prebuilt-human-explorer-shell.json', import.meta.url);
+  let raw;
+  try {
+    raw = await fs.readFile(url, 'utf8');
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw new TypeError(
+      'prebuilt Human Explorer shell could not be read: ' +
+      String(error?.message ?? error)
+    );
+  }
+  let shell;
+  try {
+    shell = JSON.parse(raw);
+  } catch (error) {
+    throw new TypeError(
+      'prebuilt Human Explorer shell is not valid JSON: ' +
+      String(error?.message ?? error)
+    );
+  }
+  if (
+    !shell ||
+    shell.schema !== HUMAN_EXPLORER_STANDALONE_SHELL_SCHEMA ||
+    shell.renderer !== 'HUMAN_EXPLORER_V2' ||
+    typeof shell.html !== 'string' ||
+    shell.digest !== digestBytes(shell.html)
+  ) {
+    throw new TypeError('prebuilt Human Explorer shell failed identity validation');
+  }
+  return deepFreeze(shell);
 }
 
 function normalizeBuildOutputs(result) {
