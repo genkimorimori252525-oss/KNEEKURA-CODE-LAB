@@ -65,4 +65,4 @@ jobs:
           }
           NODE
 
-# one-shot: bounded-fetch-diag-drain
+# one-shot: bounded-fetch-diag-drain-2
