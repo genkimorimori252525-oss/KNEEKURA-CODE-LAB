@@ -27,7 +27,8 @@ jobs:
           const maintenanceBranches = new Set([
             'jolly/github-relay-v1-queue-drain',
             'jolly/github-relay-v1-credential-diag',
-            'jolly/github-relay-v1-p3d5-strip-actions-token'
+            'jolly/github-relay-v1-p3d5-strip-actions-token',
+            'jolly/github-relay-v1-p3d5-repin-runtime'
           ]);
           const headers = {Accept:'application/vnd.github+json',Authorization:`Bearer ${token}`,'X-GitHub-Api-Version':'2022-11-28','User-Agent':'kneekura-relay-queue-drain-once'};
           await new Promise(resolve => setTimeout(resolve, 3000));
@@ -47,4 +48,4 @@ jobs:
           }
           NODE
 
-# one-shot: p3d5-implementation-drain
+# one-shot: p3d5-repin-final-drain
