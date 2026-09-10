@@ -16,6 +16,12 @@ KNEEKURA Code LAB is one umbrella repository-analysis Skill with three evidence-
 
 If the user explicitly names an engine, use only that engine. If they explicitly request all three, run all three. If they only say to analyze something with KNEEKURA Code LAB and do not select a mode, present the three choices. There is no hidden default and no engine substitution.
 
+## Connected execution
+
+When the KNEEKURA Code LAB MCP tools are available, use `kneekura_code_lab_describe` to inspect the connection, `kneekura_code_lab_plan` to validate the requested immutable target and engine choice, then `kneekura_code_lab_execute`. Use `kneekura_code_lab_status` and `kneekura_code_lab_artifact_info` only for a run id returned by the adapter.
+
+Do not label ordinary model reasoning as an engine run. If the execution backend is unavailable or a required engine is blocked, report the bounded failure state exactly. See `references/MCP.md` for the connection contract and `references/INSTALL.md` for packaging guidance.
+
 ## Hard boundaries
 
 Before analysis, normalize the request through the machine router and bind the run to one canonical Target Snapshot. Reuse KNEEKURA CORE snapshot identity; do not invent a weaker HEAD-only identity.
