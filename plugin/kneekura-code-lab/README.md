@@ -8,6 +8,7 @@ This directory is the source template for the local/Codex/Desktop plugin distrib
 - `.mcp.json` — bundled stdio MCP declaration. The server key deliberately uses underscores (`kneekura_code_lab`) and `cwd: "."` so the installed plugin root is the launch root.
 - `skills/kneekura-code-lab/` — copied from the canonical Skill source at package time.
 - `mcp/server.mjs` — generated standalone MCP transport bundle containing the production Host Bridge backend and first-party KNEEKURA execution path.
+- `mcp/prebuilt-human-explorer-shell.json` — the validated Human Explorer v2 shell built at package time so the installed Plugin does not need Vite/esbuild/node_modules at runtime.
 
 ## Execution
 

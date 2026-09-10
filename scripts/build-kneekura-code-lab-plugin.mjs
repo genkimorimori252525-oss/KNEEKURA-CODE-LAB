@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createDeterministicZip } from '../src/human-analysis/zip.mjs';
+import { buildStandaloneHumanExplorerShell } from '../src/human-experience/standalone-explorer.mjs';
 
 export const PLUGIN_DISTRIBUTION_SCHEMA =
   'kneekura.code-lab.plugin-distribution/v1';
@@ -28,7 +29,8 @@ export async function buildKneekuraCodeLabPluginDistribution({
   repositoryRoot = DEFAULT_REPOSITORY_ROOT,
   outputRoot = path.join(repositoryRoot, 'dist', 'chatgpt-plugin'),
   write = true,
-  bundleMcp = bundleMcpServer
+  bundleMcp = bundleMcpServer,
+  buildExplorerShell = buildStandaloneHumanExplorerShell
 } = {}) {
   const root = path.resolve(repositoryRoot);
   const output = path.resolve(outputRoot);
@@ -44,6 +46,24 @@ export async function buildKneekuraCodeLabPluginDistribution({
       entries.push({ path: descriptor.target, data });
       manifestFiles.push(fileRecord(descriptor.target, descriptor.source, data));
     }
+
+    if (typeof buildExplorerShell !== 'function') {
+      throw new TypeError('buildExplorerShell must be a function');
+    }
+    const explorerShell = await buildExplorerShell();
+    validateExplorerShell(explorerShell);
+    const explorerShellBytes = normalizeTextBytes(
+      Buffer.from(stableJson(explorerShell), 'utf8')
+    );
+    entries.push({
+      path: 'mcp/prebuilt-human-explorer-shell.json',
+      data: explorerShellBytes
+    });
+    manifestFiles.push(fileRecord(
+      'mcp/prebuilt-human-explorer-shell.json',
+      'generated:buildStandaloneHumanExplorerShell',
+      explorerShellBytes
+    ));
 
     const mcpBundle = normalizeTextBytes(await bundleMcp({
       repositoryRoot: root,
@@ -71,12 +91,15 @@ export async function buildKneekuraCodeLabPluginDistribution({
       contains_analysis_engine_implementation: true,
       contains_pinned_upstream_payloads: false,
       embedded_production_host_bridge_backend: true,
+      embedded_human_explorer_shell: true,
       backend_required_for_execution: false,
+      runtime_vite_required: false,
       pinned_upstream_roots_required_for_external_engines: true,
       builder: {
         mcp_bundle: 'esbuild',
         esbuild_version: PLUGIN_ESBUILD_VERSION,
-        node_target: 'node20'
+        node_target: 'node20',
+        human_explorer_shell: 'prebuilt-at-package-time'
       },
       files: manifestFiles
     };
@@ -93,6 +116,7 @@ export async function buildKneekuraCodeLabPluginDistribution({
       zipDigest,
       zipBytes: zip.length,
       mcpBundleDigest: `sha256:${sha256(mcpBundle)}`,
+      explorerShellDigest: explorerShell.digest,
       manifest: deepFreeze(structuredClone(manifest))
     });
 
@@ -136,6 +160,7 @@ async function bundleMcpServer({ repositoryRoot, tempRoot }) {
     '--legal-comments=none',
     '--charset=utf8',
     '--log-level=warning',
+    '--external:vite',
     `--outfile=${outfile}`
   ];
   const run = childProcess.spawnSync(npm, args, {
@@ -156,6 +181,21 @@ async function bundleMcpServer({ repositoryRoot, tempRoot }) {
     );
   }
   return fs.readFile(outfile);
+}
+
+function validateExplorerShell(shell) {
+  if (
+    !shell ||
+    shell.schema !== 'kneekura.human-explorer-standalone-shell/v1' ||
+    shell.renderer !== 'HUMAN_EXPLORER_V2' ||
+    typeof shell.html !== 'string' ||
+    !/^sha256:[0-9a-f]{64}$/.test(String(shell.digest ?? ''))
+  ) {
+    throw codedError(
+      'PLUGIN_EXPLORER_SHELL_INVALID',
+      'prebuilt Human Explorer shell is invalid'
+    );
+  }
 }
 
 function fileRecord(target, source, data) {
@@ -243,6 +283,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     zip_digest: result.zipDigest,
     zip_bytes: result.zipBytes,
     mcp_bundle_digest: result.mcpBundleDigest,
+    explorer_shell_digest: result.explorerShellDigest,
     file_count: result.manifest.files.length + 1
   }));
 }

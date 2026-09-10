@@ -16,6 +16,15 @@ const FAKE_MCP = Buffer.from([
   'export const toolNames = ["kneekura_code_lab_describe","kneekura_code_lab_plan","kneekura_code_lab_execute"];',
   ''
 ].join('\n'), 'utf8');
+const FAKE_SHELL = Object.freeze({
+  schema: 'kneekura.human-explorer-standalone-shell/v1',
+  renderer: 'HUMAN_EXPLORER_V2',
+  csp: "default-src 'none'",
+  html: '<!doctype html><title>fixture</title>',
+  digest: `sha256:${'e'.repeat(64)}`,
+  javascript_digest: `sha256:${'f'.repeat(64)}`,
+  css_digest: `sha256:${'1'.repeat(64)}`
+});
 
 async function buildFixture() {
   return buildKneekuraCodeLabPluginDistribution({
@@ -23,6 +32,9 @@ async function buildFixture() {
     write: false,
     async bundleMcp() {
       return Buffer.from(FAKE_MCP);
+    },
+    async buildExplorerShell() {
+      return structuredClone(FAKE_SHELL);
     }
   });
 }
@@ -35,6 +47,7 @@ test('Plugin v1 distribution is deterministic and rooted at one plugin directory
   assert.equal(first.zipDigest, second.zipDigest);
   assert.deepEqual(first.manifest, second.manifest);
   assert.equal(first.mcpBundleDigest, `sha256:${sha256(FAKE_MCP)}`);
+  assert.equal(first.explorerShellDigest, FAKE_SHELL.digest);
 
   const firstZip = await buildZipFixture();
   const secondZip = await buildZipFixture();
@@ -50,6 +63,7 @@ test('Plugin v1 archive contains only the explicit native plugin surface', async
     'kneekura-code-lab/.codex-plugin/plugin.json',
     'kneekura-code-lab/.mcp.json',
     'kneekura-code-lab/README.md',
+    'kneekura-code-lab/mcp/prebuilt-human-explorer-shell.json',
     'kneekura-code-lab/mcp/server.mjs',
     'kneekura-code-lab/plugin-distribution.json',
     'kneekura-code-lab/skills/kneekura-code-lab/SKILL.md',
@@ -65,6 +79,10 @@ test('Plugin v1 archive contains only the explicit native plugin surface', async
     assert.equal(names.some(name => name.includes(needle)), false, needle);
   }
   assert.deepEqual(fixture.file('mcp/server.mjs'), FAKE_MCP);
+  assert.equal(
+    JSON.parse(fixture.text('mcp/prebuilt-human-explorer-shell.json')).digest,
+    FAKE_SHELL.digest
+  );
 });
 
 test('native plugin manifest and MCP declaration use portable current paths', async () => {
@@ -104,10 +122,13 @@ test('plugin distribution manifest binds every payload by hash and records embed
   assert.equal(manifest.contains_analysis_engine_implementation, true);
   assert.equal(manifest.contains_pinned_upstream_payloads, false);
   assert.equal(manifest.embedded_production_host_bridge_backend, true);
+  assert.equal(manifest.embedded_human_explorer_shell, true);
   assert.equal(manifest.backend_required_for_execution, false);
+  assert.equal(manifest.runtime_vite_required, false);
   assert.equal(manifest.pinned_upstream_roots_required_for_external_engines, true);
   assert.equal(manifest.builder.esbuild_version, PLUGIN_ESBUILD_VERSION);
   assert.equal(manifest.builder.node_target, 'node20');
+  assert.equal(manifest.builder.human_explorer_shell, 'prebuilt-at-package-time');
 
   for (const record of manifest.files) {
     const data = fixture.file(record.path);
@@ -127,7 +148,8 @@ test('packaged Skill and README preserve no-fake-execution, embedded Host Bridge
   assert.match(skill, /HOST_TASK_REQUIRED/);
   assert.match(skill, /kneekura_code_lab_submit_response/);
   assert.match(readme, /embedded production Host Bridge backend/);
-  assert.match(readme, /never replaced with ordinary model reasoning/);
+  assert.match(readme, /prebuilt-human-explorer-shell/);
+  assert.match(readme, /does not need Vite\/esbuild\/node_modules at runtime/);
 });
 
 async function buildZipFixture() {
@@ -137,6 +159,9 @@ async function buildZipFixture() {
     write: false,
     async bundleMcp() {
       return Buffer.from(FAKE_MCP);
+    },
+    async buildExplorerShell() {
+      return structuredClone(FAKE_SHELL);
     }
   });
 
@@ -150,6 +175,9 @@ async function buildZipFixture() {
       write: true,
       async bundleMcp() {
         return Buffer.from(FAKE_MCP);
+      },
+      async buildExplorerShell() {
+        return structuredClone(FAKE_SHELL);
       }
     });
     const zip = await fs.readFile(written.zipPath);
