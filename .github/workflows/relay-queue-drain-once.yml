@@ -65,4 +65,4 @@ jobs:
           }
           NODE
 
-# one-shot: drain-relay-maintenance-ci
+# one-shot: exact-node-probe-drain
