@@ -1,0 +1,41 @@
+{
+  "name": "kneekura-code-lab",
+  "version": "1.0.0",
+  "description": "Evidence-first exact-snapshot repository analysis through KNEEKURA Code LAB.",
+  "author": {
+    "name": "KNEEKURA Project",
+    "url": "https://github.com/genkimorimori252525-oss"
+  },
+  "homepage": "https://github.com/genkimorimori252525-oss/KNEEKURA-CODE-LAB",
+  "repository": "https://github.com/genkimorimori252525-oss/KNEEKURA-CODE-LAB",
+  "keywords": [
+    "code-analysis",
+    "architecture",
+    "repository",
+    "evidence",
+    "kneekura",
+    "understand-anything",
+    "archify"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "KNEEKURA Code LAB",
+    "shortDescription": "Evidence-first exact-snapshot code analysis",
+    "longDescription": "Analyze software repositories through the isolated KNEEKURA, Understand Anything, and Archify engines while preserving exact target identity, evidence boundaries, and truthful failure states.",
+    "developerName": "KNEEKURA Project",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read"
+    ],
+    "websiteURL": "https://github.com/genkimorimori252525-oss/KNEEKURA-CODE-LAB",
+    "defaultPrompt": [
+      "Analyze this repository with KNEEKURA Code LAB.",
+      "Map this repository with Understand Anything through KNEEKURA Code LAB.",
+      "Visualize this repository architecture with Archify through KNEEKURA Code LAB."
+    ],
+    "brandColor": "#2E7D32",
+    "screenshots": []
+  }
+}

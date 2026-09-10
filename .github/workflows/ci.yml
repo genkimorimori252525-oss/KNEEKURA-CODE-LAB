@@ -14,6 +14,25 @@ jobs:
           node-version: 20
       - run: npm ci --no-audit --no-fund
       - run: npm test
+      - name: Build deterministic KNEEKURA Code LAB Agent Skill package
+        run: npm run skill:package
+      - name: Install pinned MCP v2 adapter dependencies without lifecycle scripts
+        run: npm install --prefix mcp --ignore-scripts --no-audit --no-fund --package-lock=false
+      - name: Smoke-test MCP v2 server registration
+        run: npm --prefix mcp run smoke
+      - name: Build deterministic KNEEKURA Code LAB Plugin v1 package
+        run: npm run plugin:package
+      - name: Smoke-test generated Plugin MCP over stdio
+        run: node scripts/smoke-kneekura-code-lab-plugin.mjs
+      - name: Upload KNEEKURA Code LAB Plugin v1 package
+        if: github.ref_name == 'jolly/skill-distribution-mcp-v1' || github.head_ref == 'jolly/skill-distribution-mcp-v1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: kneekura-code-lab-plugin-v1
+          path: |
+            dist/chatgpt-plugin/kneekura-code-lab-plugin-v1.zip
+            dist/chatgpt-plugin/kneekura-code-lab-plugin-v1.zip.sha256
+          if-no-files-found: error
       - name: Prepare pinned Archify v2.16.0
         if: github.event_name == 'push' && startsWith(github.ref_name, 'jolly/kneekura-code-lab-skill-v1')
         shell: powershell
