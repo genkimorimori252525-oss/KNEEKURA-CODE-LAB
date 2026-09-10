@@ -63,5 +63,8 @@ jobs:
           "KNEEKURA_UA_ROOT=$dest" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "KNEEKURA_UA_DASHBOARD_ROOT=$dashboard" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      - name: Instrument per-engine outcome diagnostics
+        run: node scripts/instrument-host-bridge-three-engine-acceptance.mjs
+
       - name: Run Host Bridge all-three-engine acceptance
         run: node scripts/validate-kneekura-code-lab-host-bridge-three-engine.mjs
