@@ -464,7 +464,7 @@ async function projectEngineHostPayload(session, kind, payload) {
     schema: 'kneekura.code-lab.host-task-public-payload/v1',
     kind,
     target: {
-      repository: session.plan.target.repository,
+      repository: session.repository.canonical_identity,
       revision: session.plan.target.revision,
       snapshot_id: session.materialized.snapshotIdentity.snapshot_id,
       scope_digest: session.plan.target.scopeDigest
