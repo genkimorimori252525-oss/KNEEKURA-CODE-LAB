@@ -108,7 +108,11 @@ export async function runGithubRelayTurn({
   assertPlanContinuity(existingPlan, context.relayPlan);
 
   const responseEnvelopes = normalizeEntryEnvelopes(responses);
+  const respondedTaskIds = new Set(responseEnvelopes.map(response => response.task_id));
   const sourceEntries = normalizeSourceEntries(sourceRequests);
+  const activeSourceEntries = sourceEntries.filter(entry =>
+    !respondedTaskIds.has(entry.envelope.task_id)
+  );
   const taskIds = normalizeStringSet(existingTaskIds, 'existingTaskIds');
   const sourceDigests = normalizeStringSet(existingSourceResultDigests, 'existingSourceResultDigests');
   const resultRunIds = normalizeStringSet(existingResultRunIds, 'existingResultRunIds');
@@ -130,7 +134,7 @@ export async function runGithubRelayTurn({
     const pendingSource = findPendingSourceRequest({
       runId: context.runId,
       taskId: task.task_id,
-      sourceEntries,
+      sourceEntries: activeSourceEntries,
       servedDigests: sourceDigests
     });
     if (pendingSource) {
@@ -162,7 +166,7 @@ export async function runGithubRelayTurn({
       return freezeTurn(context, replay, actions);
     }
 
-    const unservedForeign = firstUnservedSourceRequest(sourceEntries, sourceDigests);
+    const unservedForeign = firstUnservedSourceRequest(activeSourceEntries, sourceDigests);
     if (unservedForeign) {
       throw codedError(
         'RELAY_SOURCE_REQUEST_OUT_OF_ORDER',
@@ -239,7 +243,8 @@ export function sealedArtifactBytes(execution) {
 }
 
 function findPendingSourceRequest({ runId, taskId, sourceEntries, servedDigests }) {
-  for (const entry of sourceEntries) {
+  for (let index = sourceEntries.length - 1; index >= 0; index -= 1) {
+    const entry = sourceEntries[index];
     if (servedDigests.has(entry.digest)) continue;
     if (entry.envelope.run_id === runId && entry.envelope.task_id === taskId) return entry;
   }
