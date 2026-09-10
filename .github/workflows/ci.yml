@@ -14,6 +14,27 @@ jobs:
           node-version: 20
       - run: npm ci --no-audit --no-fund
       - run: npm test
+      - name: Prepare pinned Archify v2.16.0
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'jolly/kneekura-code-lab-skill-v1')
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $env:RUNNER_TEMP 'kneekura-archify-v2.16.0.zip'
+          $dest = Join-Path $env:RUNNER_TEMP 'kneekura-archify-v2.16.0'
+          if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/tt-a1i/archify/c826e6c3a7abad19c0f3cd1ca57207d54b1ad8de/archify.zip' -OutFile $zip
+          $actual = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
+          $expected = '4c59fa6557a2385beaaef8c7219cc414573acc9f0c30a932d5053b0b20689a46'
+          if ($actual -ne $expected) { throw "Pinned Archify sha256 mismatch: $actual" }
+          Expand-Archive -LiteralPath $zip -DestinationPath $dest -Force
+          $cli = Get-ChildItem -Path $dest -Recurse -File -Filter 'archify.mjs' | Where-Object { $_.FullName -match '[\\/]bin[\\/]archify\.mjs$' } | Select-Object -First 1
+          if (-not $cli) { throw 'Pinned Archify CLI missing after extraction' }
+          $archifyRoot = Split-Path -Parent (Split-Path -Parent $cli.FullName)
+          "KNEEKURA_ARCHIFY_ROOT=$archifyRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "KNEEKURA_ARCHIFY_ARTIFACT_SHA256=$actual" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Validate pinned Archify native Skill engine
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'jolly/kneekura-code-lab-skill-v1')
+        run: npm run validate:archify-native
       - name: Validate live Love-Github TypeScript vertical
         if: github.event_name == 'push' && startsWith(github.ref_name, 'feat/typescript-semantic-vertical')
         run: npm run validate:love-github-typescript-live
@@ -102,3 +123,50 @@ jobs:
           name: love-github-r5-production-golden
           path: dist/r4-love-github-production
           if-no-files-found: error
+      - name: Use Node 22 for pinned Understand Anything v2.9.0
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'jolly/kneekura-code-lab-skill-v1')
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Prepare pinned Understand Anything v2.9.0
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'jolly/kneekura-code-lab-skill-v1')
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $expectedCommit = 'f08763d11d0202a8a8f52b5dedda6d1b2e2ebac8'
+          $dest = Join-Path $env:RUNNER_TEMP 'kneekura-understand-anything-v2.9.0'
+          if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
+          New-Item -ItemType Directory -Path $dest | Out-Null
+          git -C $dest init
+          git -C $dest remote add origin 'https://github.com/Egonex-AI/Understand-Anything.git'
+          git -C $dest fetch --depth 1 origin 'refs/tags/v2.9.0'
+          git -C $dest checkout --detach FETCH_HEAD
+          $actualCommit = (git -C $dest rev-parse HEAD).Trim().ToLowerInvariant()
+          if ($actualCommit -ne $expectedCommit) { throw "Pinned UA commit mismatch: $actualCommit" }
+          $pluginTree = (git -C $dest rev-parse 'HEAD:understand-anything-plugin').Trim().ToLowerInvariant()
+          if ($pluginTree -ne 'c79dd16babb26a39aca4a15156bc488bcfc69587') { throw "Pinned UA plugin tree mismatch: $pluginTree" }
+          $checks = @{
+            'understand-anything-plugin/package.json' = 'e06bc5863abcafdd9c4108e34cbbf5fd6448cedf'
+            'understand-anything-plugin/pnpm-lock.yaml' = 'fd4cf7539627856d6b166c39dc1041165fa2ce87'
+            'understand-anything-plugin/skills/understand/SKILL.md' = '99bede1a9a7e008e621011d6c984a6b97518946f'
+            'LICENSE' = '5df102e8a2e29cdfb881ae7ec5040f2766564680'
+          }
+          foreach ($entry in $checks.GetEnumerator()) {
+            $actual = (git -C $dest hash-object $entry.Key).Trim().ToLowerInvariant()
+            if ($actual -ne $entry.Value) { throw "Pinned UA blob mismatch for $($entry.Key): $actual" }
+          }
+          corepack enable
+          corepack prepare pnpm@10.6.2 --activate
+          Push-Location $dest
+          try {
+            pnpm install --frozen-lockfile
+            pnpm --filter '@understand-anything/core' build
+            pnpm --filter '@understand-anything/dashboard' build
+          } finally { Pop-Location }
+          $dashboard = Join-Path $dest 'understand-anything-plugin\packages\dashboard\dist'
+          if (-not (Test-Path (Join-Path $dashboard 'index.html'))) { throw 'Pinned UA dashboard build missing index.html' }
+          "KNEEKURA_UA_ROOT=$dest" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "KNEEKURA_UA_DASHBOARD_ROOT=$dashboard" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Validate pinned Understand Anything native Skill engine
+        if: github.event_name == 'push' && startsWith(github.ref_name, 'jolly/kneekura-code-lab-skill-v1')
+        run: npm run validate:ua-native
