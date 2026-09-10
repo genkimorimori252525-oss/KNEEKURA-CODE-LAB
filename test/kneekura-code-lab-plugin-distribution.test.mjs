@@ -60,9 +60,10 @@ test('Plugin v1 archive contains only the explicit native plugin surface', async
   const fixture = await buildZipFixture();
   const names = fixture.entries.map(entry => entry.name);
   assert.deepEqual(names, [
-    'kneekura-code-lab/.codex-plugin/plugin.json',
-    'kneekura-code-lab/.mcp.json',
-    'kneekura-code-lab/README.md',
+     'kneekura-code-lab/.codex-plugin/plugin.json',
+     'kneekura-code-lab/.mcp.json',
+     'kneekura-code-lab/README.md',
+     'kneekura-code-lab/engine-lock.json',
     'kneekura-code-lab/mcp/prebuilt-human-explorer-shell.json',
     'kneekura-code-lab/mcp/server.mjs',
     'kneekura-code-lab/plugin-distribution.json',
