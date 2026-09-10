@@ -14,6 +14,12 @@ jobs:
           node-version: 20
       - run: npm ci --no-audit --no-fund
       - run: npm test
+      - name: Build deterministic KNEEKURA Code LAB Agent Skill package
+        run: npm run skill:package
+      - name: Install pinned MCP v2 adapter dependencies without lifecycle scripts
+        run: npm install --prefix mcp --ignore-scripts --no-audit --no-fund --package-lock=false
+      - name: Smoke-test MCP v2 server registration
+        run: npm --prefix mcp run smoke
       - name: Prepare pinned Archify v2.16.0
         if: github.event_name == 'push' && startsWith(github.ref_name, 'jolly/kneekura-code-lab-skill-v1')
         shell: powershell
