@@ -130,6 +130,50 @@ jobs:
           $ghToken = $null
           $tokenOutput = $null
           $tokenError = $null
+      - name: Prepare pinned Archify v2.16.0 when requested
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $event = Get-Content -Raw -Encoding UTF8 -LiteralPath $env:GITHUB_EVENT_PATH | ConvertFrom-Json
+          $body = [string]$event.issue.body
+          $match = [regex]::Match($body, '(?s)^\s*KNEEKURA_RELAY_REQUEST_V1\s+```json\s*(\{.*\})\s*```\s*$')
+          if (-not $match.Success) { exit 0 }
+          $request = $match.Groups[1].Value | ConvertFrom-Json
+          $selection = [string]$request.selection
+          if ($selection -ne 'archify') { exit 0 }
+
+          $expected = '4c59fa6557a2385beaaef8c7219cc414573acc9f0c30a932d5053b0b20689a46'
+          $cacheRoot = Join-Path $env:USERPROFILE '.kneekura-code-lab\engine-cache'
+          New-Item -ItemType Directory -Path $cacheRoot -Force | Out-Null
+          $cacheZip = Join-Path $cacheRoot 'archify-v2.16.0-4c59fa6557a2385beaaef8c7219cc414573acc9f0c30a932d5053b0b20689a46.zip'
+
+          if (Test-Path $cacheZip) {
+            $cached = (Get-FileHash -Algorithm SHA256 $cacheZip).Hash.ToLowerInvariant()
+            if ($cached -ne $expected) { Remove-Item -Force $cacheZip }
+          }
+          if (-not (Test-Path $cacheZip)) {
+            $tmpZip = "$cacheZip.$env:GITHUB_RUN_ID.tmp"
+            if (Test-Path $tmpZip) { Remove-Item -Force $tmpZip }
+            try {
+              Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/tt-a1i/archify/c826e6c3a7abad19c0f3cd1ca57207d54b1ad8de/archify.zip' -OutFile $tmpZip
+              $downloaded = (Get-FileHash -Algorithm SHA256 $tmpZip).Hash.ToLowerInvariant()
+              if ($downloaded -ne $expected) { throw "Pinned Archify sha256 mismatch: $downloaded" }
+              Move-Item -Force $tmpZip $cacheZip
+            } finally {
+              if (Test-Path $tmpZip) { Remove-Item -Force $tmpZip }
+            }
+          }
+
+          $actual = (Get-FileHash -Algorithm SHA256 $cacheZip).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw "Pinned Archify cache sha256 mismatch: $actual" }
+          $dest = Join-Path $env:RUNNER_TEMP "kneekura-relay-archify-v2.16.0-$env:GITHUB_RUN_ID"
+          if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
+          Expand-Archive -LiteralPath $cacheZip -DestinationPath $dest -Force
+          $cli = Get-ChildItem -Path $dest -Recurse -File -Filter 'archify.mjs' | Where-Object { $_.FullName -match '[\\/]bin[\\/]archify\.mjs$' } | Select-Object -First 1
+          if (-not $cli) { throw 'Pinned Archify CLI missing after extraction' }
+          $archifyRoot = Split-Path -Parent (Split-Path -Parent $cli.FullName)
+          "KNEEKURA_ARCHIFY_ROOT=$archifyRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "KNEEKURA_ARCHIFY_ARTIFACT_SHA256=$actual" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Install pinned Code LAB dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
       - id: relay
