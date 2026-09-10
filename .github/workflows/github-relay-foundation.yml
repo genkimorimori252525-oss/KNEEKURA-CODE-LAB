@@ -10,6 +10,7 @@ on:
       - 'docs/github-relay-v1.md'
       - 'package.json'
       - '.github/workflows/github-relay-foundation.yml'
+      - '.github/workflows/kneekura-github-relay.yml'
 
 permissions:
   contents: read

@@ -1,0 +1,99 @@
+name: KNEEKURA Code LAB GitHub Relay
+
+on:
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: kneekura-code-lab-relay-${{ github.repository_id }}-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - id: gate
+        name: Gate authorized Relay event
+        shell: bash
+        env:
+          KNEEKURA_RELAY_ALLOWED_ACTORS: ${{ vars.KNEEKURA_RELAY_ALLOWED_ACTORS }}
+          KNEEKURA_RELAY_REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
+          const owner = String(process.env.KNEEKURA_RELAY_REPOSITORY_OWNER || '').trim().toLowerCase();
+          const configured = String(process.env.KNEEKURA_RELAY_ALLOWED_ACTORS || owner)
+            .split(',')
+            .map(value => value.trim().toLowerCase())
+            .filter(Boolean);
+          const allowed = new Set(configured.length ? configured : [owner]);
+          const sender = String(event?.sender?.login || '').trim().toLowerCase();
+          const firstLine = value => String(value || '').replace(/\r\n?/g, '\n').trimStart().split('\n', 1)[0].trim();
+          let run = false;
+          if (!event?.issue?.pull_request && allowed.has(sender)) {
+            if (process.env.GITHUB_EVENT_NAME === 'issues' && event.action === 'opened') {
+              run = firstLine(event.issue?.body) === 'KNEEKURA_RELAY_REQUEST_V1';
+            } else if (process.env.GITHUB_EVENT_NAME === 'issue_comment' && event.action === 'created') {
+              const marker = firstLine(event.comment?.body);
+              run = marker === 'KNEEKURA_RELAY_RESPONSE_V1' || marker === 'KNEEKURA_RELAY_SOURCE_REQUEST_V1';
+            }
+          }
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `run=${run ? 'true' : 'false'}\n`);
+          NODE
+
+  execute:
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    runs-on: [self-hosted, Windows, X64, kneekura-code-lab]
+    timeout-minutes: 60
+    steps:
+      - name: Checkout pinned Relay runtime
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 83114564180761f83c2279ce4055723365a566cb
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 20
+      - name: Install pinned Code LAB dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - id: relay
+        name: Execute one disposable Relay turn
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KNEEKURA_RELAY_GITHUB_TOKEN: ${{ secrets.KNEEKURA_RELAY_GITHUB_TOKEN }}
+          KNEEKURA_RELAY_ALLOWED_ACTORS: ${{ vars.KNEEKURA_RELAY_ALLOWED_ACTORS }}
+        run: node scripts/run-kneekura-github-relay.mjs
+      - id: artifact
+        name: Upload sealed Relay artifact
+        if: steps.relay.outcome == 'success' && steps.relay.outputs.has_artifact == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ steps.relay.outputs.artifact_name }}
+          path: ${{ steps.relay.outputs.artifact_path }}
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish bounded Relay comments
+        if: >-
+          always() &&
+          steps.relay.outputs.turn_file != '' &&
+          (
+            steps.relay.outcome == 'failure' ||
+            steps.relay.outputs.has_artifact != 'true' ||
+            steps.artifact.outcome == 'success'
+          )
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KNEEKURA_RELAY_TURN_FILE: ${{ steps.relay.outputs.turn_file }}
+        run: node scripts/publish-kneekura-github-relay.mjs
