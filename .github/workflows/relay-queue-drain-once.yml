@@ -65,4 +65,4 @@ jobs:
           }
           NODE
 
-# one-shot: no-bom-full-relay-probe-drain
+# one-shot: bounded-fetch-diag-drain
