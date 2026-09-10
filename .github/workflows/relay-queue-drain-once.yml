@@ -7,139 +7,46 @@ on:
 
 permissions:
   actions: write
-  contents: write
+  contents: read
 
 jobs:
-  patch-p3e:
+  drain:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
-      - name: Checkout P3e target branch
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        with:
-          ref: jolly/github-relay-v1-p3e-stable-task-identity
-          fetch-depth: 1
-          persist-credentials: true
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
-        with:
-          node-version: 20
-      - name: Install dependencies without lifecycle scripts
-        run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Apply stable public target identity
+      - name: Force-cancel Relay maintenance branch CI only
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPOSITORY: ${{ github.repository }}
         run: |
           node <<'NODE'
-          const fs = require('node:fs');
-          const file = 'mcp/src/production-backend.mjs';
-          const oldLine = '      repository: session.plan.target.repository,';
-          const newLine = '      repository: session.repository.canonical_identity,';
-          const text = fs.readFileSync(file, 'utf8');
-          const count = text.split(oldLine).length - 1;
-          if (count !== 1) throw new Error(`expected exactly one public target projection, found ${count}`);
-          fs.writeFileSync(file, text.replace(oldLine, newLine));
+          const repo = process.env.GH_REPOSITORY;
+          const token = process.env.GH_TOKEN;
+          if (!repo || !token) throw new Error('GitHub context missing');
+          const maintenanceBranches = new Set([
+            'jolly/github-relay-v1-queue-drain',
+            'jolly/github-relay-v1-credential-diag',
+            'jolly/github-relay-v1-p3d5-strip-actions-token',
+            'jolly/github-relay-v1-p3d5-repin-runtime',
+            'jolly/github-relay-v1-p3e-stable-task-identity'
+          ]);
+          const headers = {Accept:'application/vnd.github+json',Authorization:`Bearer ${token}`,'X-GitHub-Api-Version':'2022-11-28','User-Agent':'kneekura-relay-queue-drain-once'};
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          const candidates = [];
+          for (const status of ['queued','in_progress']) {
+            const response = await fetch(`https://api.github.com/repos/${repo}/actions/runs?status=${status}&per_page=100`, {headers});
+            if (!response.ok) throw new Error(`list runs failed: HTTP ${response.status}`);
+            const payload = await response.json();
+            candidates.push(...(Array.isArray(payload.workflow_runs) ? payload.workflow_runs : []));
+          }
+          const selected = candidates.filter(run => run.name === 'CI' && maintenanceBranches.has(String(run.head_branch || '')) && ['queued','in_progress'].includes(run.status));
+          console.log(`Selected ${selected.length} Relay-maintenance CI run(s) for force-cancel.`);
+          for (const run of selected) {
+            const response = await fetch(`https://api.github.com/repos/${repo}/actions/runs/${run.id}/force-cancel`, {method:'POST',headers});
+            if (![202,409].includes(response.status)) throw new Error(`force-cancel ${run.id} failed: HTTP ${response.status}`);
+            console.log(`Force-cancel requested for maintenance CI ${run.id}.`);
+          }
           NODE
-      - name: Add fresh-root Source Broker regression
-        shell: bash
-        run: |
-          cat > test/kneekura-code-lab-github-relay-p3e-stable-task-identity.test.mjs <<'EOF'
-          import assert from 'node:assert/strict';
-          import childProcess from 'node:child_process';
-          import fs from 'node:fs/promises';
-          import os from 'node:os';
-          import path from 'node:path';
-          import test from 'node:test';
 
-          import { createHostBridgeProductionBackend } from '../mcp/src/production-backend.mjs';
-          import { GITHUB_RELAY_SCHEMAS, validateRelaySourceRequest } from '../src/github-relay/contracts.mjs';
-          import { runGithubRelayTurn } from '../src/github-relay/orchestrator.mjs';
-
-          const TARGET = 'genkimorimori252525-oss/KNEEKURA-LAB';
-          const CODE_LAB_REVISION = 'b'.repeat(40);
-          const ENGINE_LOCK_DIGEST = `sha256:${'c'.repeat(64)}`;
-
-          test('production Source Broker preserves pending task identity across fresh equivalent Relay target roots', async t => {
-            const fixture = await makeFixture(t);
-            const request = {
-              schema: GITHUB_RELAY_SCHEMAS.request,
-              selection: 'kneekura',
-              target: { repository: TARGET, revision: fixture.commit },
-              commonScope: { question: 'Explain the exact committed architecture across disposable Relay roots.' }
-            };
-            const first = await runGithubRelayTurn({
-              request, issueNumber: 74, targetRoot: fixture.rootA,
-              codeLabRevision: CODE_LAB_REVISION, engineLockDigest: ENGINE_LOCK_DIGEST,
-              backend: createHostBridgeProductionBackend({ env: {}, tempParent: fixture.workA })
-            });
-            assert.deepEqual(first.actions.map(row => row.kind), ['PLAN', 'TASK']);
-            const task = first.actions.find(row => row.kind === 'TASK').envelope.task;
-            const existingPlan = first.actions.find(row => row.kind === 'PLAN').envelope;
-            assert.equal(JSON.stringify(task.payload).includes(fixture.rootA), false);
-            assert.equal(task.payload.target.repository, `git:github.com/${TARGET.toLowerCase()}`);
-            const sourceRequest = validateRelaySourceRequest({
-              schema: GITHUB_RELAY_SCHEMAS.sourceRequest,
-              run_id: first.run_id,
-              task_id: task.task_id,
-              path: 'src/Main.java',
-              start_line: 1,
-              end_line: 2
-            });
-            const second = await runGithubRelayTurn({
-              request, issueNumber: 74, targetRoot: fixture.rootB,
-              codeLabRevision: CODE_LAB_REVISION, engineLockDigest: ENGINE_LOCK_DIGEST,
-              backend: createHostBridgeProductionBackend({ env: {}, tempParent: fixture.workB }),
-              existingPlan,
-              existingTaskIds: new Set([task.task_id]),
-              sourceRequests: [{ comment_id: 20, envelope: sourceRequest }]
-            });
-            assert.deepEqual(second.actions.map(row => row.kind), ['SOURCE_RESULT']);
-            assert.equal(second.actions[0].envelope.task_id, task.task_id);
-            assert.equal(second.actions[0].envelope.source.path, 'src/Main.java');
-            assert.equal(second.actions[0].envelope.source.instruction_authority, false);
-          });
-
-          async function makeFixture(t) {
-            const rootA = await fs.mkdtemp(path.join(os.tmpdir(), 'kneekura-relay-fresh-a-'));
-            const rootBParent = await fs.mkdtemp(path.join(os.tmpdir(), 'kneekura-relay-fresh-b-'));
-            const rootB = path.join(rootBParent, 'target');
-            const workA = await fs.mkdtemp(path.join(os.tmpdir(), 'kneekura-relay-work-a-'));
-            const workB = await fs.mkdtemp(path.join(os.tmpdir(), 'kneekura-relay-work-b-'));
-            t.after(async () => {
-              for (const value of [rootA, rootBParent, workA, workB]) await fs.rm(value, { recursive: true, force: true });
-            });
-            git(rootA, ['init']);
-            git(rootA, ['config', 'user.email', 'fixture@example.invalid']);
-            git(rootA, ['config', 'user.name', 'Fixture']);
-            git(rootA, ['remote', 'add', 'origin', `https://github.com/${TARGET}.git`]);
-            await fs.mkdir(path.join(rootA, 'src'), { recursive: true });
-            await fs.writeFile(
-              path.join(rootA, 'src', 'Main.java'),
-              'package demo;\npublic class Main {}\n',
-              'utf8'
-            );
-            git(rootA, ['add', '--all']);
-            git(rootA, ['commit', '-m', 'fresh root fixture']);
-            const commit = git(rootA, ['rev-parse', 'HEAD']);
-            await fs.cp(rootA, rootB, { recursive: true });
-            return { rootA, rootB, workA, workB, commit };
-          }
-
-          function git(cwd, args) {
-            return childProcess.execFileSync('git', ['-C', cwd, ...args], {
-              encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe']
-            }).trim();
-          }
-          EOF
-      - name: Run focused regression
-        run: |
-          node --check mcp/src/production-backend.mjs
-          node --check test/kneekura-code-lab-github-relay-p3e-stable-task-identity.test.mjs
-          node --test test/kneekura-code-lab-github-relay-p3e-stable-task-identity.test.mjs test/kneekura-code-lab-github-relay-p3a.test.mjs
-      - name: Commit P3e fix
-        shell: bash
-        run: |
-          git config user.name "KNEEKURA Relay Maintenance"
-          git config user.email "relay-maintenance@example.invalid"
-          git add mcp/src/production-backend.mjs test/kneekura-code-lab-github-relay-p3e-stable-task-identity.test.mjs
-          git diff --cached --check
-          git commit -m "Stabilize Relay Host Task identity across disposable roots"
-          git push origin HEAD:jolly/github-relay-v1-p3e-stable-task-identity
+# one-shot: p3e-stable-task-identity-drain
