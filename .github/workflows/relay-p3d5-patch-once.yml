@@ -1,0 +1,81 @@
+name: Relay P3d5 Patch One-Shot
+
+on:
+  push:
+    branches:
+      - jolly/github-relay-v1-p3d5-strip-actions-token
+    paths:
+      - .github/workflows/relay-p3d5-patch-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: jolly/github-relay-v1-p3d5-strip-actions-token
+          fetch-depth: 0
+      - name: Apply minimal target-fetch token isolation and regression
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const runtimePath = 'scripts/run-kneekura-github-relay.mjs';
+          const testPath = 'test/kneekura-code-lab-github-relay-p3d5-target-fetch-token-isolation.test.mjs';
+          let text = fs.readFileSync(runtimePath, 'utf8');
+          const needle = `  const env = {
+              ...process.env,
+              GIT_TERMINAL_PROMPT: '0',
+              GCM_INTERACTIVE: 'Never'
+            };
+            let askpassPath = null;`;
+          const replacement = `  const env = {
+              ...process.env,
+              GIT_TERMINAL_PROMPT: '0',
+              GCM_INTERACTIVE: 'Never'
+            };
+            // Keep the repository-scoped Actions token out of the target Git child.
+            // Otherwise Git Credential Manager may prefer it over the explicitly
+            // selected target token and make another private repository look absent.
+            delete env.GITHUB_TOKEN;
+            let askpassPath = null;`;
+          if (!text.includes(needle)) throw new Error('materializeTarget env block did not match expected main source');
+          text = text.replace(needle, replacement);
+          fs.writeFileSync(runtimePath, text, 'utf8');
+
+          const test = `import assert from 'node:assert/strict';
+          import fs from 'node:fs/promises';
+          import test from 'node:test';
+
+          const RUNTIME = new URL('../scripts/run-kneekura-github-relay.mjs', import.meta.url);
+
+          test('target Git child drops repository-scoped Actions token before explicit Relay askpass auth', async () => {
+            const text = await fs.readFile(RUNTIME, 'utf8');
+            const start = text.indexOf('async function materializeTarget({');
+            const end = text.indexOf('\\nasync function createAskpass(', start);
+            assert.notEqual(start, -1);
+            assert.notEqual(end, -1);
+            const body = text.slice(start, end);
+
+            assert.match(body, /const env = \\{[\\s\\S]*?GIT_TERMINAL_PROMPT: '0',[\\s\\S]*?GCM_INTERACTIVE: 'Never'[\\s\\S]*?\\};/);
+            assert.match(body, /delete env\\.GITHUB_TOKEN;/);
+            assert.match(body, /env\\.GIT_ASKPASS = askpassPath;/);
+            assert.match(body, /env\\.KNEEKURA_RELAY_FETCH_TOKEN = token;/);
+            assert.ok(body.indexOf('delete env.GITHUB_TOKEN;') < body.indexOf("'fetch', '--depth'"));
+          });
+          `;
+          fs.mkdirSync('test', { recursive: true });
+          fs.writeFileSync(testPath, test.replace(/^          /gm, ''), 'utf8');
+          NODE
+          node --check scripts/run-kneekura-github-relay.mjs
+          node --test test/kneekura-code-lab-github-relay-p3d5-target-fetch-token-isolation.test.mjs
+          rm .github/workflows/relay-p3d5-patch-once.yml
+          git config user.name "KNEEKURA Relay Maintenance"
+          git config user.email "actions@users.noreply.github.com"
+          git add scripts/run-kneekura-github-relay.mjs test/kneekura-code-lab-github-relay-p3d5-target-fetch-token-isolation.test.mjs .github/workflows/relay-p3d5-patch-once.yml
+          git commit -m "Isolate Relay target fetch from Actions token"
+          git push origin HEAD:jolly/github-relay-v1-p3d5-strip-actions-token
