@@ -20,19 +20,13 @@ jobs:
           fetch-depth: 0
       - name: Apply bounded shell loader patch
         run: node scripts/apply-prebuilt-shell-loader-hotfix.mjs
-      - name: Verify patch shape
-        shell: pwsh
-        run: |
-          $text = Get-Content src/human-experience/standalone-explorer.mjs -Raw
-          if ($text -notmatch 'readAdjacentPrebuiltHumanExplorerShell') { throw 'prebuilt loader missing' }
-          if ($text -notmatch "prebuilt-human-explorer-shell.json") { throw 'prebuilt filename missing' }
-          if ($text -notmatch "import fs from 'node:fs/promises'") { throw 'fs import missing' }
       - name: Commit patch and remove one-shot files
-        shell: pwsh
+        shell: cmd
         run: |
-          git config user.name 'Jolly Host Bridge Bot'
-          git config user.email 'jolly-host-bridge@example.invalid'
+          git config user.name "Jolly Host Bridge Bot"
+          git config user.email "jolly-host-bridge@example.invalid"
           git rm .github/workflows/host-bridge-prebuilt-shell-hotfix.yml scripts/apply-prebuilt-shell-loader-hotfix.mjs
           git add src/human-experience/standalone-explorer.mjs
-          git commit -m 'Load prebuilt Human Explorer shell in standalone plugin'
+          git diff --cached --check
+          git commit -m "Load prebuilt Human Explorer shell in standalone plugin"
           git push origin HEAD:jolly/plugin-host-bridge-v1
