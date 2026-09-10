@@ -75,4 +75,4 @@ jobs:
           }
           NODE
 
-# rerun: keep-latest-credential-diagnostic
+# rerun: p3d5-gh-token
