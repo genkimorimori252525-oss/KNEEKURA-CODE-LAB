@@ -5,10 +5,25 @@ import { ENGINE_IDS, ENGINE_LOCK_SCHEMA } from './contracts.mjs';
 const FULL_COMMIT = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const MOVING_REFS = new Set(['main', 'master', 'latest', 'head', 'HEAD']);
 
-export async function readEngineLock(pathname = new URL('../../engine-lock.json', import.meta.url)) {
-  const parsed = JSON.parse(await fs.readFile(pathname, 'utf8'));
-  validateEngineLock(parsed);
-  return parsed;
+export async function readEngineLock(pathname = null) {
+  const candidates = pathname == null
+    ? [
+        new URL('../../engine-lock.json', import.meta.url),
+        new URL('../engine-lock.json', import.meta.url)
+      ]
+    : [pathname];
+  let lastError = null;
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(await fs.readFile(candidate, 'utf8'));
+      validateEngineLock(parsed);
+      return parsed;
+    } catch (error) {
+      if (error?.code !== 'ENOENT' || candidates.length === 1) throw error;
+      lastError = error;
+    }
+  }
+  throw lastError ?? new Error('engine lock could not be located');
 }
 
 export function validateEngineLock(lock) {

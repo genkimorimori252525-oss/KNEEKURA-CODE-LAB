@@ -16,6 +16,7 @@ export const PLUGIN_ESBUILD_VERSION = '0.25.10';
 export const PLUGIN_STATIC_FILES = Object.freeze([
   Object.freeze({ source: 'plugin/kneekura-code-lab/.codex-plugin/plugin.json', target: '.codex-plugin/plugin.json' }),
   Object.freeze({ source: 'plugin/kneekura-code-lab/.mcp.json', target: '.mcp.json' }),
+  Object.freeze({ source: 'engine-lock.json', target: 'engine-lock.json' }),
   Object.freeze({ source: 'plugin/kneekura-code-lab/README.md', target: 'README.md' }),
   Object.freeze({ source: 'skills/kneekura-code-lab/SKILL.md', target: 'skills/kneekura-code-lab/SKILL.md' }),
   Object.freeze({ source: 'skills/kneekura-code-lab/references/INSTALL.md', target: 'skills/kneekura-code-lab/references/INSTALL.md' }),
