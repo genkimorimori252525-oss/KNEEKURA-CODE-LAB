@@ -23,7 +23,7 @@ jobs:
         shell: powershell
         run: |
           $parent = (git rev-parse HEAD^).Trim().ToLowerInvariant()
-          if ($parent -ne '6980010f0b837f7010f3db756f003c83e29f8206') { throw "Unexpected parent: $parent" }
+          if ($parent -ne '02782d470e16832a9357ec822221018ccea669bb') { throw "Unexpected parent: $parent" }
       - name: Apply bounded source correction
         run: node scripts/apply-host-bridge-step3-hotfix.mjs
       - name: Commit corrected source and remove transient applier

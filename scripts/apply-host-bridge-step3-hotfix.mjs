@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import childProcess from 'node:child_process';
 
 const FILE = 'mcp/src/production-backend.mjs';
-let text = await fs.readFile(FILE, 'utf8');
+let text = (await fs.readFile(FILE, 'utf8')).replace(/\r\n?/g, '\n');
 
 function replaceOnce(before, after, label) {
   const first = text.indexOf(before);
