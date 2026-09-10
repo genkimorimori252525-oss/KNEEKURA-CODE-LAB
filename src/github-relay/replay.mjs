@@ -126,14 +126,21 @@ function collectResponses(responses, runId) {
       byTask.set(response.task_id, response);
       continue;
     }
-    if (stableRelayJson(existing) !== stableRelayJson(response)) {
+    if (stableRelayJson(responseBinding(existing)) !== stableRelayJson(responseBinding(response))) {
       throw codedError(
         'RELAY_RESPONSE_CONFLICT',
-        `different relay responses were supplied for ${response.task_id}`
+        `different relay response bindings were supplied for ${response.task_id}`
       );
     }
+    byTask.set(response.task_id, response);
   }
   return byTask;
+}
+
+function responseBinding(response) {
+  const binding = { ...response };
+  delete binding.response;
+  return binding;
 }
 
 function projectTerminalExecution(execution) {
