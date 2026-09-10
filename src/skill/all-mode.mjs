@@ -74,7 +74,7 @@ async function executeDirectEngine({ engineId, runner, request, snapshotId, scop
   if (typeof runner !== 'function') {
     throw codedError('ENGINE_RUNNER_REQUIRED', `requested engine runner is unavailable: ${engineId}`);
   }
-  const attempt = createAttemptContext(runId, engineId, 1);
+  const attempt = createEngineAttemptContext(runId, engineId, 1);
   const result = await runner(createRunnerEnvelope({
     engineId,
     request,
@@ -115,7 +115,7 @@ export async function runAllModeBundle({
 
   for (let index = 0; index < ENGINE_IDS.length; index += 1) {
     const engineId = ENGINE_IDS[index];
-    const attempt = createAttemptContext(normalizedRunId, engineId, index + 1);
+    const attempt = createEngineAttemptContext(normalizedRunId, engineId, index + 1);
     const runner = engineRunners?.[engineId];
     if (typeof runner !== 'function') {
       sealedOutcomes.push(createHostFailureOutcome({
@@ -145,6 +145,12 @@ export async function runAllModeBundle({
       });
       sealedOutcomes.push(createAcceptedOutcome({ engineId, attempt, accepted }));
     } catch (error) {
+      // HOST_TASK_REQUIRED is not an engine result. It is a transport control
+      // signal used by the resumable Host Bridge. Swallowing it here would
+      // falsely convert "host input needed" into an engine failure and make
+      // multi-round replay impossible. Every other error keeps the frozen v1
+      // all-mode failure semantics below.
+      if (String(error?.code ?? '') === 'HOST_TASK_REQUIRED') throw error;
       const blocked = String(error?.code ?? '') === 'BLOCKED_UNSAFE_HOST';
       sealedOutcomes.push(createHostFailureOutcome({
         engineId,
@@ -340,11 +346,17 @@ function stripPrivateOutcome(outcome) {
   });
 }
 
-function createAttemptContext(runId, engineId, ordinal) {
-  const token = sha256(Buffer.from(runId, 'utf8')).slice(0, 16);
+export function createEngineAttemptContext(runId, engineId, ordinal) {
+  const normalizedRunId = requireText(runId, 'runId');
+  if (!ENGINE_IDS.includes(engineId)) throw new TypeError(`unsupported engineId: ${engineId}`);
+  const normalizedOrdinal = Number(ordinal);
+  if (!Number.isInteger(normalizedOrdinal) || normalizedOrdinal < 1 || normalizedOrdinal > ENGINE_IDS.length) {
+    throw new TypeError(`engine attempt ordinal must be 1-${ENGINE_IDS.length}`);
+  }
+  const token = sha256(Buffer.from(normalizedRunId, 'utf8')).slice(0, 16);
   return Object.freeze({
-    attemptId: `attempt-${token}-${ordinal}-${engineId}`,
-    semanticContextId: `context-${token}-${ordinal}-${engineId}`,
+    attemptId: `attempt-${token}-${normalizedOrdinal}-${engineId}`,
+    semanticContextId: `context-${token}-${normalizedOrdinal}-${engineId}`,
     freshSemanticContextRequired: true
   });
 }
