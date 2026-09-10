@@ -39,6 +39,21 @@ test('P3b live workflow is fail-closed and pins the exact P3a runtime', async ()
   assert.doesNotMatch(text, /uses:\s*actions\/(?:checkout|setup-node|upload-artifact)@v\d+/);
 });
 
+test('P3b private target credential fallback is explicit, noninteractive, masked, and same-owner only', async () => {
+  const text = await fs.readFile(WORKFLOW, 'utf8');
+
+  assert.match(text, /KNEEKURA_RELAY_EXPLICIT_TOKEN:\s*\$\{\{ secrets\.KNEEKURA_RELAY_GITHUB_TOKEN \}\}/);
+  assert.match(text, /KNEEKURA_RELAY_REPOSITORY_OWNER:\s*\$\{\{ github\.repository_owner \}\}/);
+  assert.match(text, /KNEEKURA_RELAY_CURRENT_REPOSITORY:\s*\$\{\{ github\.repository \}\}/);
+  assert.match(text, /\$parts\[0\]\.ToLowerInvariant\(\) -ne \$env:KNEEKURA_RELAY_REPOSITORY_OWNER\.ToLowerInvariant\(\)/);
+  assert.match(text, /GIT_TERMINAL_PROMPT = '0'/);
+  assert.match(text, /GCM_INTERACTIVE = 'Never'/);
+  assert.match(text, /git credential fill/);
+  assert.match(text, /::add-mask::\$password/);
+  assert.match(text, /KNEEKURA_RELAY_GITHUB_TOKEN=\$password/);
+  assert.doesNotMatch(text, /Write-Host\s+['"]?\$credentialLines/);
+});
+
 test('P3b runtime and action pins are immutable full Git SHAs', () => {
   assert.match(PINNED_RUNTIME, /^[0-9a-f]{40}$/);
   for (const value of PINNED_ACTIONS) {
