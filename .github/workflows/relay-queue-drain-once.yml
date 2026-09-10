@@ -14,17 +14,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Cancel obsolete Relay-development CI runs
+      - name: Cancel obsolete Relay-development runs
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPOSITORY: ${{ github.repository }}
-          CANCEL_EXACT_MAIN_CI_RUN_ID: '34499448539'
+          KEEP_DIAGNOSTIC_RUN_ID: '34500507908'
+          CANCEL_OLD_DIAGNOSTIC_RUN_ID: '34499777724'
         run: |
           node <<'NODE'
           const repo = process.env.GH_REPOSITORY;
           const token = process.env.GH_TOKEN;
-          const exactMainCiRun = Number(process.env.CANCEL_EXACT_MAIN_CI_RUN_ID);
+          const keepDiagnostic = Number(process.env.KEEP_DIAGNOSTIC_RUN_ID);
+          const oldDiagnostic = Number(process.env.CANCEL_OLD_DIAGNOSTIC_RUN_ID);
           if (!repo || !token) throw new Error('GitHub context missing');
 
           const headers = {
@@ -50,16 +52,14 @@ jobs:
           const selected = new Map();
           for (const run of candidates) {
             const id = Number(run.id);
-            if (!Number.isSafeInteger(id)) continue;
+            if (!Number.isSafeInteger(id) || id === keepDiagnostic) continue;
             const obsoleteRelayCi =
               run.name === 'CI' &&
               String(run.head_branch || '').startsWith('jolly/github-relay-v1');
-            const exactMainCi =
-              id === exactMainCiRun &&
-              run.name === 'CI' &&
-              run.head_branch === 'main' &&
-              run.head_sha === '672d81e6a3d049004dde34292f6063099beb6783';
-            if (obsoleteRelayCi || exactMainCi) selected.set(id, run);
+            const obsoleteDiagnostic =
+              id === oldDiagnostic &&
+              run.name === 'Relay Credential Diagnostic One-Shot';
+            if (obsoleteRelayCi || obsoleteDiagnostic) selected.set(id, run);
           }
 
           console.log(`Selected ${selected.size} obsolete run(s) for cancellation.`);
@@ -75,4 +75,4 @@ jobs:
           }
           NODE
 
-# rerun: prioritize-credential-diagnostic
+# rerun: keep-latest-credential-diagnostic
