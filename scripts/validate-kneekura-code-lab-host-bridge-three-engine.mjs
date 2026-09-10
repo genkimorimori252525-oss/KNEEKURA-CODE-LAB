@@ -74,6 +74,14 @@ for (let round = 0; round < 600; round += 1) {
 
 assert(execution, 'Host Bridge three-engine acceptance did not complete');
 assert.equal(execution.kind, 'ALL_MODE_BUNDLE');
+process.stdout.write(`HOST_BRIDGE_ENGINE_OUTCOMES ${JSON.stringify(execution.outcomes.map(row => ({
+  engine_id: row.engine_id,
+  status: row.status,
+  claim_level: row.claim_level,
+  claim_satisfied: row.claim_satisfied,
+  error_code: row.error?.code ?? null,
+  error_message: row.error?.message ?? null
+})))}\n`);
 assert.equal(execution.status, 'SUCCESS');
 assert.deepEqual(execution.outcomes.map(row => row.engine_id), [
   'kneekura', 'understand-anything', 'archify'
@@ -150,7 +158,7 @@ async function answerTask(task) {
     };
   }
   if (task.kind.startsWith('ua:')) return answerUa(task.kind.slice(3), input);
-  if (task.kind === 'archify:typed-ir') return archifyIr();
+  if (task.kind === 'archify:typed-ir') return archifyIr(input);
   throw new Error(`unsupported Host Task: ${task.kind}`);
 }
 
@@ -216,7 +224,11 @@ function answerUa(role, input) {
   throw new Error(`unsupported UA role: ${role}`);
 }
 
-function archifyIr() {
+function archifyIr(input) {
+  const repositoryUrl = String(input?.target?.repository_url ?? '').trim();
+  const targetRevision = String(input?.target?.revision ?? '').trim().toLowerCase();
+  assert(repositoryUrl, 'Archify Host Task must carry the exact target repository URL');
+  assert.match(targetRevision, /^[0-9a-f]{40}$/);
   return {
     schema_version: 1,
     diagram_type: 'architecture',
@@ -224,7 +236,7 @@ function archifyIr() {
       title: 'KNEEKURA Code LAB Host Bridge',
       locale: 'en',
       quality_profile: 'showcase',
-      repository: { url: REPOSITORY_URL, revision },
+      repository: { url: repositoryUrl, revision: targetRevision },
       views: [{
         id: 'host-round-trip',
         label: 'Host round trip',
