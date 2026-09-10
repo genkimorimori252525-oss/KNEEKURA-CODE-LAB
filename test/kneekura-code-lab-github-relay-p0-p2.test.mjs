@@ -116,14 +116,24 @@ test('P2 replay deterministically replays stored response and reaches COMPLETE',
   const task = makeTask();
   const backend = createFakeBackend(task);
   const response = responseFor(task, { items: [{ title: 'Bound answer' }] });
+  let completedExecution = null;
   const result = await replayGithubRelayRun({
     plan: makePlan(),
     backend,
-    responses: [response, structuredClone(response)]
+    responses: [response, structuredClone(response)],
+    onComplete(execution) {
+      completedExecution = execution;
+      assert(Buffer.isBuffer(execution.result.deliveryZip));
+    }
   });
 
   assert.equal(result.state, 'COMPLETE');
   assert.equal(result.consumed_response_count, 1);
+  assert.equal(result.artifact_bytes_exposed, false);
+  assert.equal('execution' in result, false);
+  assert.equal(result.terminal.kind, 'ENGINE_RESULT');
+  assert.equal(result.terminal.status, 'SUCCESS');
+  assert(completedExecution);
   assert.equal(backend.acceptCalls.length, 1);
   assert.deepEqual(
     backend.acceptCalls[0].response,
@@ -230,7 +240,10 @@ function createFakeBackend(task) {
       return {
         kind: 'ENGINE_RESULT',
         requestedEngine: 'kneekura',
-        marker: 'terminal'
+        result: {
+          receipt: { status: 'SUCCESS' },
+          deliveryZip: Buffer.from([1, 2, 3])
+        }
       };
     },
     async acceptHostResponse(runId, taskId, response) {
