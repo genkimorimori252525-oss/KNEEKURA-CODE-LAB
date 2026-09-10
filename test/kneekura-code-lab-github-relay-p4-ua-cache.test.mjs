@@ -8,14 +8,14 @@ const PINNED_UA_COMMIT = 'f08763d11d0202a8a8f52b5dedda6d1b2e2ebac8';
 test('P4 UA cache is exact-pin keyed, fail-closed, and rebuilt from verified source', async () => {
   const text = await fs.readFile(WORKFLOW, 'utf8');
 
-  assert.ok(text.includes(`understand-anything-v2.9.0-$expectedCommit`));
+  assert.ok(text.includes('understand-anything-v2.9.0-$expectedCommit'));
   assert.ok(text.includes(PINNED_UA_COMMIT));
   assert.match(text, /function Test-PinnedUaCache/);
   assert.match(text, /git -C \$root rev-parse HEAD/);
   assert.match(text, /git -C \$root rev-parse 'HEAD:understand-anything-plugin'/);
   assert.match(text, /git -C \$root hash-object \$entry\.Key/);
   assert.match(text, /status --porcelain --untracked-files=no/);
-  assert.match(text, /node_modules\\\.pnpm/);
+  assert.ok(text.includes("node_modules\\.pnpm"));
   assert.match(text, /if \(-not \(Test-PinnedUaCache \$cacheRoot\)\)/);
   assert.match(text, /Remove-Item -LiteralPath \$cacheRoot -Recurse -Force/);
   assert.match(text, /\$tmpRoot = "\$cacheRoot\.\$env:GITHUB_RUN_ID\.tmp"/);
