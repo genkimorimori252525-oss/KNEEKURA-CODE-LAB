@@ -1,0 +1,61 @@
+name: Hosted Final Main Plugin Package
+
+on:
+  push:
+    branches:
+      - jolly/plugin-host-bridge-v1
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    env:
+      MAIN_SHA: 27e68a3b68e396337dae5f55330ce9e16e8552bf
+    steps:
+      - name: Checkout exact main merge commit
+        uses: actions/checkout@v4
+        with:
+          ref: 27e68a3b68e396337dae5f55330ce9e16e8552bf
+          fetch-depth: 1
+      - name: Verify exact checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD | tr '[:upper:]' '[:lower:]')"
+          expected="$(printf '%s' "$MAIN_SHA" | tr '[:upper:]' '[:lower:]')"
+          test "$actual" = "$expected"
+          echo "HOST_BRIDGE_PACKAGE_SHA=$actual" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci --no-audit --no-fund
+      - name: Install pinned MCP adapter dependencies without lifecycle scripts
+        run: npm install --prefix mcp --ignore-scripts --no-audit --no-fund --package-lock=false
+      - name: Build deterministic Plugin package
+        run: npm run plugin:package
+      - name: Smoke-test packaged MCP outside the repository dependency tree
+        run: node scripts/smoke-kneekura-code-lab-plugin.mjs
+      - name: Verify checksum sidecar matches Plugin bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip='dist/chatgpt-plugin/kneekura-code-lab-plugin-v1.zip'
+          sidecar='dist/chatgpt-plugin/kneekura-code-lab-plugin-v1.zip.sha256'
+          test -f "$zip"
+          test -f "$sidecar"
+          actual="$(sha256sum "$zip" | awk '{print $1}')"
+          declared="$(awk '{print $1}' "$sidecar" | sed 's/^sha256://')"
+          test "$actual" = "$declared"
+          echo "HOST_BRIDGE_PLUGIN_SHA256=$actual"
+          echo "HOST_BRIDGE_PACKAGE_COMMIT=$HOST_BRIDGE_PACKAGE_SHA"
+      - name: Upload verified Plugin ZIP and checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: kneekura-code-lab-main-plugin-v1-27e68a3b68e396337dae5f55330ce9e16e8552bf
+          path: |
+            dist/chatgpt-plugin/kneekura-code-lab-plugin-v1.zip
+            dist/chatgpt-plugin/kneekura-code-lab-plugin-v1.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
