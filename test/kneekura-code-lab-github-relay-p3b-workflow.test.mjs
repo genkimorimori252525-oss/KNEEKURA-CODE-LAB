@@ -51,12 +51,13 @@ test('P3d live workflow is fail-closed and pins the exact P3c runtime', async ()
   assert.doesNotMatch(text, /ref:\s*83114564180761f83c2279ce4055723365a566cb/);
 });
 
-test('P3d same-owner private target fallback is noninteractive, masked, and owner-scoped', async () => {
+test('P3d same-owner private target fallback is noninteractive, masked, owner-scoped, and UTF-8 safe', async () => {
   const text = await fs.readFile(WORKFLOW, 'utf8');
 
   assert.match(text, /KNEEKURA_RELAY_EXPLICIT_TOKEN:\s*\$\{\{ secrets\.KNEEKURA_RELAY_GITHUB_TOKEN \}\}/);
   assert.match(text, /KNEEKURA_RELAY_REPOSITORY_OWNER:\s*\$\{\{ github\.repository_owner \}\}/);
   assert.match(text, /KNEEKURA_RELAY_CURRENT_REPOSITORY:\s*\$\{\{ github\.repository \}\}/);
+  assert.match(text, /Get-Content -Raw -Encoding UTF8 -LiteralPath \$env:GITHUB_EVENT_PATH \| ConvertFrom-Json/);
   assert.match(text, /\$parts\[0\]\.ToLowerInvariant\(\) -ne \$env:KNEEKURA_RELAY_REPOSITORY_OWNER\.ToLowerInvariant\(\)/);
   assert.match(text, /GIT_TERMINAL_PROMPT = '0'/);
   assert.match(text, /GCM_INTERACTIVE = 'Never'/);
