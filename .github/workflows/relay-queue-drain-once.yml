@@ -75,4 +75,4 @@ jobs:
           }
           NODE
 
-# rerun: prioritize-p3d4-live-acceptance
+# rerun: prioritize-credential-diagnostic
