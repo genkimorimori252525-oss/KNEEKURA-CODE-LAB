@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "kneekura_code_lab": {
+      "command": "node",
+      "args": [
+        "./mcp/server.mjs"
+      ],
+      "cwd": "."
+    }
+  }
+}

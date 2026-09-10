@@ -1,0 +1,70 @@
+name: Host Bridge Three Engine Acceptance
+
+on:
+  push:
+    branches:
+      - jolly/plugin-host-bridge-v1
+  workflow_dispatch:
+
+jobs:
+  acceptance:
+    runs-on: [self-hosted, Windows, X64, kneekura-code-lab]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --no-audit --no-fund
+
+      - name: Prepare pinned Archify v2.16.0
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $env:RUNNER_TEMP 'host-bridge-archify-v2.16.0.zip'
+          $dest = Join-Path $env:RUNNER_TEMP 'host-bridge-archify-v2.16.0'
+          if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
+          Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/tt-a1i/archify/c826e6c3a7abad19c0f3cd1ca57207d54b1ad8de/archify.zip' -OutFile $zip
+          $actual = (Get-FileHash -Algorithm SHA256 $zip).Hash.ToLowerInvariant()
+          $expected = '4c59fa6557a2385beaaef8c7219cc414573acc9f0c30a932d5053b0b20689a46'
+          if ($actual -ne $expected) { throw "Pinned Archify sha256 mismatch: $actual" }
+          Expand-Archive -LiteralPath $zip -DestinationPath $dest -Force
+          $cli = Get-ChildItem -Path $dest -Recurse -File -Filter 'archify.mjs' | Where-Object { $_.FullName -match '[\\/]bin[\\/]archify\.mjs$' } | Select-Object -First 1
+          if (-not $cli) { throw 'Pinned Archify CLI missing after extraction' }
+          $archifyRoot = Split-Path -Parent (Split-Path -Parent $cli.FullName)
+          "KNEEKURA_ARCHIFY_ROOT=$archifyRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "KNEEKURA_ARCHIFY_ARTIFACT_SHA256=$actual" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Prepare pinned Understand Anything v2.9.0
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $expectedCommit = 'f08763d11d0202a8a8f52b5dedda6d1b2e2ebac8'
+          $dest = Join-Path $env:RUNNER_TEMP 'host-bridge-understand-anything-v2.9.0'
+          if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
+          New-Item -ItemType Directory -Path $dest | Out-Null
+          git -C $dest init
+          git -C $dest remote add origin 'https://github.com/Egonex-AI/Understand-Anything.git'
+          git -C $dest fetch --depth 1 origin 'refs/tags/v2.9.0'
+          git -C $dest checkout --detach FETCH_HEAD
+          $actualCommit = (git -C $dest rev-parse HEAD).Trim().ToLowerInvariant()
+          if ($actualCommit -ne $expectedCommit) { throw "Pinned UA commit mismatch: $actualCommit" }
+          $pluginTree = (git -C $dest rev-parse 'HEAD:understand-anything-plugin').Trim().ToLowerInvariant()
+          if ($pluginTree -ne 'c79dd16babb26a39aca4a15156bc488bcfc69587') { throw "Pinned UA plugin tree mismatch: $pluginTree" }
+          corepack enable
+          corepack prepare pnpm@10.6.2 --activate
+          Push-Location $dest
+          try {
+            pnpm install --frozen-lockfile
+            pnpm --filter '@understand-anything/core' build
+            pnpm --filter '@understand-anything/dashboard' build
+          } finally { Pop-Location }
+          $dashboard = Join-Path $dest 'understand-anything-plugin\packages\dashboard\dist'
+          if (-not (Test-Path (Join-Path $dashboard 'index.html'))) { throw 'Pinned UA dashboard build missing index.html' }
+          "KNEEKURA_UA_ROOT=$dest" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "KNEEKURA_UA_DASHBOARD_ROOT=$dashboard" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Instrument per-engine outcome diagnostics
+        run: node scripts/instrument-host-bridge-three-engine-acceptance.mjs
+
+      - name: Run Host Bridge all-three-engine acceptance
+        run: node scripts/validate-kneekura-code-lab-host-bridge-three-engine.mjs

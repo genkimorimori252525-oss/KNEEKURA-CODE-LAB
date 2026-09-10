@@ -1,0 +1,68 @@
+name: Host Bridge Plugin Package
+
+on:
+  push:
+    branches:
+      - jolly/plugin-host-bridge-v1
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact 40-hex commit SHA that must be checked out and packaged
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: [self-hosted, Windows, X64, kneekura-code-lab]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.expected_sha || github.sha }}
+          fetch-depth: 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Verify exact checkout
+        shell: powershell
+        env:
+          REQUESTED_SHA: ${{ inputs.expected_sha || github.sha }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $actual = (git rev-parse HEAD).Trim().ToLowerInvariant()
+          $expected = $env:REQUESTED_SHA.Trim().ToLowerInvariant()
+          if ($expected -notmatch '^[0-9a-f]{40}$') { throw "expected SHA must be an exact 40-hex commit SHA: $expected" }
+          if ($actual -ne $expected) { throw "Exact checkout mismatch: expected=$expected actual=$actual" }
+          "HOST_BRIDGE_PACKAGE_SHA=$actual" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - run: npm ci --no-audit --no-fund
+      - name: Install pinned MCP adapter dependencies without lifecycle scripts
+        run: npm install --prefix mcp --ignore-scripts --no-audit --no-fund --package-lock=false
+      - name: Build deterministic Plugin package
+        run: npm run plugin:package
+      - name: Smoke-test packaged MCP outside the repository dependency tree
+        run: node scripts/smoke-kneekura-code-lab-plugin.mjs
+      - name: Verify checksum sidecar matches Plugin bytes
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = 'dist/chatgpt-plugin/kneekura-code-lab-plugin-v1.zip'
+          $sidecar = 'dist/chatgpt-plugin/kneekura-code-lab-plugin-v1.zip.sha256'
+          if (-not (Test-Path -LiteralPath $zip)) { throw 'Plugin ZIP missing' }
+          if (-not (Test-Path -LiteralPath $sidecar)) { throw 'Plugin checksum sidecar missing' }
+          $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant()
+          $declared = ((Get-Content -LiteralPath $sidecar -Raw).Trim() -split '\s+')[0].ToLowerInvariant().Replace('sha256:','')
+          if ($actual -ne $declared) { throw "Plugin checksum mismatch: declared=$declared actual=$actual" }
+          Write-Host "HOST_BRIDGE_PLUGIN_SHA256=$actual"
+          Write-Host "HOST_BRIDGE_PACKAGE_COMMIT=$env:HOST_BRIDGE_PACKAGE_SHA"
+      - name: Upload verified Plugin ZIP and checksum
+        uses: actions/upload-artifact@v4
+        with:
+          name: kneekura-code-lab-host-bridge-plugin-v1-${{ inputs.expected_sha || github.sha }}
+          path: |
+            dist/chatgpt-plugin/kneekura-code-lab-plugin-v1.zip
+            dist/chatgpt-plugin/kneekura-code-lab-plugin-v1.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
