@@ -97,8 +97,7 @@ jobs:
 
           $env:GIT_TERMINAL_PROMPT = '0'
           $env:GCM_INTERACTIVE = 'Never'
-          $credentialInput = "protocol=https`nhost=github.com`n`n"
-          $credentialLines = $credentialInput | & git credential fill 2>$null
+          $credentialLines = @('protocol=https', 'host=github.com', '') | & git credential fill 2>$null
           if ($LASTEXITCODE -ne 0) { exit 0 }
           $passwordLine = @($credentialLines) | Where-Object { $_ -match '^password=' } | Select-Object -First 1
           if (-not $passwordLine) { exit 0 }
