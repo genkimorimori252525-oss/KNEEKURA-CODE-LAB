@@ -31,7 +31,7 @@ jobs:
             'jolly/github-relay-v1-p3d5-repin-runtime',
             'jolly/github-relay-v1-p3e-stable-task-identity'
           ]);
-          const exactRunIds = new Set([34528814208, 34528887067, 34528968254]);
+          const exactRunIds = new Set([34528789007, 34528814208, 34528887067, 34528968254]);
           const headers = {Accept:'application/vnd.github+json',Authorization:`Bearer ${token}`,'X-GitHub-Api-Version':'2022-11-28','User-Agent':'kneekura-relay-queue-drain-once'};
           await new Promise(resolve => setTimeout(resolve, 3000));
           const candidates = [];
@@ -50,4 +50,4 @@ jobs:
           }
           NODE
 
-# one-shot: pr107-ua-acceptance-drain
+# one-shot: pr107-ua-acceptance-drain-final
