@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import test from 'node:test';
 
 const WORKFLOW = new URL('../.github/workflows/kneekura-github-relay.yml', import.meta.url);
-const PINNED_RUNTIME = '9f02f1963bf5f7e70d220a5e0171cbdfc542d8f6';
+const PINNED_RUNTIME = '919731e1df07e8263c1fb7246ca80ae31ed3bae4';
 const PINNED_ACTIONS = Object.freeze([
   'actions/checkout@11d5960a326750d5838078e36cf38b85af677262',
   'actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020',

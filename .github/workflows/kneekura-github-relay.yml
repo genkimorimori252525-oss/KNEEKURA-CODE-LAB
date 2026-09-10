@@ -60,7 +60,7 @@ jobs:
       - name: Checkout pinned Relay runtime
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: 9f02f1963bf5f7e70d220a5e0171cbdfc542d8f6
+          ref: 919731e1df07e8263c1fb7246ca80ae31ed3bae4
           fetch-depth: 1
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
