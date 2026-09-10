@@ -10,7 +10,8 @@
     "./ask-graph": "./src/ask-graph.mjs",
     "./human-analysis": "./src/human-analysis/index.mjs",
     "./human-experience": "./src/human-experience/index.mjs",
-    "./skill": "./src/skill/index.mjs"
+    "./skill": "./src/skill/index.mjs",
+    "./github-relay": "./src/github-relay/index.mjs"
   },
   "scripts": {
     "scan": "node src/cli.mjs scan",
