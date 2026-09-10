@@ -108,10 +108,15 @@ export async function runGithubRelayTurn({
   assertPlanContinuity(existingPlan, context.relayPlan);
 
   const responseEnvelopes = normalizeEntryEnvelopes(responses);
-  const respondedTaskIds = new Set(responseEnvelopes.map(response => response.task_id));
+  const respondedTaskBindings = new Set(responseEnvelopes.map(response =>
+    sourceTaskBindingKey(response.run_id, response.task_id)
+  ));
   const sourceEntries = normalizeSourceEntries(sourceRequests);
   const activeSourceEntries = sourceEntries.filter(entry =>
-    !respondedTaskIds.has(entry.envelope.task_id)
+    !respondedTaskBindings.has(sourceTaskBindingKey(
+      entry.envelope.run_id,
+      entry.envelope.task_id
+    ))
   );
   const taskIds = normalizeStringSet(existingTaskIds, 'existingTaskIds');
   const sourceDigests = normalizeStringSet(existingSourceResultDigests, 'existingSourceResultDigests');
@@ -253,6 +258,10 @@ function findPendingSourceRequest({ runId, taskId, sourceEntries, servedDigests 
 
 function firstUnservedSourceRequest(entries, servedDigests) {
   return entries.find(entry => !servedDigests.has(entry.digest)) ?? null;
+}
+
+function sourceTaskBindingKey(runId, taskId) {
+  return `${String(runId ?? '')}\0${String(taskId ?? '')}`;
 }
 
 function normalizeSourceEntries(values) {
