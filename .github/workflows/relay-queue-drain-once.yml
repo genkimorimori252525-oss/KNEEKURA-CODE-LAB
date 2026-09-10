@@ -21,12 +21,14 @@ jobs:
           GH_REPOSITORY: ${{ github.repository }}
           KEEP_DIAGNOSTIC_RUN_ID: '34500507908'
           CANCEL_OLD_DIAGNOSTIC_RUN_ID: '34499777724'
+          CANCEL_EXACT_MAIN_CI_RUN_ID: '34501067977'
         run: |
           node <<'NODE'
           const repo = process.env.GH_REPOSITORY;
           const token = process.env.GH_TOKEN;
           const keepDiagnostic = Number(process.env.KEEP_DIAGNOSTIC_RUN_ID);
           const oldDiagnostic = Number(process.env.CANCEL_OLD_DIAGNOSTIC_RUN_ID);
+          const exactMainCiRun = Number(process.env.CANCEL_EXACT_MAIN_CI_RUN_ID);
           if (!repo || !token) throw new Error('GitHub context missing');
 
           const headers = {
@@ -59,7 +61,12 @@ jobs:
             const obsoleteDiagnostic =
               id === oldDiagnostic &&
               run.name === 'Relay Credential Diagnostic One-Shot';
-            if (obsoleteRelayCi || obsoleteDiagnostic) selected.set(id, run);
+            const exactMainCi =
+              id === exactMainCiRun &&
+              run.name === 'CI' &&
+              run.head_branch === 'main' &&
+              run.head_sha === '967911451fe5ec87e17bb7791f03283289f3b9bc';
+            if (obsoleteRelayCi || obsoleteDiagnostic || exactMainCi) selected.set(id, run);
           }
 
           console.log(`Selected ${selected.size} obsolete run(s) for cancellation.`);
@@ -75,4 +82,4 @@ jobs:
           }
           NODE
 
-# rerun: p3d5-gh-token
+# rerun: prioritize-p3d5-live-relay
