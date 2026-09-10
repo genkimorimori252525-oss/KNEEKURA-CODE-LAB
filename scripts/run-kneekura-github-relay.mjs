@@ -237,6 +237,10 @@ async function materializeTarget({
     GIT_TERMINAL_PROMPT: '0',
     GCM_INTERACTIVE: 'Never'
   };
+  // Keep the repository-scoped Actions token out of the target Git child.
+  // Otherwise Git Credential Manager may prefer it over the explicitly
+  // selected target token and make another private repository look absent.
+  delete env.GITHUB_TOKEN;
   let askpassPath = null;
   if (token) {
     askpassPath = await createAskpass(targetRoot);
