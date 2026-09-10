@@ -11,15 +11,18 @@ export const SKILL_DISTRIBUTION_SCHEMA =
 export const SKILL_DISTRIBUTION_FILES = Object.freeze([
   Object.freeze({
     source: 'skills/kneekura-code-lab/SKILL.md',
-    target: 'SKILL.md'
+    target: 'SKILL.md',
+    content: 'utf8-lf'
   }),
   Object.freeze({
     source: 'skills/kneekura-code-lab/references/INSTALL.md',
-    target: 'references/INSTALL.md'
+    target: 'references/INSTALL.md',
+    content: 'utf8-lf'
   }),
   Object.freeze({
     source: 'skills/kneekura-code-lab/references/MCP.md',
-    target: 'references/MCP.md'
+    target: 'references/MCP.md',
+    content: 'utf8-lf'
   })
 ]);
 
@@ -38,11 +41,13 @@ export async function buildKneekuraCodeLabSkillDistribution({
 
   for (const descriptor of SKILL_DISTRIBUTION_FILES) {
     const sourcePath = path.join(root, descriptor.source);
-    const data = await fs.readFile(sourcePath);
+    const sourceBytes = await fs.readFile(sourcePath);
+    const data = normalizeDistributionContent(sourceBytes, descriptor.content);
     entries.push({ path: descriptor.target, data });
     manifestFiles.push({
       path: descriptor.target,
       source: descriptor.source,
+      content: descriptor.content,
       bytes: data.length,
       sha256: `sha256:${sha256(data)}`
     });
@@ -56,6 +61,7 @@ export async function buildKneekuraCodeLabSkillDistribution({
     entrypoint: 'SKILL.md',
     execution_contract: 'references/MCP.md',
     deterministic: true,
+    text_normalization: 'LF',
     contains_engine_implementation: false,
     files: manifestFiles
   });
@@ -91,6 +97,14 @@ export async function buildKneekuraCodeLabSkillDistribution({
   }
 
   return result;
+}
+
+function normalizeDistributionContent(value, content) {
+  if (content !== 'utf8-lf') {
+    throw new TypeError(`unsupported Skill distribution content mode: ${content}`);
+  }
+  const text = Buffer.from(value).toString('utf8').replace(/\r\n?/g, '\n');
+  return Buffer.from(text, 'utf8');
 }
 
 function safeJoin(root, relative) {
