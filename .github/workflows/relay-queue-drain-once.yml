@@ -19,7 +19,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPOSITORY: ${{ github.repository }}
-          CANCEL_EXACT_MAIN_CI_RUN_ID: '34495945161'
+          CANCEL_EXACT_MAIN_CI_RUN_ID: '34499448539'
         run: |
           node <<'NODE'
           const repo = process.env.GH_REPOSITORY;
@@ -58,7 +58,7 @@ jobs:
               id === exactMainCiRun &&
               run.name === 'CI' &&
               run.head_branch === 'main' &&
-              run.head_sha === 'bab6b3e68cd97c3b29b2b2b88b76ed891852eb14';
+              run.head_sha === '672d81e6a3d049004dde34292f6063099beb6783';
             if (obsoleteRelayCi || exactMainCi) selected.set(id, run);
           }
 
@@ -75,4 +75,4 @@ jobs:
           }
           NODE
 
-# rerun: p3d4-process-stdin
+# rerun: prioritize-p3d4-live-acceptance
