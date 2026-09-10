@@ -75,7 +75,7 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($env:KNEEKURA_RELAY_EXPLICIT_TOKEN)) { exit 0 }
           Write-Host "::add-mask::$env:KNEEKURA_RELAY_EXPLICIT_TOKEN"
           "KNEEKURA_RELAY_GITHUB_TOKEN=$env:KNEEKURA_RELAY_EXPLICIT_TOKEN" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-      - name: Resolve same-owner credential from local Git store
+      - name: Resolve same-owner credential from GitHub CLI
         shell: powershell
         env:
           KNEEKURA_RELAY_REPOSITORY_OWNER: ${{ github.repository_owner }}
@@ -95,45 +95,41 @@ jobs:
           if ($parts[0].ToLowerInvariant() -ne $env:KNEEKURA_RELAY_REPOSITORY_OWNER.ToLowerInvariant()) { exit 0 }
           if ($target.ToLowerInvariant() -eq $env:KNEEKURA_RELAY_CURRENT_REPOSITORY.ToLowerInvariant()) { exit 0 }
 
-          $env:GIT_TERMINAL_PROMPT = '0'
-          $env:GCM_INTERACTIVE = 'Never'
+          $ghCommand = Get-Command gh -ErrorAction SilentlyContinue
+          if (-not $ghCommand) { exit 0 }
 
-          $credentialProcessInfo = New-Object System.Diagnostics.ProcessStartInfo
-          $credentialProcessInfo.FileName = 'git'
-          $credentialProcessInfo.Arguments = 'credential fill'
-          $credentialProcessInfo.UseShellExecute = $false
-          $credentialProcessInfo.CreateNoWindow = $true
-          $credentialProcessInfo.RedirectStandardInput = $true
-          $credentialProcessInfo.RedirectStandardOutput = $true
-          $credentialProcessInfo.RedirectStandardError = $true
-          $credentialProcess = New-Object System.Diagnostics.Process
-          $credentialProcess.StartInfo = $credentialProcessInfo
-          if (-not $credentialProcess.Start()) { exit 0 }
-          $credentialProcess.StandardInput.WriteLine('protocol=https')
-          $credentialProcess.StandardInput.WriteLine('host=github.com')
-          $credentialProcess.StandardInput.WriteLine('')
-          $credentialProcess.StandardInput.Close()
-          $credentialOutput = $credentialProcess.StandardOutput.ReadToEnd()
-          $credentialError = $credentialProcess.StandardError.ReadToEnd()
-          $credentialProcess.WaitForExit()
-          if ($credentialProcess.ExitCode -ne 0) {
-            $credentialOutput = $null
-            $credentialError = $null
+          $tokenProcessInfo = New-Object System.Diagnostics.ProcessStartInfo
+          $tokenProcessInfo.FileName = $ghCommand.Source
+          $tokenProcessInfo.Arguments = 'auth token --hostname github.com'
+          $tokenProcessInfo.UseShellExecute = $false
+          $tokenProcessInfo.CreateNoWindow = $true
+          $tokenProcessInfo.RedirectStandardOutput = $true
+          $tokenProcessInfo.RedirectStandardError = $true
+          $tokenProcess = New-Object System.Diagnostics.Process
+          $tokenProcess.StartInfo = $tokenProcessInfo
+          if (-not $tokenProcess.Start()) { exit 0 }
+          $tokenOutput = $tokenProcess.StandardOutput.ReadToEnd()
+          $tokenError = $tokenProcess.StandardError.ReadToEnd()
+          $tokenProcess.WaitForExit()
+          if ($tokenProcess.ExitCode -ne 0) {
+            $tokenOutput = $null
+            $tokenError = $null
             exit 0
           }
-          $credentialLines = $credentialOutput -split "`r?`n"
-          $passwordLine = @($credentialLines) | Where-Object { $_ -match '^password=' } | Select-Object -First 1
-          if (-not $passwordLine) { exit 0 }
-          $password = $passwordLine.Substring('password='.Length)
-          if ([string]::IsNullOrWhiteSpace($password)) { exit 0 }
 
-          Write-Host "::add-mask::$password"
-          "KNEEKURA_RELAY_GITHUB_TOKEN=$password" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          $password = $null
-          $passwordLine = $null
-          $credentialLines = $null
-          $credentialOutput = $null
-          $credentialError = $null
+          $ghToken = [string]$tokenOutput
+          $ghToken = $ghToken.Trim()
+          if ([string]::IsNullOrWhiteSpace($ghToken)) {
+            $tokenOutput = $null
+            $tokenError = $null
+            exit 0
+          }
+
+          Write-Host "::add-mask::$ghToken"
+          "KNEEKURA_RELAY_GITHUB_TOKEN=$ghToken" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $ghToken = $null
+          $tokenOutput = $null
+          $tokenError = $null
       - name: Install pinned Code LAB dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
       - id: relay

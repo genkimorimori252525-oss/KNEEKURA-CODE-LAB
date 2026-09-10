@@ -4,23 +4,23 @@ import test from 'node:test';
 
 const WORKFLOW = new URL('../.github/workflows/kneekura-github-relay.yml', import.meta.url);
 
-test('same-owner Git credential request writes the Git protocol directly to child-process stdin', async () => {
+test('same-owner Relay credential fallback captures GitHub CLI token without exposing it', async () => {
   const text = await fs.readFile(WORKFLOW, 'utf8');
 
+  assert.match(text, /name: Resolve same-owner credential from GitHub CLI/);
+  assert.match(text, /Get-Command gh -ErrorAction SilentlyContinue/);
   assert.match(text, /New-Object System\.Diagnostics\.ProcessStartInfo/);
-  assert.match(text, /\$credentialProcessInfo\.FileName = 'git'/);
-  assert.match(text, /\$credentialProcessInfo\.Arguments = 'credential fill'/);
-  assert.match(text, /\$credentialProcessInfo\.RedirectStandardInput = \$true/);
-  assert.match(text, /\$credentialProcess\.StandardInput\.WriteLine\('protocol=https'\)/);
-  assert.match(text, /\$credentialProcess\.StandardInput\.WriteLine\('host=github\.com'\)/);
-  assert.match(text, /\$credentialProcess\.StandardInput\.WriteLine\(''\)/);
-  assert.match(text, /\$credentialProcess\.StandardInput\.Close\(\)/);
-  assert.doesNotMatch(
-    text,
-    /\$credentialLines = @\('protocol=https', 'host=github\.com', ''\) \| & git credential fill 2>\$null/
-  );
-  assert.doesNotMatch(text, /\$credentialInput\s*=\s*"protocol=https/);
-  assert.match(text, /GIT_TERMINAL_PROMPT = '0'/);
-  assert.match(text, /GCM_INTERACTIVE = 'Never'/);
-  assert.match(text, /::add-mask::\$password/);
+  assert.match(text, /\$tokenProcessInfo\.FileName = \$ghCommand\.Source/);
+  assert.match(text, /\$tokenProcessInfo\.Arguments = 'auth token --hostname github\.com'/);
+  assert.match(text, /\$tokenProcessInfo\.UseShellExecute = \$false/);
+  assert.match(text, /\$tokenProcessInfo\.CreateNoWindow = \$true/);
+  assert.match(text, /\$tokenProcessInfo\.RedirectStandardOutput = \$true/);
+  assert.match(text, /\$tokenProcessInfo\.RedirectStandardError = \$true/);
+  assert.match(text, /\$ghToken = \$ghToken\.Trim\(\)/);
+  assert.match(text, /::add-mask::\$ghToken/);
+  assert.match(text, /KNEEKURA_RELAY_GITHUB_TOKEN=\$ghToken/);
+  assert.doesNotMatch(text, /git credential fill/);
+  assert.doesNotMatch(text, /StandardInput\.WriteLine\('protocol=https'\)/);
+  assert.doesNotMatch(text, /Write-Host\s+['"]?\$tokenOutput/);
+  assert.doesNotMatch(text, /Write-Host\s+['"]?\$ghToken/);
 });
