@@ -206,38 +206,86 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $expectedCommit = 'f08763d11d0202a8a8f52b5dedda6d1b2e2ebac8'
-          $dest = Join-Path $env:RUNNER_TEMP "kneekura-relay-understand-anything-v2.9.0-$env:GITHUB_RUN_ID"
-          if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
-          New-Item -ItemType Directory -Path $dest | Out-Null
-          git -C $dest init
-          git -C $dest remote add origin 'https://github.com/Egonex-AI/Understand-Anything.git'
-          git -C $dest fetch --depth 1 origin $expectedCommit
-          git -C $dest checkout --detach FETCH_HEAD
-          $actualCommit = (git -C $dest rev-parse HEAD).Trim().ToLowerInvariant()
-          if ($actualCommit -ne $expectedCommit) { throw "Pinned UA commit mismatch: $actualCommit" }
-          $pluginTree = (git -C $dest rev-parse 'HEAD:understand-anything-plugin').Trim().ToLowerInvariant()
-          if ($pluginTree -ne 'c79dd16babb26a39aca4a15156bc488bcfc69587') { throw "Pinned UA plugin tree mismatch: $pluginTree" }
+          $expectedPluginTree = 'c79dd16babb26a39aca4a15156bc488bcfc69587'
           $checks = @{
             'understand-anything-plugin/package.json' = 'e06bc5863abcafdd9c4108e34cbbf5fd6448cedf'
             'understand-anything-plugin/pnpm-lock.yaml' = 'fd4cf7539627856d6b166c39dc1041165fa2ce87'
             'understand-anything-plugin/skills/understand/SKILL.md' = '99bede1a9a7e008e621011d6c984a6b97518946f'
             'LICENSE' = '5df102e8a2e29cdfb881ae7ec5040f2766564680'
           }
-          foreach ($entry in $checks.GetEnumerator()) {
-            $actual = (git -C $dest hash-object $entry.Key).Trim().ToLowerInvariant()
-            if ($actual -ne $entry.Value) { throw "Pinned UA blob mismatch for $($entry.Key): $actual" }
+          $cacheParent = Join-Path $env:USERPROFILE '.kneekura-code-lab\engine-cache'
+          $cacheRoot = Join-Path $cacheParent "understand-anything-v2.9.0-$expectedCommit"
+          New-Item -ItemType Directory -Path $cacheParent -Force | Out-Null
+
+          function Test-PinnedUaCache([string]$root) {
+            if (-not (Test-Path -LiteralPath $root)) { return $false }
+            try {
+              $actualCommit = (git -C $root rev-parse HEAD).Trim().ToLowerInvariant()
+              if ($actualCommit -ne $expectedCommit) { return $false }
+              $pluginTree = (git -C $root rev-parse 'HEAD:understand-anything-plugin').Trim().ToLowerInvariant()
+              if ($pluginTree -ne $expectedPluginTree) { return $false }
+              foreach ($entry in $checks.GetEnumerator()) {
+                $actual = (git -C $root hash-object $entry.Key).Trim().ToLowerInvariant()
+                if ($actual -ne $entry.Value) { return $false }
+              }
+              $dirty = @(git -C $root status --porcelain --untracked-files=no)
+              if ($LASTEXITCODE -ne 0 -or $dirty.Count -ne 0) { return $false }
+              if (-not (Test-Path -LiteralPath (Join-Path $root 'node_modules\.pnpm'))) { return $false }
+              return $true
+            } catch {
+              return $false
+            }
           }
+
+          $freshBuild = $false
+          if (-not (Test-PinnedUaCache $cacheRoot)) {
+            if (Test-Path -LiteralPath $cacheRoot) { Remove-Item -LiteralPath $cacheRoot -Recurse -Force }
+            $tmpRoot = "$cacheRoot.$env:GITHUB_RUN_ID.tmp"
+            if (Test-Path -LiteralPath $tmpRoot) { Remove-Item -LiteralPath $tmpRoot -Recurse -Force }
+            try {
+              New-Item -ItemType Directory -Path $tmpRoot | Out-Null
+              git -C $tmpRoot init
+              git -C $tmpRoot remote add origin 'https://github.com/Egonex-AI/Understand-Anything.git'
+              git -C $tmpRoot fetch --depth 1 origin $expectedCommit
+              git -C $tmpRoot checkout --detach FETCH_HEAD
+              $actualCommit = (git -C $tmpRoot rev-parse HEAD).Trim().ToLowerInvariant()
+              if ($actualCommit -ne $expectedCommit) { throw "Pinned UA commit mismatch: $actualCommit" }
+              $pluginTree = (git -C $tmpRoot rev-parse 'HEAD:understand-anything-plugin').Trim().ToLowerInvariant()
+              if ($pluginTree -ne $expectedPluginTree) { throw "Pinned UA plugin tree mismatch: $pluginTree" }
+              foreach ($entry in $checks.GetEnumerator()) {
+                $actual = (git -C $tmpRoot hash-object $entry.Key).Trim().ToLowerInvariant()
+                if ($actual -ne $entry.Value) { throw "Pinned UA blob mismatch for $($entry.Key): $actual" }
+              }
+              corepack enable
+              corepack prepare pnpm@10.6.2 --activate
+              Push-Location $tmpRoot
+              try {
+                pnpm install --frozen-lockfile
+                pnpm --filter '@understand-anything/core' build
+                pnpm --filter '@understand-anything/dashboard' build
+              } finally { Pop-Location }
+              $tmpDashboard = Join-Path $tmpRoot 'understand-anything-plugin\packages\dashboard\dist'
+              if (-not (Test-Path -LiteralPath (Join-Path $tmpDashboard 'index.html'))) { throw 'Pinned UA dashboard build missing index.html' }
+              Move-Item -LiteralPath $tmpRoot -Destination $cacheRoot
+              $freshBuild = $true
+            } finally {
+              if (Test-Path -LiteralPath $tmpRoot) { Remove-Item -LiteralPath $tmpRoot -Recurse -Force }
+            }
+          }
+
+          if (-not (Test-PinnedUaCache $cacheRoot)) { throw 'Pinned UA cache failed exact identity verification' }
           corepack enable
           corepack prepare pnpm@10.6.2 --activate
-          Push-Location $dest
-          try {
-            pnpm install --frozen-lockfile
-            pnpm --filter '@understand-anything/core' build
-            pnpm --filter '@understand-anything/dashboard' build
-          } finally { Pop-Location }
-          $dashboard = Join-Path $dest 'understand-anything-plugin\packages\dashboard\dist'
-          if (-not (Test-Path (Join-Path $dashboard 'index.html'))) { throw 'Pinned UA dashboard build missing index.html' }
-          "KNEEKURA_UA_ROOT=$dest" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          if (-not $freshBuild) {
+            Push-Location $cacheRoot
+            try {
+              pnpm --filter '@understand-anything/core' build
+              pnpm --filter '@understand-anything/dashboard' build
+            } finally { Pop-Location }
+          }
+          $dashboard = Join-Path $cacheRoot 'understand-anything-plugin\packages\dashboard\dist'
+          if (-not (Test-Path -LiteralPath (Join-Path $dashboard 'index.html'))) { throw 'Pinned UA cached dashboard build missing index.html' }
+          "KNEEKURA_UA_ROOT=$cacheRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "KNEEKURA_UA_DASHBOARD_ROOT=$dashboard" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - id: relay
         name: Execute one disposable Relay turn
