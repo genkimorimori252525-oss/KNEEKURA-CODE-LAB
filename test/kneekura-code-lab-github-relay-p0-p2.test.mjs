@@ -141,10 +141,33 @@ test('P2 replay deterministically replays stored response and reaches COMPLETE',
   );
 });
 
-test('P2 replay fails closed on conflicting duplicate responses', async () => {
+test('P3g replay uses the latest semantic response when the exact task binding is unchanged', async () => {
+  const task = makeTask();
+  const backend = createFakeBackend(task);
+  const first = responseFor(task, { decisions: [] });
+  const corrected = responseFor(task, {
+    decisions: [{ item_id: 'candidate-1', status: 'ACCEPT', reason: 'corrected reviewer response' }]
+  });
+
+  const result = await replayGithubRelayRun({
+    plan: makePlan(),
+    backend,
+    responses: [first, corrected]
+  });
+
+  assert.equal(result.state, 'COMPLETE');
+  assert.equal(result.consumed_response_count, 1);
+  assert.equal(backend.acceptCalls.length, 1);
+  assert.deepEqual(backend.acceptCalls[0].response, corrected.response);
+});
+
+test('P3g replay still fails closed when duplicate task responses disagree on binding', async () => {
   const task = makeTask();
   const first = responseFor(task, { items: [] });
-  const second = responseFor(task, { items: [{ title: 'different' }] });
+  const second = {
+    ...responseFor(task, { items: [{ title: 'different' }] }),
+    scope_digest: `sha256:${'e'.repeat(64)}`
+  };
 
   await assert.rejects(
     replayGithubRelayRun({
