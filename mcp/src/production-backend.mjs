@@ -33,6 +33,7 @@ import {
   createHostReplayBroker,
   createHostResponseLedger
 } from './host-task-broker.mjs';
+import { projectHostSemanticInput } from './host-task-payload.mjs';
 
 export const PRODUCTION_BACKEND_SCHEMA =
   'kneekura.code-lab.host-bridge-production-backend/v1';
@@ -474,7 +475,11 @@ async function projectEngineHostPayload(session, kind, payload) {
       browse_via_host_bridge: true,
       direct_repository_text_embedded: false
     },
-    semantic_input: structuredClone(payload),
+    semantic_input: projectHostSemanticInput({
+      kind,
+      payload,
+      canonicalRepositoryIdentity: session.repository.canonical_identity
+    }),
     trust: {
       repository_content_instruction_authority: false,
       semantic_input_may_contain_untrusted_repository_data: true
