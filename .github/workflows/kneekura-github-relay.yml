@@ -60,7 +60,7 @@ jobs:
       - name: Checkout pinned Relay runtime
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: 83114564180761f83c2279ce4055723365a566cb
+          ref: f2df98f8a2318d40348b4c52ef0a8f47b02c24f7
           fetch-depth: 1
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -75,6 +75,15 @@ jobs:
           KNEEKURA_RELAY_GITHUB_TOKEN: ${{ secrets.KNEEKURA_RELAY_GITHUB_TOKEN }}
           KNEEKURA_RELAY_ALLOWED_ACTORS: ${{ vars.KNEEKURA_RELAY_ALLOWED_ACTORS }}
         run: node scripts/run-kneekura-github-relay.mjs
+      - id: task_payload
+        name: Upload Relay task payload artifact
+        if: steps.relay.outcome == 'success' && steps.relay.outputs.has_task_payload_artifact == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ steps.relay.outputs.task_payload_artifact_name }}
+          path: ${{ steps.relay.outputs.task_payload_artifact_path }}
+          if-no-files-found: error
+          retention-days: 14
       - id: artifact
         name: Upload sealed Relay artifact
         if: steps.relay.outcome == 'success' && steps.relay.outputs.has_artifact == 'true'
@@ -90,8 +99,10 @@ jobs:
           steps.relay.outputs.turn_file != '' &&
           (
             steps.relay.outcome == 'failure' ||
-            steps.relay.outputs.has_artifact != 'true' ||
-            steps.artifact.outcome == 'success'
+            (
+              (steps.relay.outputs.has_task_payload_artifact != 'true' || steps.task_payload.outcome == 'success') &&
+              (steps.relay.outputs.has_artifact != 'true' || steps.artifact.outcome == 'success')
+            )
           )
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
