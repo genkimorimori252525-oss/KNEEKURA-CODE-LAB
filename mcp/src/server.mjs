@@ -33,12 +33,24 @@ const executionRequestSchema = z.object({
   minimumClaimLevel: jsonObjectSchema.optional()
 }).strict();
 
+export const KNEEKURA_CODE_LAB_MCP_INSTRUCTIONS = [
+  'Use kneekura_code_lab_describe before execution to inspect backend readiness.',
+  'Use kneekura_code_lab_plan to bind an explicit engine and immutable target identity before kneekura_code_lab_execute.',
+  'Never substitute engines, promote cross-engine agreement to canonical truth, or label ordinary host-model reasoning as a KNEEKURA/Understand Anything/Archify run.',
+  'If the execution backend is unavailable or blocked, preserve the returned fail-closed state.'
+].join(' ');
+
 export function createKneekuraCodeLabMcpServer({ adapter } = {}) {
   const activeAdapter = adapter ?? createKneekuraCodeLabMcpAdapter();
-  const server = new McpServer({
-    name: 'kneekura-code-lab',
-    version: '1.0.0'
-  });
+  const server = new McpServer(
+    {
+      name: 'kneekura-code-lab',
+      version: '1.0.0'
+    },
+    {
+      instructions: KNEEKURA_CODE_LAB_MCP_INSTRUCTIONS
+    }
+  );
 
   server.registerTool(
     'kneekura_code_lab_describe',
