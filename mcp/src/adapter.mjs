@@ -1,9 +1,9 @@
+import { ENGINE_IDS } from '../../src/skill/contracts.mjs';
+import { routeKneekuraCodeLabRequest } from '../../src/skill/router.mjs';
 import {
-  ENGINE_IDS,
   createSanitizedReceipt,
-  routeKneekuraCodeLabRequest,
   sanitizeDiagnosticText
-} from '../../src/skill/index.mjs';
+} from '../../src/skill/runtime.mjs';
 
 export const MCP_ADAPTER_SCHEMA = 'kneekura.code-lab.mcp-adapter/v1';
 export const MCP_PLAN_SCHEMA = 'kneekura.code-lab.mcp-plan/v1';

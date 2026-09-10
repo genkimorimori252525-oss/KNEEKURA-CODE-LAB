@@ -1,5 +1,6 @@
 node_modules/
 dist/*.json
 dist/chatgpt-skill/
+dist/chatgpt-plugin/
 .tmp/
 .DS_Store
