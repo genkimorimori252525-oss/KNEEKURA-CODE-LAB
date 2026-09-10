@@ -59,6 +59,10 @@ const child = childProcess.spawn(
     windowsHide: true
   }
 );
+const childClosed = new Promise(resolve => {
+  child.once('close', (code, signal) => resolve({ code, signal }));
+  child.once('error', error => resolve({ code: null, signal: null, error }));
+});
 
 const pending = new Map();
 let stderr = '';
@@ -205,10 +209,11 @@ try {
   );
 } finally {
   rl.close();
-  child.stdin.end();
-  if (!child.killed) child.kill();
-  await fs.rm(isolatedParent, { recursive: true, force: true });
-  await fs.rm(targetRoot, { recursive: true, force: true });
+  if (!child.stdin.destroyed) child.stdin.end();
+  if (child.exitCode == null && child.signalCode == null && child.pid != null) child.kill();
+  await childClosed;
+  await removeTreeWithRetry(isolatedParent);
+  await removeTreeWithRetry(targetRoot);
 }
 
 async function createExactTargetFixture(root) {
@@ -293,6 +298,15 @@ function cleanEnvironment(source) {
     if (source[key] != null) env[key] = String(source[key]);
   }
   return env;
+}
+
+async function removeTreeWithRetry(root) {
+  await fs.rm(root, {
+    recursive: true,
+    force: true,
+    maxRetries: 10,
+    retryDelay: 100
+  });
 }
 
 function bounded(value, max) {
