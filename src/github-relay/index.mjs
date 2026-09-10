@@ -30,6 +30,13 @@ export {
 } from './issue-transport.mjs';
 
 export {
+  GITHUB_RELAY_TASK_PAYLOAD_PATH,
+  GITHUB_RELAY_TASK_PAYLOAD_SCHEMA,
+  prepareRelayTaskTransport,
+  verifyRelayTaskPayloadArtifact
+} from './task-payload-transport.mjs';
+
+export {
   createGithubRelayExecutionContext,
   createRelayRunId,
   relayScopeDigest,

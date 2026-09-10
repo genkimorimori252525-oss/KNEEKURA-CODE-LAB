@@ -21,6 +21,9 @@ import {
   runGithubRelayTurn,
   sealedArtifactBytes
 } from '../src/github-relay/orchestrator.mjs';
+import {
+  prepareRelayTaskTransport
+} from '../src/github-relay/task-payload-transport.mjs';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const API_VERSION = '2026-03-10';
@@ -110,8 +113,12 @@ async function main() {
         ? null
         : `kneekura-relay-${turn.run_id}`;
       const workflowRunId = normalizeOptionalPositiveInteger(process.env.GITHUB_RUN_ID);
-      const rendered = turn.actions.map(action => {
-        const envelope = action.kind === 'RESULT' && artifactName
+      let taskPayloadArtifactPath = null;
+      let taskPayloadArtifactName = null;
+      const rendered = [];
+
+      for (const action of turn.actions) {
+        let envelope = action.kind === 'RESULT' && artifactName
           ? {
               ...action.envelope,
               artifact_locator: {
@@ -121,11 +128,31 @@ async function main() {
               }
             }
           : action.envelope;
-        return {
+
+        if (action.kind === 'TASK') {
+          const candidateName = `kneekura-relay-task-${turn.run_id}-${String(action.envelope.task.ordinal).padStart(3, '0')}`;
+          const transport = prepareRelayTaskTransport(envelope, {
+            workflowRunId,
+            artifactName: candidateName
+          });
+          envelope = transport.envelope;
+          if (transport.mode === 'github-actions-artifact') {
+            if (taskPayloadArtifactPath != null) {
+              throw codedError('RELAY_MULTIPLE_TASK_PAYLOAD_ARTIFACTS', 'one Relay turn may externalize at most one Host Task payload');
+            }
+            taskPayloadArtifactName = candidateName;
+            taskPayloadArtifactPath = path.join(outputRoot, `${sanitizeFilename(candidateName)}.json`);
+            await fs.writeFile(taskPayloadArtifactPath, transport.artifact_bytes);
+          }
+          rendered.push({ kind: action.kind, body: transport.comment_body });
+          continue;
+        }
+
+        rendered.push({
           kind: action.kind,
           body: renderRelayComment(markerForAction(action.kind), envelope)
-        };
-      });
+        });
+      }
 
       return writeTurn(outputRoot, {
         schema: 'kneekura.code-lab.github-relay-publish-turn/v1',
@@ -137,7 +164,9 @@ async function main() {
         replay_state: turn.replay.state,
         comments: rendered,
         artifact_path: artifactPath,
-        artifact_name: artifactName
+        artifact_name: artifactName,
+        task_payload_artifact_path: taskPayloadArtifactPath,
+        task_payload_artifact_name: taskPayloadArtifactName
       });
     } finally {
       await fs.rm(tempRoot, { recursive: true, force: true }).catch(() => {});
@@ -161,7 +190,9 @@ async function main() {
         replay_state: 'FAILED',
         comments: [{ kind: 'ERROR', body }],
         artifact_path: null,
-        artifact_name: null
+        artifact_name: null,
+        task_payload_artifact_path: null,
+        task_payload_artifact_name: null
       });
       process.exitCode = 1;
       return;
@@ -280,8 +311,11 @@ async function writeTurn(outputRoot, value) {
   await appendGithubOutput('skipped', value.skipped === true ? 'true' : 'false');
   await appendGithubOutput('failed', value.failed === true ? 'true' : 'false');
   await appendGithubOutput('has_artifact', value.artifact_path ? 'true' : 'false');
+  await appendGithubOutput('has_task_payload_artifact', value.task_payload_artifact_path ? 'true' : 'false');
   if (value.artifact_path) await appendGithubOutput('artifact_path', value.artifact_path);
   if (value.artifact_name) await appendGithubOutput('artifact_name', value.artifact_name);
+  if (value.task_payload_artifact_path) await appendGithubOutput('task_payload_artifact_path', value.task_payload_artifact_path);
+  if (value.task_payload_artifact_name) await appendGithubOutput('task_payload_artifact_name', value.task_payload_artifact_name);
 }
 
 async function appendGithubOutput(key, value) {
