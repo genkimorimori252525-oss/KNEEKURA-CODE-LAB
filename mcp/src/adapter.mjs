@@ -26,6 +26,7 @@ const SAFE_RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const EXACT_GIT_REVISION = /^(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})$/;
 const SNAPSHOT_ID = /^snapshot:sha256:[0-9a-f]{64}$/;
 const SHA256_DIGEST = /^sha256:[0-9a-f]{64}$/;
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/u;
 
 export function createKneekuraCodeLabMcpAdapter({ backend = null } = {}) {
   validateBackendShape(backend);
@@ -66,7 +67,9 @@ export function createKneekuraCodeLabMcpAdapter({ backend = null } = {}) {
     },
 
     async status(input = {}) {
-      const runId = normalizeRunId(input?.runId);
+      requirePlainRecord(input, 'status request');
+      assertOnlyKeys(input, ['runId'], 'status request');
+      const runId = normalizeRunId(input.runId);
       if (typeof backend?.status !== 'function') {
         throw codedError(
           'BLOCKED_BACKEND_UNAVAILABLE',
@@ -78,8 +81,10 @@ export function createKneekuraCodeLabMcpAdapter({ backend = null } = {}) {
     },
 
     async artifactInfo(input = {}) {
-      const runId = normalizeRunId(input?.runId);
-      const artifactId = input?.artifactId == null
+      requirePlainRecord(input, 'artifact request');
+      assertOnlyKeys(input, ['runId', 'artifactId'], 'artifact request');
+      const runId = normalizeRunId(input.runId);
+      const artifactId = input.artifactId == null
         ? null
         : normalizeArtifactId(input.artifactId);
       if (typeof backend?.artifactInfo !== 'function') {
@@ -283,7 +288,7 @@ function normalizeTarget(value) {
   ], 'target');
 
   const repository = requireBoundedText(value.repository, 'target.repository', 500);
-  if (/[^\P{C}\t]/u.test(repository) || /[\r\n\0]/u.test(repository)) {
+  if (CONTROL_CHARACTERS.test(repository)) {
     throw new TypeError('target.repository contains forbidden control characters');
   }
 
