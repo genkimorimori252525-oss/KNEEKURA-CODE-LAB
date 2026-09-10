@@ -19,13 +19,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPOSITORY: ${{ github.repository }}
-          KEEP_RELAY_RUN_ID: '34495349810'
-          CANCEL_EXACT_MAIN_CI_RUN_ID: '34495307597'
+          CANCEL_EXACT_MAIN_CI_RUN_ID: '34495945161'
         run: |
           node <<'NODE'
           const repo = process.env.GH_REPOSITORY;
           const token = process.env.GH_TOKEN;
-          const keepRelayRun = Number(process.env.KEEP_RELAY_RUN_ID);
           const exactMainCiRun = Number(process.env.CANCEL_EXACT_MAIN_CI_RUN_ID);
           if (!repo || !token) throw new Error('GitHub context missing');
 
@@ -52,7 +50,7 @@ jobs:
           const selected = new Map();
           for (const run of candidates) {
             const id = Number(run.id);
-            if (!Number.isSafeInteger(id) || id === keepRelayRun) continue;
+            if (!Number.isSafeInteger(id)) continue;
             const obsoleteRelayCi =
               run.name === 'CI' &&
               String(run.head_branch || '').startsWith('jolly/github-relay-v1');
@@ -60,7 +58,7 @@ jobs:
               id === exactMainCiRun &&
               run.name === 'CI' &&
               run.head_branch === 'main' &&
-              run.head_sha === 'bffe52386c28576c398308277048473e1baae733';
+              run.head_sha === 'bab6b3e68cd97c3b29b2b2b88b76ed891852eb14';
             if (obsoleteRelayCi || exactMainCi) selected.set(id, run);
           }
 
@@ -77,4 +75,4 @@ jobs:
           }
           NODE
 
-# rerun: prioritize-acceptance-v4-after-utf8-merge
+# rerun: p3d3-live-acceptance
