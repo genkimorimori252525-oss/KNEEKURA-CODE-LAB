@@ -20,7 +20,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPOSITORY: ${{ github.repository }}
           KEEP_RELAY_RUN_ID: '34495349810'
-          CANCEL_EXACT_MAIN_CI_RUN_ID: '34494179068'
+          CANCEL_EXACT_MAIN_CI_RUN_ID: '34495307597'
         run: |
           node <<'NODE'
           const repo = process.env.GH_REPOSITORY;
@@ -60,7 +60,7 @@ jobs:
               id === exactMainCiRun &&
               run.name === 'CI' &&
               run.head_branch === 'main' &&
-              run.head_sha === 'b52e12cd3e6378cad6f49ea1fecdf16af9304669';
+              run.head_sha === 'bffe52386c28576c398308277048473e1baae733';
             if (obsoleteRelayCi || exactMainCi) selected.set(id, run);
           }
 
@@ -77,4 +77,4 @@ jobs:
           }
           NODE
 
-# rerun: prioritize-acceptance-v4
+# rerun: prioritize-acceptance-v4-after-utf8-merge
