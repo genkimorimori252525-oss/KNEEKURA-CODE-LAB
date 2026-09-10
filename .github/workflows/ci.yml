@@ -6,6 +6,17 @@ on:
 
 jobs:
   test:
+    if: >-
+      github.event_name != 'push' ||
+      github.ref_name == 'main' ||
+      startsWith(github.ref_name, 'jolly/kneekura-code-lab-skill-v1') ||
+      startsWith(github.ref_name, 'feat/typescript-semantic-vertical') ||
+      startsWith(github.ref_name, 'feat/love-github-human-guide-acceptance') ||
+      startsWith(github.ref_name, 'feat/human-analysis-production-r1') ||
+      startsWith(github.ref_name, 'feat/human-experience-system-map-r2') ||
+      startsWith(github.ref_name, 'feat/human-analysis-r3-technical-views') ||
+      startsWith(github.ref_name, 'feat/human-analysis-r4-repository-scale') ||
+      startsWith(github.ref_name, 'feat/human-analysis-r5-production-golden')
     runs-on: [self-hosted, Windows, X64, kneekura-code-lab]
     steps:
       - uses: actions/checkout@v4
