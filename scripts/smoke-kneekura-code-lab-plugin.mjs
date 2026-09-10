@@ -13,6 +13,10 @@ const EXPECTED_TOOLS = [
   'kneekura_code_lab_describe',
   'kneekura_code_lab_plan',
   'kneekura_code_lab_execute',
+  'kneekura_code_lab_next_task',
+  'kneekura_code_lab_source_catalog',
+  'kneekura_code_lab_read_source',
+  'kneekura_code_lab_submit_response',
   'kneekura_code_lab_status',
   'kneekura_code_lab_artifact_info'
 ];
@@ -78,7 +82,7 @@ try {
   });
   assert.equal(initialized.error, undefined);
   assert.equal(initialized.result.serverInfo.name, 'kneekura-code-lab');
-  assert.match(initialized.result.instructions, /fail-closed state/);
+  assert.match(initialized.result.instructions, /HOST_TASK_REQUIRED/);
   notify('notifications/initialized', {});
 
   const listed = await request('tools/list', {});
@@ -92,7 +96,8 @@ try {
   });
   assert.equal(described.error, undefined);
   const description = JSON.parse(described.result.content[0].text);
-  assert.equal(description.backend_attached, false);
+  assert.equal(description.backend_attached, true);
+  assert.equal(description.host_bridge_attached, true);
   assert.equal(description.hidden_default_engine, false);
   assert.equal(description.semantic_fusion, false);
 
@@ -112,10 +117,10 @@ try {
   assert.equal(blocked.error, undefined);
   assert.equal(blocked.result.isError, true);
   const blockedPayload = JSON.parse(blocked.result.content[0].text);
-  assert.equal(blockedPayload.code, 'BLOCKED_BACKEND_UNAVAILABLE');
+  assert.equal(blockedPayload.code, 'BLOCKED_TARGET_REPOSITORY_UNAVAILABLE');
 
   process.stdout.write(
-    `KNEEKURA Code LAB generated Plugin MCP smoke: PASS (${toolNames.length} tools; fail-closed backend verified)\n`
+    `KNEEKURA Code LAB generated Plugin MCP smoke: PASS (${toolNames.length} tools; embedded Host Bridge backend verified)\n`
   );
 } finally {
   rl.close();
@@ -161,8 +166,8 @@ function cleanEnvironment(source) {
   for (const key of ['PATH', 'Path', 'SystemRoot', 'WINDIR', 'ComSpec', 'PATHEXT', 'TEMP', 'TMP', 'HOME', 'USERPROFILE']) {
     if (source[key] != null) env[key] = String(source[key]);
   }
-  // Deliberately omit KNEEKURA_CODE_LAB_MCP_BACKEND_MODULE. This smoke proves
-  // the distributed plugin starts independently and fails closed without a backend.
+  // Deliberately omit KNEEKURA_CODE_LAB_MCP_BACKEND_MODULE. The distributed
+  // plugin must still attach its embedded production Host Bridge backend.
   return env;
 }
 

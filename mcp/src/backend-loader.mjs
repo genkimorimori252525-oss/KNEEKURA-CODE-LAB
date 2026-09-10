@@ -8,7 +8,12 @@ export async function loadKneekuraCodeLabBackendFromEnvironment({
   const specifier = String(
     env.KNEEKURA_CODE_LAB_MCP_BACKEND_MODULE ?? ''
   ).trim();
-  if (!specifier) return null;
+
+  if (!specifier) {
+    const { createHostBridgeProductionBackend } =
+      await import('./production-backend.mjs');
+    return createHostBridgeProductionBackend({ env });
+  }
 
   const url = specifier.startsWith('file:')
     ? new URL(specifier)
