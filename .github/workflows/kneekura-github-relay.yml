@@ -84,7 +84,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           if (-not [string]::IsNullOrWhiteSpace($env:KNEEKURA_RELAY_GITHUB_TOKEN)) { exit 0 }
 
-          $event = Get-Content -Raw -LiteralPath $env:GITHUB_EVENT_PATH | ConvertFrom-Json
+          $event = Get-Content -Raw -Encoding UTF8 -LiteralPath $env:GITHUB_EVENT_PATH | ConvertFrom-Json
           $body = [string]$event.issue.body
           $match = [regex]::Match($body, '(?s)^\s*KNEEKURA_RELAY_REQUEST_V1\s+```json\s*(\{.*\})\s*```\s*$')
           if (-not $match.Success) { exit 0 }
