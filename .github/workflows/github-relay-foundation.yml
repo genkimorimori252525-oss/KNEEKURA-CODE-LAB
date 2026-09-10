@@ -1,0 +1,24 @@
+name: GitHub Relay Foundation
+
+on:
+  pull_request:
+    paths:
+      - 'src/github-relay/**'
+      - 'test/kneekura-code-lab-github-relay-p0-p2.test.mjs'
+      - 'docs/github-relay-v1.md'
+      - 'package.json'
+      - '.github/workflows/github-relay-foundation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  relay-foundation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Run GitHub Relay P0-P2 tests
+        run: node --test test/kneekura-code-lab-github-relay-p0-p2.test.mjs
