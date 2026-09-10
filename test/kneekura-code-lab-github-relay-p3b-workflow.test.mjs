@@ -51,7 +51,7 @@ test('P3d live workflow is fail-closed and pins the exact P3c runtime', async ()
   assert.doesNotMatch(text, /ref:\s*83114564180761f83c2279ce4055723365a566cb/);
 });
 
-test('P3d same-owner private target fallback is noninteractive, masked, owner-scoped, UTF-8 safe, and writes native stdin directly', async () => {
+test('P3d same-owner private target fallback uses masked GitHub CLI auth and stays owner-scoped', async () => {
   const text = await fs.readFile(WORKFLOW, 'utf8');
 
   assert.match(text, /KNEEKURA_RELAY_EXPLICIT_TOKEN:\s*\$\{\{ secrets\.KNEEKURA_RELAY_GITHUB_TOKEN \}\}/);
@@ -59,23 +59,17 @@ test('P3d same-owner private target fallback is noninteractive, masked, owner-sc
   assert.match(text, /KNEEKURA_RELAY_CURRENT_REPOSITORY:\s*\$\{\{ github\.repository \}\}/);
   assert.match(text, /Get-Content -Raw -Encoding UTF8 -LiteralPath \$env:GITHUB_EVENT_PATH \| ConvertFrom-Json/);
   assert.match(text, /\$parts\[0\]\.ToLowerInvariant\(\) -ne \$env:KNEEKURA_RELAY_REPOSITORY_OWNER\.ToLowerInvariant\(\)/);
-  assert.match(text, /GIT_TERMINAL_PROMPT = '0'/);
-  assert.match(text, /GCM_INTERACTIVE = 'Never'/);
-  assert.match(text, /New-Object System\.Diagnostics\.ProcessStartInfo/);
-  assert.match(text, /FileName = 'git'/);
-  assert.match(text, /Arguments = 'credential fill'/);
+  assert.match(text, /Get-Command gh -ErrorAction SilentlyContinue/);
+  assert.match(text, /\$tokenProcessInfo\.FileName = \$ghCommand\.Source/);
+  assert.match(text, /\$tokenProcessInfo\.Arguments = 'auth token --hostname github\.com'/);
   assert.match(text, /UseShellExecute = \$false/);
-  assert.match(text, /RedirectStandardInput = \$true/);
   assert.match(text, /RedirectStandardOutput = \$true/);
   assert.match(text, /RedirectStandardError = \$true/);
-  assert.match(text, /StandardInput\.WriteLine\('protocol=https'\)/);
-  assert.match(text, /StandardInput\.WriteLine\('host=github\.com'\)/);
-  assert.match(text, /StandardInput\.WriteLine\(''\)/);
-  assert.doesNotMatch(text, /@\('protocol=https', 'host=github\.com', ''\) \| & git credential fill/);
-  assert.match(text, /::add-mask::\$password/);
-  assert.match(text, /KNEEKURA_RELAY_GITHUB_TOKEN=\$password/);
-  assert.doesNotMatch(text, /Write-Host\s+['"]?\$credentialLines/);
-  assert.doesNotMatch(text, /Write-Host\s+['"]?\$credentialOutput/);
+  assert.match(text, /::add-mask::\$ghToken/);
+  assert.match(text, /KNEEKURA_RELAY_GITHUB_TOKEN=\$ghToken/);
+  assert.doesNotMatch(text, /git credential fill/);
+  assert.doesNotMatch(text, /Write-Host\s+['"]?\$tokenOutput/);
+  assert.doesNotMatch(text, /Write-Host\s+['"]?\$ghToken/);
 });
 
 test('P3d runtime and action pins are immutable full Git SHAs', () => {
