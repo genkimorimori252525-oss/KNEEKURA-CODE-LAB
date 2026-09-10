@@ -65,7 +65,7 @@ export function createHostBridgeProductionBackend({
         const execution = await executeKneekuraCodeLabRequest({
           request: plan.runtimeRequest,
           engineRunners,
-          targetSnapshotId: session.snapshot.snapshot_id,
+          targetSnapshotId: session.materialized.snapshotIdentity.snapshot_id,
           scopeDigest: plan.target.scopeDigest,
           runId: plan.runId
         });
@@ -324,6 +324,7 @@ async function ensureSession({ sessions, plan, env, tempParent, limits }) {
       sourceCatalogByPath,
       ledger,
       sourceReadBytesByTask: new Map(),
+      engineResults: new Map(),
       env,
       limits,
       phase: 'PENDING',
@@ -346,17 +347,26 @@ async function ensureSession({ sessions, plan, env, tempParent, limits }) {
 function createProductionEngineRunners(session) {
   const runners = {};
   for (const engineId of session.plan.requestedEngines) {
-    runners[engineId] = envelope => runProductionEngine(session, engineId, envelope);
+    runners[engineId] = async envelope => {
+      const cached = session.engineResults.get(engineId);
+      if (cached) return cached;
+      const result = await runProductionEngine(session, engineId, envelope);
+      session.engineResults.set(engineId, result);
+      return result;
+    };
   }
   return runners;
 }
 
 async function runProductionEngine(session, engineId, envelope) {
   assertEnvelopeBinding(session, engineId, envelope);
+  const attemptOrdinal = session.plan.requestedEngines.length === 1
+    ? 1
+    : ENGINE_ORDINAL[engineId];
   const attempt = createEngineAttemptContext(
     session.plan.runId,
     engineId,
-    ENGINE_ORDINAL[engineId]
+    attemptOrdinal
   );
   if (attempt.attemptId !== envelope.attemptId) {
     throw codedError('HOST_BRIDGE_ATTEMPT_MISMATCH', 'runner envelope attempt identity is not deterministic');
