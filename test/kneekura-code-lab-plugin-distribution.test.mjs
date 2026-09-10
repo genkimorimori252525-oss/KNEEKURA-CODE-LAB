@@ -90,7 +90,7 @@ test('native plugin manifest and MCP declaration use portable current paths', as
   assert.equal(path.isAbsolute(mcp.mcpServers.kneekura_code_lab.cwd), false);
 });
 
-test('plugin distribution manifest binds every payload by hash and records fail-closed runtime facts', async () => {
+test('plugin distribution manifest binds every payload by hash and records embedded Host Bridge runtime facts', async () => {
   const fixture = await buildZipFixture();
   const manifest = JSON.parse(fixture.text('plugin-distribution.json'));
 
@@ -101,8 +101,11 @@ test('plugin distribution manifest binds every payload by hash and records fail-
   assert.equal(manifest.skill_entrypoint, 'skills/kneekura-code-lab/SKILL.md');
   assert.equal(manifest.deterministic_zip, true);
   assert.equal(manifest.desktop_local_mcp, true);
-  assert.equal(manifest.contains_analysis_engine_implementation, false);
-  assert.equal(manifest.backend_required_for_execution, true);
+  assert.equal(manifest.contains_analysis_engine_implementation, true);
+  assert.equal(manifest.contains_pinned_upstream_payloads, false);
+  assert.equal(manifest.embedded_production_host_bridge_backend, true);
+  assert.equal(manifest.backend_required_for_execution, false);
+  assert.equal(manifest.pinned_upstream_roots_required_for_external_engines, true);
   assert.equal(manifest.builder.esbuild_version, PLUGIN_ESBUILD_VERSION);
   assert.equal(manifest.builder.node_target, 'node20');
 
@@ -113,7 +116,7 @@ test('plugin distribution manifest binds every payload by hash and records fail-
   }
 });
 
-test('packaged Skill and README preserve the no-fake-execution and untrusted-target boundaries', async () => {
+test('packaged Skill and README preserve no-fake-execution, embedded Host Bridge, and untrusted-target boundaries', async () => {
   const fixture = await buildZipFixture();
   const skill = fixture.text('skills/kneekura-code-lab/SKILL.md');
   const readme = fixture.text('README.md');
@@ -121,8 +124,10 @@ test('packaged Skill and README preserve the no-fake-execution and untrusted-tar
   assert.match(skill, /Do not label ordinary model reasoning as an engine run/);
   assert.match(skill, /untrusted data/);
   assert.match(skill, /Do not execute target builds, tests, package installers, hooks, scripts or binaries/);
-  assert.match(readme, /fails closed/);
-  assert.match(readme, /does not invent an execution backend/);
+  assert.match(skill, /HOST_TASK_REQUIRED/);
+  assert.match(skill, /kneekura_code_lab_submit_response/);
+  assert.match(readme, /embedded production Host Bridge backend/);
+  assert.match(readme, /never replaced with ordinary model reasoning/);
 });
 
 async function buildZipFixture() {
@@ -135,9 +140,6 @@ async function buildZipFixture() {
     }
   });
 
-  // Reconstruct exactly from the returned manifest and canonical source inputs.
-  // The production packager itself is exercised again with write=true in a
-  // throwaway output by CI; unit tests avoid network/esbuild by injecting the bundle.
   const fs = await import('node:fs/promises');
   const os = await import('node:os');
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'kneekura-plugin-test-'));

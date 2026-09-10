@@ -68,8 +68,11 @@ export async function buildKneekuraCodeLabPluginDistribution({
       skill_entrypoint: 'skills/kneekura-code-lab/SKILL.md',
       deterministic_zip: true,
       desktop_local_mcp: true,
-      contains_analysis_engine_implementation: false,
-      backend_required_for_execution: true,
+      contains_analysis_engine_implementation: true,
+      contains_pinned_upstream_payloads: false,
+      embedded_production_host_bridge_backend: true,
+      backend_required_for_execution: false,
+      pinned_upstream_roots_required_for_external_engines: true,
       builder: {
         mcp_bundle: 'esbuild',
         esbuild_version: PLUGIN_ESBUILD_VERSION,
