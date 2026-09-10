@@ -130,6 +130,25 @@ jobs:
           $ghToken = $null
           $tokenOutput = $null
           $tokenError = $null
+      - id: engine_prep
+        name: Resolve Relay engine preparation
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $selection = ''
+          $event = Get-Content -Raw -Encoding UTF8 -LiteralPath $env:GITHUB_EVENT_PATH | ConvertFrom-Json
+          $body = [string]$event.issue.body
+          $match = [regex]::Match($body, '(?s)^\s*KNEEKURA_RELAY_REQUEST_V1\s+```json\s*(\{.*\})\s*```\s*$')
+          if ($match.Success) {
+            try {
+              $request = $match.Groups[1].Value | ConvertFrom-Json
+              $candidate = [string]$request.selection
+              if ($candidate -in @('kneekura', 'understand-anything', 'archify', 'all')) { $selection = $candidate }
+            } catch {
+              $selection = ''
+            }
+          }
+          "selection=$selection" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
       - name: Prepare pinned Archify v2.16.0 when requested
         shell: powershell
         run: |
@@ -176,6 +195,50 @@ jobs:
           "KNEEKURA_ARCHIFY_ARTIFACT_SHA256=$actual" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Install pinned Code LAB dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Use Node 22 for pinned Understand Anything when requested
+        if: steps.engine_prep.outputs.selection == 'understand-anything'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+      - name: Prepare pinned Understand Anything v2.9.0 when requested
+        if: steps.engine_prep.outputs.selection == 'understand-anything'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $expectedCommit = 'f08763d11d0202a8a8f52b5dedda6d1b2e2ebac8'
+          $dest = Join-Path $env:RUNNER_TEMP "kneekura-relay-understand-anything-v2.9.0-$env:GITHUB_RUN_ID"
+          if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
+          New-Item -ItemType Directory -Path $dest | Out-Null
+          git -C $dest init
+          git -C $dest remote add origin 'https://github.com/Egonex-AI/Understand-Anything.git'
+          git -C $dest fetch --depth 1 origin $expectedCommit
+          git -C $dest checkout --detach FETCH_HEAD
+          $actualCommit = (git -C $dest rev-parse HEAD).Trim().ToLowerInvariant()
+          if ($actualCommit -ne $expectedCommit) { throw "Pinned UA commit mismatch: $actualCommit" }
+          $pluginTree = (git -C $dest rev-parse 'HEAD:understand-anything-plugin').Trim().ToLowerInvariant()
+          if ($pluginTree -ne 'c79dd16babb26a39aca4a15156bc488bcfc69587') { throw "Pinned UA plugin tree mismatch: $pluginTree" }
+          $checks = @{
+            'understand-anything-plugin/package.json' = 'e06bc5863abcafdd9c4108e34cbbf5fd6448cedf'
+            'understand-anything-plugin/pnpm-lock.yaml' = 'fd4cf7539627856d6b166c39dc1041165fa2ce87'
+            'understand-anything-plugin/skills/understand/SKILL.md' = '99bede1a9a7e008e621011d6c984a6b97518946f'
+            'LICENSE' = '5df102e8a2e29cdfb881ae7ec5040f2766564680'
+          }
+          foreach ($entry in $checks.GetEnumerator()) {
+            $actual = (git -C $dest hash-object $entry.Key).Trim().ToLowerInvariant()
+            if ($actual -ne $entry.Value) { throw "Pinned UA blob mismatch for $($entry.Key): $actual" }
+          }
+          corepack enable
+          corepack prepare pnpm@10.6.2 --activate
+          Push-Location $dest
+          try {
+            pnpm install --frozen-lockfile
+            pnpm --filter '@understand-anything/core' build
+            pnpm --filter '@understand-anything/dashboard' build
+          } finally { Pop-Location }
+          $dashboard = Join-Path $dest 'understand-anything-plugin\packages\dashboard\dist'
+          if (-not (Test-Path (Join-Path $dashboard 'index.html'))) { throw 'Pinned UA dashboard build missing index.html' }
+          "KNEEKURA_UA_ROOT=$dest" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "KNEEKURA_UA_DASHBOARD_ROOT=$dashboard" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - id: relay
         name: Execute one disposable Relay turn
         env:
