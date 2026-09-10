@@ -31,6 +31,8 @@ jobs:
         with:
           node-version: 20
       - run: npm ci --no-audit --no-fund
+      - name: Restore Linux native Vite bindings omitted by the Windows-authored lockfile
+        run: npm install --no-save --ignore-scripts --no-audit --no-fund @rolldown/binding-linux-x64-gnu@1.2.7 lightningcss-linux-x64-gnu@1.33.0
       - name: Install pinned MCP adapter dependencies without lifecycle scripts
         run: npm install --prefix mcp --ignore-scripts --no-audit --no-fund --package-lock=false
       - name: Build deterministic Plugin package
