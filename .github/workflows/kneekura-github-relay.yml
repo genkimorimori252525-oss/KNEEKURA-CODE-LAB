@@ -66,13 +66,55 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 20
+      - name: Load explicit Relay repository credential
+        shell: powershell
+        env:
+          KNEEKURA_RELAY_EXPLICIT_TOKEN: ${{ secrets.KNEEKURA_RELAY_GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:KNEEKURA_RELAY_EXPLICIT_TOKEN)) { exit 0 }
+          Write-Host "::add-mask::$env:KNEEKURA_RELAY_EXPLICIT_TOKEN"
+          "KNEEKURA_RELAY_GITHUB_TOKEN=$env:KNEEKURA_RELAY_EXPLICIT_TOKEN" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Resolve same-owner credential from local Git store
+        shell: powershell
+        env:
+          KNEEKURA_RELAY_REPOSITORY_OWNER: ${{ github.repository_owner }}
+          KNEEKURA_RELAY_CURRENT_REPOSITORY: ${{ github.repository }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not [string]::IsNullOrWhiteSpace($env:KNEEKURA_RELAY_GITHUB_TOKEN)) { exit 0 }
+
+          $event = Get-Content -Raw -LiteralPath $env:GITHUB_EVENT_PATH | ConvertFrom-Json
+          $body = [string]$event.issue.body
+          $match = [regex]::Match($body, '(?s)^\s*KNEEKURA_RELAY_REQUEST_V1\s+```json\s*(\{.*\})\s*```\s*$')
+          if (-not $match.Success) { exit 0 }
+          $request = $match.Groups[1].Value | ConvertFrom-Json
+          $target = [string]$request.target.repository
+          if ($target -notmatch '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$') { exit 0 }
+          $parts = $target.Split('/')
+          if ($parts[0].ToLowerInvariant() -ne $env:KNEEKURA_RELAY_REPOSITORY_OWNER.ToLowerInvariant()) { exit 0 }
+          if ($target.ToLowerInvariant() -eq $env:KNEEKURA_RELAY_CURRENT_REPOSITORY.ToLowerInvariant()) { exit 0 }
+
+          $env:GIT_TERMINAL_PROMPT = '0'
+          $env:GCM_INTERACTIVE = 'Never'
+          $credentialInput = "protocol=https`nhost=github.com`n`n"
+          $credentialLines = $credentialInput | & git credential fill 2>$null
+          if ($LASTEXITCODE -ne 0) { exit 0 }
+          $passwordLine = @($credentialLines) | Where-Object { $_ -match '^password=' } | Select-Object -First 1
+          if (-not $passwordLine) { exit 0 }
+          $password = $passwordLine.Substring('password='.Length)
+          if ([string]::IsNullOrWhiteSpace($password)) { exit 0 }
+
+          Write-Host "::add-mask::$password"
+          "KNEEKURA_RELAY_GITHUB_TOKEN=$password" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $password = $null
+          $credentialLines = $null
       - name: Install pinned Code LAB dependencies without lifecycle scripts
         run: npm ci --ignore-scripts --no-audit --no-fund
       - id: relay
         name: Execute one disposable Relay turn
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          KNEEKURA_RELAY_GITHUB_TOKEN: ${{ secrets.KNEEKURA_RELAY_GITHUB_TOKEN }}
           KNEEKURA_RELAY_ALLOWED_ACTORS: ${{ vars.KNEEKURA_RELAY_ALLOWED_ACTORS }}
         run: node scripts/run-kneekura-github-relay.mjs
       - id: task_payload
