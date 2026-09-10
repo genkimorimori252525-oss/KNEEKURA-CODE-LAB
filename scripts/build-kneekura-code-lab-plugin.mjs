@@ -140,7 +140,8 @@ async function bundleMcpServer({ repositoryRoot, tempRoot }) {
     encoding: 'utf8',
     windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: process.env
+    env: process.env,
+    shell: process.platform === 'win32'
   });
   if (run.error) {
     throw codedError('PLUGIN_MCP_BUNDLE_FAILED', run.error.message);
