@@ -14,19 +14,21 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Force-cancel queue-drain branch CI only
+      - name: Force-cancel Relay maintenance branch CI only
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPOSITORY: ${{ github.repository }}
-          DRAIN_BRANCH: jolly/github-relay-v1-queue-drain
         run: |
           node <<'NODE'
           const repo = process.env.GH_REPOSITORY;
           const token = process.env.GH_TOKEN;
-          const branch = process.env.DRAIN_BRANCH;
-          if (!repo || !token || !branch) throw new Error('GitHub context missing');
+          if (!repo || !token) throw new Error('GitHub context missing');
 
+          const maintenanceBranches = new Set([
+            'jolly/github-relay-v1-queue-drain',
+            'jolly/github-relay-v1-credential-diag'
+          ]);
           const headers = {
             Accept: 'application/vnd.github+json',
             Authorization: `Bearer ${token}`,
@@ -34,13 +36,10 @@ jobs:
             'User-Agent': 'kneekura-relay-queue-drain-once'
           };
 
-          // Give GitHub's Actions index a moment to expose the CI run created by
-          // this same push. This job itself is GitHub-hosted and is never selected.
           await new Promise(resolve => setTimeout(resolve, 3000));
-
           const candidates = [];
           for (const status of ['queued', 'in_progress']) {
-            const url = `https://api.github.com/repos/${repo}/actions/runs?branch=${encodeURIComponent(branch)}&status=${status}&per_page=100`;
+            const url = `https://api.github.com/repos/${repo}/actions/runs?status=${status}&per_page=100`;
             const response = await fetch(url, { headers });
             if (!response.ok) throw new Error(`list runs failed: HTTP ${response.status}`);
             const payload = await response.json();
@@ -49,11 +48,11 @@ jobs:
 
           const selected = candidates.filter(run =>
             run.name === 'CI' &&
-            run.head_branch === branch &&
+            maintenanceBranches.has(String(run.head_branch || '')) &&
             ['queued', 'in_progress'].includes(run.status)
           );
 
-          console.log(`Selected ${selected.length} queue-drain CI run(s) for force-cancel.`);
+          console.log(`Selected ${selected.length} Relay-maintenance CI run(s) for force-cancel.`);
           for (const run of selected) {
             const response = await fetch(
               `https://api.github.com/repos/${repo}/actions/runs/${run.id}/force-cancel`,
@@ -62,8 +61,8 @@ jobs:
             if (![202, 409].includes(response.status)) {
               throw new Error(`force-cancel ${run.id} failed: HTTP ${response.status}`);
             }
-            console.log(`Force-cancel requested for queue-drain CI ${run.id}.`);
+            console.log(`Force-cancel requested for maintenance CI ${run.id}.`);
           }
           NODE
 
-# one-shot: drain-own-ci-backlog
+# one-shot: drain-relay-maintenance-ci
