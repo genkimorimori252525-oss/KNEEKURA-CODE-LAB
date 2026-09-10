@@ -1,0 +1,46 @@
+name: UA Stable Task Identity Patch One-Shot
+
+on:
+  push:
+    branches:
+      - jolly/github-relay-p4-ua-stable-task-identity
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.head_commit.message == 'Add one-shot UA Host Task identity patch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: jolly/github-relay-p4-ua-stable-task-identity
+          fetch-depth: 1
+      - name: Patch production Host Task projection
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'mcp/src/production-backend.mjs';
+          let text = fs.readFileSync(path, 'utf8');
+          const imports = `import {\n  acceptHostResponseForPendingTask,\n  createHostReplayBroker,\n  createHostResponseLedger\n} from './host-task-broker.mjs';`;
+          if (!text.includes(imports)) throw new Error('host-task-broker import anchor missing');
+          text = text.replace(imports, `${imports}\nimport { projectHostSemanticInput } from './host-task-payload.mjs';`);
+          const oldLine = '    semantic_input: structuredClone(payload),';
+          if (!text.includes(oldLine)) throw new Error('semantic_input projection anchor missing');
+          text = text.replace(oldLine, `    semantic_input: projectHostSemanticInput({\n      kind,\n      payload,\n      canonicalRepositoryIdentity: session.repository.canonical_identity\n    }),`);
+          fs.writeFileSync(path, text, 'utf8');
+          NODE
+      - name: Run focused identity regressions
+        run: node --test test/kneekura-code-lab-github-relay-p4-ua-stable-task-identity.test.mjs test/kneekura-code-lab-github-relay-p3e-stable-task-identity.test.mjs
+      - name: Commit production patch and remove one-shot
+        shell: bash
+        run: |
+          git config user.name 'KNEEKURA Relay Maintenance'
+          git config user.email 'relay-maintenance@users.noreply.github.com'
+          git rm .github/workflows/ua-stable-task-patch-once.yml
+          git add mcp/src/production-backend.mjs mcp/src/host-task-payload.mjs test/kneekura-code-lab-github-relay-p4-ua-stable-task-identity.test.mjs
+          git commit -m 'Stabilize UA Host Task identity across Relay turns'
+          git push origin HEAD:jolly/github-relay-p4-ua-stable-task-identity
