@@ -4,7 +4,9 @@ on:
   pull_request:
     paths:
       - 'src/github-relay/**'
-      - 'test/kneekura-code-lab-github-relay-p0-p2.test.mjs'
+      - 'scripts/run-kneekura-github-relay.mjs'
+      - 'scripts/publish-kneekura-github-relay.mjs'
+      - 'test/kneekura-code-lab-github-relay-*.test.mjs'
       - 'docs/github-relay-v1.md'
       - 'package.json'
       - '.github/workflows/github-relay-foundation.yml'
@@ -20,5 +22,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Run GitHub Relay P0-P2 tests
-        run: node --test test/kneekura-code-lab-github-relay-p0-p2.test.mjs
+      - name: Check GitHub Relay scripts
+        run: |
+          node --check scripts/run-kneekura-github-relay.mjs
+          node --check scripts/publish-kneekura-github-relay.mjs
+      - name: Run GitHub Relay tests
+        run: node --test test/kneekura-code-lab-github-relay-*.test.mjs
