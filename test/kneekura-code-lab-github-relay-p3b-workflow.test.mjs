@@ -3,7 +3,8 @@ import fs from 'node:fs/promises';
 import test from 'node:test';
 
 const WORKFLOW = new URL('../.github/workflows/kneekura-github-relay.yml', import.meta.url);
-const PINNED_RUNTIME = '919731e1df07e8263c1fb7246ca80ae31ed3bae4';
+const PINNED_RUNTIME = '694098b74c54d2ed3a4d9510feec6409433f47bf';
+const LEGACY_COMPATIBLE_RUNTIME = '919731e1df07e8263c1fb7246ca80ae31ed3bae4';
 const PINNED_ACTIONS = Object.freeze([
   'actions/checkout@11d5960a326750d5838078e36cf38b85af677262',
   'actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020',
@@ -12,7 +13,7 @@ const PINNED_ACTIONS = Object.freeze([
 const PINNED_ARCHIFY_COMMIT = 'c826e6c3a7abad19c0f3cd1ca57207d54b1ad8de';
 const PINNED_ARCHIFY_SHA256 = '4c59fa6557a2385beaaef8c7219cc414573acc9f0c30a932d5053b0b20689a46';
 
-test('P3d live workflow is fail-closed and pins the exact P3c runtime', async () => {
+test('P3d live workflow is fail-closed and pins the exact fast-prep-capable runtime', async () => {
   const text = await fs.readFile(WORKFLOW, 'utf8');
 
   assert.match(text, /issues:\s*\n\s*types:\s*\[opened\]/);
@@ -30,6 +31,7 @@ test('P3d live workflow is fail-closed and pins the exact P3c runtime', async ()
   assert.match(text, /cancel-in-progress:\s*false/);
 
   assert.match(text, new RegExp(`ref:\\s*${PINNED_RUNTIME}`));
+  assert.match(text, new RegExp(`KNEEKURA_RELAY_COMPATIBLE_PLAN_CODE_LAB_REVISIONS:\\s*${LEGACY_COMPATIBLE_RUNTIME}`));
   assert.match(text, /persist-credentials:\s*false/);
   assert.match(text, /npm ci --ignore-scripts --no-audit --no-fund/);
 
@@ -92,6 +94,7 @@ test('P4 Archify preparation is request-scoped, cached only by verified bytes, a
 
 test('P3d runtime and action pins are immutable full Git SHAs', () => {
   assert.match(PINNED_RUNTIME, /^[0-9a-f]{40}$/);
+  assert.match(LEGACY_COMPATIBLE_RUNTIME, /^[0-9a-f]{40}$/);
   assert.match(PINNED_ARCHIFY_COMMIT, /^[0-9a-f]{40}$/);
   assert.match(PINNED_ARCHIFY_SHA256, /^[0-9a-f]{64}$/);
   for (const value of PINNED_ACTIONS) {
