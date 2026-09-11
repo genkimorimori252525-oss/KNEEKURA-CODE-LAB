@@ -1,4 +1,4 @@
-name: Relay Queue Drain One-Shot
+name: Relay UA Fast Prep Patch One-Shot
 
 on:
   push:
@@ -6,48 +6,48 @@ on:
       - jolly/github-relay-v1-queue-drain
 
 permissions:
-  actions: write
-  contents: read
+  contents: write
 
 jobs:
-  drain:
+  patch:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Force-cancel bounded Relay maintenance runs only
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: jolly/github-relay-p4-ua-fast-prep
+          fetch-depth: 1
+      - name: Replace inline UA prep with verified script
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path('.github/workflows/kneekura-github-relay.yml')
+          text = p.read_text(encoding='utf-8')
+          pattern = re.compile(r"      - name: Prepare pinned Understand Anything v2\.9\.0 when requested\n.*?(?=      - id: relay\n)", re.S)
+          replacement = """      - name: Prepare pinned Understand Anything v2.9.0 when requested
+        if: steps.engine_prep.outputs.selection == 'understand-anything'
+        shell: powershell
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-kneekura-relay-ua.ps1
+"""
+          updated, count = pattern.subn(replacement, text)
+          if count != 1:
+              raise SystemExit(f'expected one UA prep block, replaced {count}')
+          p.write_text(updated, encoding='utf-8')
+          PY
+          git diff --check
+          git diff -- .github/workflows/kneekura-github-relay.yml
+      - name: Commit patch to performance branch
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPOSITORY: ${{ github.repository }}
+          BRANCH: jolly/github-relay-p4-ua-fast-prep
         run: |
-          node <<'NODE'
-          const repo = process.env.GH_REPOSITORY;
-          const token = process.env.GH_TOKEN;
-          if (!repo || !token) throw new Error('GitHub context missing');
-          const maintenanceBranches = new Set([
-            'jolly/github-relay-v1-queue-drain',
-            'jolly/github-relay-v1-credential-diag',
-            'jolly/github-relay-v1-p3d5-strip-actions-token',
-            'jolly/github-relay-v1-p3d5-repin-runtime',
-            'jolly/github-relay-v1-p3e-stable-task-identity'
-          ]);
-          const exactRunIds = new Set([34624879049, 34625197069]);
-          const headers = {Accept:'application/vnd.github+json',Authorization:`Bearer ${token}`,'X-GitHub-Api-Version':'2022-11-28','User-Agent':'kneekura-relay-queue-drain-once'};
-          await new Promise(resolve => setTimeout(resolve, 3000));
-          const candidates = [];
-          for (const status of ['queued','in_progress']) {
-            const response = await fetch(`https://api.github.com/repos/${repo}/actions/runs?status=${status}&per_page=100`, {headers});
-            if (!response.ok) throw new Error(`list runs failed: HTTP ${response.status}`);
-            const payload = await response.json();
-            candidates.push(...(Array.isArray(payload.workflow_runs) ? payload.workflow_runs : []));
-          }
-          const selected = candidates.filter(run => (((run.name === 'CI') && maintenanceBranches.has(String(run.head_branch || ''))) || exactRunIds.has(Number(run.id))) && ['queued','in_progress'].includes(run.status));
-          console.log(`Selected ${selected.length} explicitly bounded run(s) for force-cancel.`);
-          for (const run of selected) {
-            const response = await fetch(`https://api.github.com/repos/${repo}/actions/runs/${run.id}/force-cancel`, {method:'POST',headers});
-            if (![202,409].includes(response.status)) throw new Error(`force-cancel ${run.id} failed: HTTP ${response.status}`);
-            console.log(`Force-cancel requested for bounded run ${run.id}.`);
-          }
-          NODE
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/kneekura-github-relay.yml
+          git commit -m 'Use verified fast UA Relay preparation'
+          git push origin HEAD:$BRANCH
 
-# one-shot: free-runner-for-ua-114-task2
+# one-shot: patch-ua-fast-prep-branch
