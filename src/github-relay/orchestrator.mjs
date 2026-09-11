@@ -96,7 +96,12 @@ export async function runGithubRelayTurn({
   existingTaskIds = new Set(),
   existingSourceResultDigests = new Set(),
   existingResultRunIds = new Set(),
-  compatiblePlanCodeLabRevisions = new Set(),
+  compatiblePlanCodeLabRevisions = new Set(
+    String(process.env.KNEEKURA_RELAY_COMPATIBLE_PLAN_CODE_LAB_REVISIONS ?? '')
+      .split(',')
+      .map(value => value.trim())
+      .filter(Boolean)
+  ),
   onComplete = null
 } = {}) {
   const context = await createGithubRelayExecutionContext({
