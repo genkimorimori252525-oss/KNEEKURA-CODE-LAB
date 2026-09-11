@@ -96,6 +96,12 @@ export async function runGithubRelayTurn({
   existingTaskIds = new Set(),
   existingSourceResultDigests = new Set(),
   existingResultRunIds = new Set(),
+  compatiblePlanCodeLabRevisions = new Set(
+    String(process.env.KNEEKURA_RELAY_COMPATIBLE_PLAN_CODE_LAB_REVISIONS ?? '')
+      .split(',')
+      .map(value => value.trim())
+      .filter(Boolean)
+  ),
   onComplete = null
 } = {}) {
   const context = await createGithubRelayExecutionContext({
@@ -105,7 +111,11 @@ export async function runGithubRelayTurn({
     codeLabRevision,
     engineLockDigest
   });
-  assertPlanContinuity(existingPlan, context.relayPlan);
+  const compatibleRevisions = normalizeRevisionSet(
+    compatiblePlanCodeLabRevisions,
+    'compatiblePlanCodeLabRevisions'
+  );
+  const continuity = assertPlanContinuity(existingPlan, context.relayPlan, compatibleRevisions);
 
   const responseEnvelopes = normalizeEntryEnvelopes(responses);
   const respondedTaskBindings = new Set(responseEnvelopes.map(response =>
@@ -126,6 +136,7 @@ export async function runGithubRelayTurn({
     plan: context.mcpPlan,
     backend,
     responses: responseEnvelopes,
+    ignorableResponseTaskIds: continuity.runtimeMigrated ? taskIds : new Set(),
     onComplete
   });
 
@@ -280,19 +291,48 @@ function normalizeEntryEnvelopes(values) {
   return values.map(value => value?.envelope ?? value);
 }
 
-function assertPlanContinuity(existing, expected) {
-  if (!existing) return;
-  if (stableRelayJson(existing) !== stableRelayJson(expected)) {
+function assertPlanContinuity(existing, expected, compatibleRevisions) {
+  if (!existing) return Object.freeze({ runtimeMigrated: false });
+  if (stableRelayJson(existing) === stableRelayJson(expected)) {
+    return Object.freeze({ runtimeMigrated: false });
+  }
+
+  const existingRevision = normalizeRevision(existing.code_lab_revision, 'existingPlan.code_lab_revision');
+  const expectedRevision = normalizeRevision(expected.code_lab_revision, 'expectedPlan.code_lab_revision');
+  const existingWithoutRuntimeDrift = {
+    ...existing,
+    code_lab_revision: expectedRevision
+  };
+  if (
+    stableRelayJson(existingWithoutRuntimeDrift) !== stableRelayJson(expected) ||
+    existingRevision === expectedRevision ||
+    !compatibleRevisions.has(existingRevision)
+  ) {
     throw codedError(
       'RELAY_PLAN_CONFLICT',
       'existing Issue plan does not match the exact request/runtime binding for this turn'
     );
   }
+
+  return Object.freeze({
+    runtimeMigrated: true,
+    fromCodeLabRevision: existingRevision,
+    toCodeLabRevision: expectedRevision
+  });
 }
 
 function normalizeStringSet(value, label) {
   if (!(value instanceof Set)) throw new TypeError(`${label} must be a Set`);
   return new Set([...value].map(item => String(item)));
+}
+
+function normalizeRevisionSet(value, label) {
+  if (!(value instanceof Set)) throw new TypeError(`${label} must be a Set`);
+  const normalized = new Set();
+  for (const item of value) {
+    normalized.add(normalizeRevision(item, `${label} entry`));
+  }
+  return normalized;
 }
 
 function freezeTurn(context, replay, actions) {

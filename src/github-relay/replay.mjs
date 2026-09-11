@@ -10,6 +10,7 @@ export async function replayGithubRelayRun({
   plan,
   backend,
   responses = [],
+  ignorableResponseTaskIds = new Set(),
   maxRounds = 1024,
   onComplete = null
 } = {}) {
@@ -18,12 +19,15 @@ export async function replayGithubRelayRun({
   const runId = normalizePlanRunId(plan);
   const roundLimit = normalizeRoundLimit(maxRounds);
   const responseMap = collectResponses(responses, runId);
+  const ignorableTaskIds = normalizeTaskIdSet(ignorableResponseTaskIds, 'ignorableResponseTaskIds');
   const consumed = new Set();
 
   for (let round = 1; round <= roundLimit; round += 1) {
     try {
       const execution = await backend.execute(plan);
-      const unused = [...responseMap.keys()].filter(taskId => !consumed.has(taskId));
+      const unused = [...responseMap.keys()].filter(taskId =>
+        !consumed.has(taskId) && !ignorableTaskIds.has(taskId)
+      );
       if (unused.length) {
         throw codedError(
           'RELAY_STALE_RESPONSE',
@@ -69,8 +73,8 @@ export async function replayGithubRelayRun({
 
       const stored = responseMap.get(error.task.task_id);
       if (!stored) {
-        const unexpected = [...responseMap.keys()].find(
-          taskId => !consumed.has(taskId)
+        const unexpected = [...responseMap.keys()].find(taskId =>
+          !consumed.has(taskId) && !ignorableTaskIds.has(taskId)
         );
         if (unexpected) {
           throw codedError(
@@ -185,6 +189,19 @@ function normalizeOptionalDigest(value) {
     throw new TypeError('terminal bundle digest must be sha256:<64 hex>');
   }
   return digest;
+}
+
+function normalizeTaskIdSet(value, label) {
+  if (!(value instanceof Set)) throw new TypeError(`${label} must be a Set`);
+  const normalized = new Set();
+  for (const item of value) {
+    const taskId = String(item ?? '').trim().toLowerCase();
+    if (!/^task:sha256:[0-9a-f]{64}$/.test(taskId)) {
+      throw new TypeError(`${label} must contain only exact Host Task ids`);
+    }
+    normalized.add(taskId);
+  }
+  return normalized;
 }
 
 function requireBackend(backend) {
