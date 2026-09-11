@@ -60,7 +60,7 @@ jobs:
       - name: Checkout pinned Relay runtime
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: 919731e1df07e8263c1fb7246ca80ae31ed3bae4
+          ref: 694098b74c54d2ed3a4d9510feec6409433f47bf
           fetch-depth: 1
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -209,6 +209,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           KNEEKURA_RELAY_ALLOWED_ACTORS: ${{ vars.KNEEKURA_RELAY_ALLOWED_ACTORS }}
+          KNEEKURA_RELAY_COMPATIBLE_PLAN_CODE_LAB_REVISIONS: 919731e1df07e8263c1fb7246ca80ae31ed3bae4
         run: node scripts/run-kneekura-github-relay.mjs
       - id: task_payload
         name: Upload Relay task payload artifact
