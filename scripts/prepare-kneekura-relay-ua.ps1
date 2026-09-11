@@ -78,7 +78,7 @@ if (-not (Test-Path $viewerTgz)) {
 $actualViewer = (Get-FileHash -Algorithm SHA256 $viewerTgz).Hash.ToLowerInvariant()
 if ($actualViewer -ne $viewerSha256) { throw "Pinned UA viewer cache sha256 mismatch: $actualViewer" }
 
-$viewerRoot = Join-Path $env:RUNNER_TEMP "kneekura-relay-ua-viewer-v2.9.0-$env:GITHUB_RUN_ID"
+$viewerRoot = Join-Path $sourceRoot ".kneekura-relay-ua-viewer-v2.9.0-$env:GITHUB_RUN_ID"
 if (Test-Path $viewerRoot) { Remove-Item -Recurse -Force $viewerRoot }
 New-Item -ItemType Directory -Path $viewerRoot -Force | Out-Null
 & tar -xzf $viewerTgz -C $viewerRoot

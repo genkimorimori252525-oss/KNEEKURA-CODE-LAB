@@ -36,3 +36,10 @@ test('P4 UA fast prep stays exact-pinned while caching only transport inputs', a
   assert.match(script, /KNEEKURA_UA_ROOT=\$sourceRoot/);
   assert.match(script, /KNEEKURA_UA_DASHBOARD_ROOT=\$dashboardRoot/);
 });
+
+test('P4 UA fast prep stages the release dashboard inside the verified upstream checkout', async () => {
+  const script = await fs.readFile(SCRIPT, 'utf8');
+
+  assert.match(script, /\$viewerRoot = Join-Path \$sourceRoot\b/);
+  assert.doesNotMatch(script, /\$viewerRoot = Join-Path \$env:RUNNER_TEMP\b/);
+});
