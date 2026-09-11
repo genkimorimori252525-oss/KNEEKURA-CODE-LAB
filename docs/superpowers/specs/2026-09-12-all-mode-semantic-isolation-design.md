@@ -3,68 +3,65 @@
 Status: **DESIGN FROZEN FOR IMPLEMENTATION PLANNING**  
 Date: 2026-09-12 JST  
 Authority repository: `genkimorimori252525-oss/KNEEKURA-CODE-LAB`  
-Base revision inspected: `d6c02ac67f653dfe2fd942e6a899a00c16a7facf`
+Inspected base: `d6c02ac67f653dfe2fd942e6a899a00c16a7facf`
 
 ## 1. Decision
 
-GitHub Relay `selection: "all"` will not run the three semantic engines inside one Relay issue or one host semantic session. It will use a **parent controller plus three independently claimed standalone child Relay contexts**:
+GitHub Relay `selection: "all"` will use a **control-only parent plus three independently claimed standalone child contexts**. The parent never executes a semantic engine.
 
 ```text
 ALL parent issue
   |
-  +-- KNEEKURA child issue  ---- independent host semantic session ---- sealed child artifact
-  |
-  +-- UA child issue        ---- independent host semantic session ---- sealed child artifact
-  |
-  +-- Archify child issue   ---- independent host semantic session ---- sealed child artifact
-  |
-  `-- parent composition: receipts + sealed bytes only -> ALL bundle
+  +-- KNEEKURA child issue  -- isolated host context --> sealed KNEEKURA result
+  +-- UA child issue        -- isolated host context --> sealed UA result
+  `-- Archify child issue   -- isolated host context --> sealed Archify result
+                                      |
+                                      v
+                         parent sealed-only composition
 ```
 
-The parent is control-plane only. It never asks a semantic Host Task, never receives a semantic answer intended for an engine, never forwards one engine's semantic response to another engine, and never opens engine semantic output for consensus reasoning. Comparison begins only after all child executions have reached terminal engine results and their sealed artifacts have been verified.
+The parent sees only immutable bindings, context-claim metadata, sanitized receipts, and already-sealed artifact bytes. It never consumes semantic Host responses and never forwards one engine's output into another engine.
 
-This design preserves the frozen v1 rule that engine agreement is descriptive only and cannot promote canonical truth.
+## 2. Existing state and the two gaps
 
-## 2. Why the existing mechanism is not enough
+The current core ALL implementation already gives each engine a distinct attempt/context ID, sets `freshSemanticContextRequired: true`, binds Host Tasks to engine/attempt/snapshot/scope, seals engine results, and keeps `semantic_fusion=false` and consensus-to-truth promotion disabled.
 
-The current core ALL implementation already creates distinct `attemptId` and `semanticContextId` values, sets `freshSemanticContextRequired: true`, binds Host Tasks to engine/attempt/snapshot/scope, and seals each engine before comparison. Those are necessary controls.
+That is not enough for ChatGPT Web Relay because one Issue can still be processed inside one model conversation. Separate identifiers do not erase shared semantic memory. The existing Relay design therefore correctly says that `semanticContextMode: "per-engine"` is necessary but not sufficient.
 
-They are not sufficient for ChatGPT Web GitHub Relay because one Issue thread can still be processed by one model conversation. Separate IDs inside a shared conversation do not erase prior semantic memory. `docs/github-relay-v1.md` therefore correctly states that declaring `semanticContextMode: "per-engine"` is necessary but not sufficient and that live transport must prove independent semantic host contexts before Relay ALL mode is enabled.
+There are also two concrete implementation gaps:
 
-A second existing gap is workflow preparation: the current Relay workflow prepares UA only for `selection: understand-anything` and Archify only for `selection: archify`. A direct `selection: all` engine execution would therefore not have the required pinned upstream roots. The child design avoids special combined preparation: every child reuses its already-proven standalone path and prepares only its own engine.
+1. `runGithubRelayTurn()` currently sends `selection: all` through `replayGithubRelayRun()` and the production backend. ALL must instead be intercepted before semantic backend execution and routed to the parent controller path.
+2. `relayScopeDigest()` includes `selection` and `semanticContextMode`. If each child recomputed a normal standalone scope digest, the three children would not share the parent's ALL scope. Child execution must therefore inherit the exact **parent scope digest** while separately binding the child request projection with a child-request digest.
 
-## 3. Goals
+These two gaps are hard requirements of this design, not optional refinements.
 
-The implementation must guarantee all of the following:
+## 3. Required invariants
 
-1. All children analyze the exact same canonical target repository, revision, snapshot ID, and scope digest.
-2. Each engine is executed through its existing standalone production path.
-3. Each child has a distinct semantic host context identity and a distinct Relay issue.
-4. Host responses from one child cannot satisfy, resume, or influence another child's Host Tasks through product transport or replay state.
-5. The parent can observe only bounded child control metadata, sanitized receipt data, and sealed artifact bytes after terminal completion.
-6. Parent comparison is operational metadata only: no semantic fusion, no engine substitution, and no consensus-to-truth promotion.
-7. Existing standalone Relay behavior remains unchanged.
-8. The final parent bundle is deterministic for identical verified child bytes and metadata.
+The implementation must guarantee:
+
+- one exact target repository and revision;
+- one exact canonical snapshot ID shared by parent and all children;
+- one exact parent scope digest shared by all engine receipts;
+- exactly three child slots: `kneekura`, `understand-anything`, `archify`;
+- one distinct host semantic context identity per child;
+- no cross-child Host response replay;
+- no cross-child source-request replay;
+- no engine substitution;
+- no semantic fusion;
+- no consensus-to-canonical-truth promotion;
+- parent comparison only after child sealing;
+- deterministic parent bundle for identical verified child bytes and metadata;
+- unchanged standalone behavior outside parent-bound child mode.
 
 ## 4. Non-goals
 
-This change does not:
+This design does not merge semantic claims, select a winning engine, create majority-vote truth, expose sealed bytes in Issue comments, change upstream engine pins, or claim cryptographic knowledge of hidden model memory when a host does not expose authenticated session identity.
 
-- merge semantic claims across engines;
-- choose a winning engine;
-- create a majority-vote truth layer;
-- pass KNEEKURA summaries into UA or Archify;
-- pass UA graph/tour content into KNEEKURA or Archify;
-- pass Archify Typed IR/diagram content into KNEEKURA or UA;
-- replace existing engine locks or standalone acceptance profiles;
-- weaken exact snapshot, target instruction-authority, source-read, or artifact-sealing boundaries;
-- claim cryptographic proof of a model provider's hidden conversation memory when the provider does not expose a signed session identity.
+## 5. Semantic-context assurance
 
-## 5. Semantic-context assurance model
+### 5.1 Context claim
 
-### 5.1 Context identity
-
-Each child Relay issue is claimed by one host semantic session before semantic tasks may proceed. A child context claim contains:
+Before a child may emit or accept semantic Host Tasks, an allowed external host session must claim it with:
 
 ```text
 parent_run_id
@@ -74,150 +71,194 @@ host_context_id
 assurance_class
 ```
 
-`host_context_id` is opaque to Code LAB and must be stable for the lifetime of that child. The Relay does not invent it on behalf of the semantic host.
+`host_context_id` is opaque and stable for that child. Code LAB does not invent it on behalf of the semantic host.
 
-For the ChatGPT Web acceptance path, the assurance class is `OPERATOR_SEPARATED_HOST_SESSION_V1`: the three children are deliberately handled in three separate ChatGPT conversations and the acceptance evidence records three distinct context IDs. This is an operational separation proof, not a cryptographic provider attestation.
+For current ChatGPT Web acceptance the assurance class is:
 
-If a future host exposes an authenticated provider session ID or signed context attestation, the same contract can add a stronger assurance class without changing engine semantics.
+`OPERATOR_SEPARATED_HOST_SESSION_V1`
 
-### 5.2 Fail-closed rules
+This means the three child Issues are deliberately handled in three separate ChatGPT conversations and the acceptance evidence records three distinct context IDs. This is an operational separation proof, not a signed provider attestation.
 
-Relay ALL mode remains blocked if:
+### 5.2 Fail closed
 
-- a child has no accepted context claim;
-- two children claim the same `host_context_id`;
-- a claim names the wrong parent run, child issue, or engine;
-- a child tries to change context identity after a semantic response has been accepted;
-- the host cannot provide the required assurance class for the requested ALL execution.
+ALL remains blocked with `BLOCKED_SEMANTIC_CONTEXT_ISOLATION` if:
 
-The error class is `BLOCKED_SEMANTIC_CONTEXT_ISOLATION`.
+- any child has no accepted context claim;
+- two children use the same context ID;
+- a claim names the wrong parent/child/engine;
+- a child changes context ID after semantic replay begins;
+- the requested assurance class cannot be provided.
 
-Distinct GitHub Issue numbers alone are never treated as semantic-context proof.
+A child may perform an early sibling-collision check, but the **authoritative collision check is repeated by the parent immediately before composition** so concurrent claims cannot bypass isolation by race.
 
-## 6. Parent and child identity model
+Distinct Issue numbers alone are not context proof.
 
-### 6.1 Parent
+## 6. Parent identity and scope authority
 
-The parent retains the original Relay ALL request and exact target binding. Its plan records:
+The parent ALL request remains the sole authority for semantic scope. Its immutable plan records:
 
 ```text
 parent_run_id
 selection = all
 semantic_context_mode = per-engine
-target repository/revision/snapshot/scope
+target.repository
+target.revision
+target.snapshot_id
+target.scope_digest          # authoritative scope used by all child engine receipts
 code_lab_revision
 engine_lock_digest
 children[3]
 ```
 
-Each child descriptor binds exactly one engine and one child Issue number. Child issue creation is idempotent: repeated parent turns must discover and reuse the same bound child issues rather than create replacements.
+The parent scope digest is computed once from the ALL request exactly as authorized. Children do **not** recompute their engine receipt scope from a single-engine Relay request.
 
-### 6.2 Child
+Each child descriptor additionally records a deterministic `child_request_digest`. That digest binds the exact projection of the parent request allowed for that engine, including the engine slot, common scope, engine-specific options, minimum claim requirement, parent run ID, and parent scope digest.
 
-A child issue contains a normal single-engine Relay request plus an immutable parent binding:
+This separates two identities that must not be conflated:
+
+- `target.scope_digest`: shared semantic scope authority for all three engines;
+- `child_request_digest`: proof that a child Issue is the exact engine-specific projection authorized by the parent.
+
+## 7. Child identity
+
+A child is a parent-bound standalone execution. Its immutable request binding contains:
 
 ```text
 parent_run_id
 parent_issue_number
+parent_scope_digest
 engine_id
 child_slot
+child_request_digest
 ```
 
-The child runs the ordinary standalone engine path. It does not use `selection: all` and does not know sibling task/response history.
+The child independently resolves the exact target repository/revision and recomputes the canonical snapshot. It must equal the parent's snapshot. The child execution plan then uses the parent's bound scope digest for the engine receipt.
 
-The three required child slots are exactly:
+A parent-bound child may not silently fall back to ordinary standalone scope derivation. A normal standalone request that has no parent binding keeps the current behavior unchanged.
 
-1. `kneekura`
-2. `understand-anything`
-3. `archify`
+## 8. Parent creation lifecycle
 
-No fourth engine and no substitution are permitted.
+On an allowed `selection: all`, `semanticContextMode: per-engine` parent Issue:
 
-### 6.3 Binding invariants
+1. validate the parent request;
+2. resolve canonical repository identity and exact snapshot;
+3. compute the authoritative parent scope digest;
+4. emit the immutable parent plan;
+5. create or recover exactly three immutable child Issue bindings;
+6. write one child Issue per engine with the authorized child projection;
+7. publish `ALL_CONTEXTS_REQUIRED` with the three child Issue references;
+8. stop without calling `replayGithubRelayRun()` or `backend.execute()`.
 
-Parent composition rejects any child terminal record whose:
+Repeated parent turns recover existing child slots. They never create replacement children for a slot that is already bound.
 
-- engine differs from its slot;
-- target repository or exact revision differs;
-- snapshot ID differs;
-- scope digest differs;
-- Code LAB runtime revision differs from the parent-authorized runtime;
-- engine-lock digest differs;
-- parent binding differs;
-- child issue number differs;
-- artifact digest/byte count differs from downloaded bytes.
+Child Issues created by the workflow token are intentionally not expected to recursively start Actions. A child begins only when an allowed external semantic host posts a context claim.
 
-## 7. GitHub Relay lifecycle
+## 9. Child lifecycle
 
-### 7.1 Parent creation turn
+On `KNEEKURA_RELAY_CONTEXT_CLAIM_V1`:
 
-On an authorized parent Issue with `selection: all` and `semanticContextMode: per-engine`:
+1. validate parent/child binding and child request digest;
+2. verify the target snapshot equals the parent snapshot;
+3. bind the context claim;
+4. enter the existing standalone engine replay loop;
+5. prepare only that engine through its already-proven path;
+6. accept only task responses matching the child run/engine/attempt/snapshot/parent-scope/task binding;
+7. produce a terminal child result and sealed artifact package.
 
-1. validate the exact target request;
-2. resolve the exact target snapshot and scope exactly as standalone Relay does;
-3. emit the immutable parent plan;
-4. create or recover exactly three child Issues;
-5. bind one child Issue to each engine;
-6. publish a bounded `ALL_CONTEXTS_REQUIRED` parent message listing the three child Issues and their engine slots;
-7. stop without invoking any engine.
+Engine preparation remains standalone:
 
-Child issues created by the workflow token are not expected to recursively trigger the Relay workflow. A child starts only after an allowed external actor posts a context-claim comment. This avoids accidental GitHub event recursion and makes semantic-context activation explicit.
+- KNEEKURA: existing first-party path;
+- UA: pinned v2.9.0 preparation plus verified dashboard boundary;
+- Archify: pinned v2.16.0 preparation.
 
-### 7.2 Child claim and execution
+There is no combined ALL engine-preparation path.
 
-A child external context posts `KNEEKURA_RELAY_CONTEXT_CLAIM_V1` with its context identity. The child workflow:
+## 10. Replay isolation
 
-1. verifies immutable parent/child binding;
-2. ensures the context ID is not already bound to a sibling;
-3. persists the accepted context claim in the GitHub transport ledger;
-4. executes the existing standalone Relay replay loop for its single engine;
-5. accepts only responses bound to that child run/engine/attempt/snapshot/scope/task;
-6. produces a terminal child result and sealed child artifact.
-
-Every later semantic response on that child must be compatible with the accepted context claim. A conflicting re-claim fails closed.
-
-### 7.3 Parent composition turn
-
-The parent does not auto-compose from workflow-token child comments. Composition is triggered by an allowed external parent resume/compose comment after the three children are terminal.
-
-The parent then:
-
-1. reads only the immutable child binding and each terminal child result envelope;
-2. downloads each child Actions artifact by its exact run/artifact locator;
-3. verifies artifact digest and byte count;
-4. obtains the bounded sanitized engine receipt associated with the child sealed artifact;
-5. verifies receipt engine/snapshot/scope/runtime/lock bindings;
-6. confirms the three host context IDs are distinct;
-7. composes the ALL bundle from the three already-sealed child outcomes;
-8. uploads the parent sealed ALL bundle;
-9. publishes a bounded parent terminal result.
-
-The parent collector must not parse child semantic Task or Response comments. Those comments are outside its input allowlist.
-
-## 8. Child sealed result contract
-
-Standalone child success must expose enough bounded material for later parent verification without exposing raw engine internals in Issue comments.
-
-Each child Actions artifact will contain:
+Relay state is split by construction:
 
 ```text
-result.zip                 # existing sealed engine delivery ZIP
-engine-receipt.json        # sanitized receipt bound to result.zip
-child-result-manifest.json # child/parent/context/runtime/artifact identities
+parent ledger: control messages only
+KNEEKURA child ledger: KNEEKURA semantic responses only
+UA child ledger: UA semantic responses only
+Archify child ledger: Archify semantic responses only
 ```
 
-The outer Actions artifact is transport packaging only. The digest recorded in the Relay terminal result continues to bind the engine `result.zip` bytes. The manifest additionally binds the receipt digest and context identity.
+No combined semantic response ledger exists at parent level.
 
-The parent never modifies a child `result.zip`. It embeds those exact verified bytes into the final ALL delivery bundle.
+A response copied from one child to another must fail exact binding even when its response body is otherwise valid. Cross-child source requests must fail for the same reason.
 
-## 9. Parent composition contract
+The parent collector has no API for semantic Host Task replay or source reads.
 
-The core ALL bundler should be split conceptually into two stages:
+## 11. Child sealed-result transport
 
-1. **engine execution -> sealed outcome** (existing local/in-process behavior);
-2. **sealed outcomes -> deterministic ALL bundle** (reusable by both local ALL and GitHub Relay parent composition).
+Each successful or partial child Actions artifact contains:
 
-A new sealed-outcome composer accepts exactly three verified outcomes and produces the same operational comparison policy:
+```text
+result.zip
+engine-receipt.json
+child-result-manifest.json
+```
+
+`result.zip` is the exact existing sealed engine delivery artifact. Its digest and bytes remain unchanged.
+
+`engine-receipt.json` is a sanitized engine receipt.
+
+`child-result-manifest.json` binds:
+
+- parent run/Issue;
+- child run/Issue;
+- engine slot;
+- host context ID and assurance class;
+- target repository/revision/snapshot;
+- parent scope digest;
+- child request digest;
+- Code LAB runtime revision;
+- engine-lock digest;
+- receipt digest;
+- result ZIP digest and byte count.
+
+Issue comments expose only bounded metadata and artifact locators, never sealed bytes.
+
+## 12. Parent composition lifecycle
+
+Parent composition is triggered by an allowed external parent resume/compose message after children are terminal. Workflow-token child result comments do not recursively drive the parent.
+
+The parent collector is allowlisted to read only:
+
+- parent/child binding records;
+- context-claim records;
+- terminal child result envelopes;
+- child artifact locators and bounded manifests.
+
+It must not parse child semantic TASK, RESPONSE, or SOURCE_RESULT bodies.
+
+Before composition the parent:
+
+1. requires all three child slots to be terminal;
+2. rechecks three distinct context IDs;
+3. downloads each exact child Actions artifact;
+4. verifies result ZIP digest/bytes;
+5. verifies receipt and child manifest digests;
+6. verifies engine identity and slot;
+7. verifies repository/revision/snapshot;
+8. verifies **parent scope digest** equality across all receipts;
+9. verifies child request digest against the parent's authorized projection;
+10. verifies Code LAB runtime and engine-lock identity;
+11. passes only verified receipt metadata and sealed bytes to the composer.
+
+Integrity mismatch is a composition failure, not a semantic PARTIAL result.
+
+## 13. Sealed-outcome composer
+
+The current core ALL logic should be factored into:
+
+1. engine execution -> sealed outcome;
+2. verified sealed outcomes -> deterministic ALL bundle.
+
+The second stage is reusable by local ALL mode and Relay parent composition. It has no semantic scheduler, repository reader, source broker, or Host Task interface.
+
+It receives exactly three verified outcomes and preserves:
 
 ```text
 semantic_fusion = false
@@ -226,189 +267,158 @@ engine_substitution = false
 comparison_policy = sealed-operational-metadata-only
 ```
 
-The composer has no semantic scheduler, source broker, repository reader, or Host Task API. It receives only verified receipts, child context metadata, and sealed ZIP bytes.
+The final bundle includes the exact child `result.zip` bytes, sanitized receipts/outcomes, parent manifest, and operational comparison metadata. It does not contain child semantic response text.
 
-The parent run manifest records child run IDs, child Issue numbers, semantic context IDs, assurance classes, artifact digests, statuses, claim levels, and claim satisfaction. It does not include semantic response text.
+## 14. Status semantics
 
-## 10. Status and failure semantics
+A parent is non-terminal while a child is absent, unclaimed, or still pending semantic tasks.
 
-A parent is **not terminal** while any child is merely absent, unclaimed, or still pending semantic tasks.
+After all three children are terminal:
 
-When all three children are terminal:
+- three `SUCCESS` + satisfied claims -> parent `SUCCESS`;
+- at least one `SUCCESS`/`PARTIAL` plus at least one non-success or unsatisfied result -> parent `PARTIAL`;
+- no `SUCCESS`/`PARTIAL` child -> parent `FAILED`.
 
-- all three `SUCCESS` with satisfied claims -> parent `SUCCESS`;
-- at least one successful/partial child and at least one failed/blocked/partial child -> parent `PARTIAL`;
-- no child produced a successful/partial result -> parent `FAILED`.
+A missing context claim is `CONTEXTS_REQUIRED`, not an engine failure.
 
-A missing context claim is `PENDING/CONTEXTS_REQUIRED`, not an engine failure.
+A failed engine remains failed in its fixed slot. No sibling can substitute for it.
 
-A child terminal failure remains assigned to that engine. The parent may not reroute that slot to another engine.
+Target drift, scope drift, runtime drift, context collision, receipt/artifact corruption, or substitution invalidates composition and fails closed rather than becoming PARTIAL.
 
-Artifact digest mismatch, target identity drift, context collision, runtime drift, or engine substitution is a parent composition failure, not a PARTIAL semantic result, because the integrity of the comparison itself is invalid.
+## 15. Workflow permissions and preparation
 
-## 11. Workflow preparation strategy
+The parent turn needs Issue write/read capability to create/recover child Issues and Actions read capability to retrieve child artifacts during composition. It does not need UA or Archify executable roots.
 
-The parent `selection: all` workflow does **no combined UA/Archify engine preparation** because it executes no engine.
+The child turn keeps the existing standalone permissions and engine-specific preparation.
 
-Each child is a normal standalone request:
+Workflow tests must prove that a parent `selection: all` does not execute engine prep and that child UA/Archify still do.
 
-- KNEEKURA child: existing first-party preparation;
-- UA child: existing pinned UA v2.9.0 preparation and verified dashboard boundary;
-- Archify child: existing pinned Archify v2.16.0 preparation.
+## 16. Compatibility
 
-This prevents an ALL-specific preparation path from becoming a second engine implementation and directly reuses the three standalone paths already proven against KNEEKURA-LAB.
+Standalone Relay requests remain unchanged.
 
-The parent compose turn needs only Code LAB runtime plus permission to read the three child Actions artifacts. It does not need UA or Archify executable roots.
+Parent-bound child mode is explicit and cannot be inferred from ordinary standalone requests. Existing standalone `relayScopeDigest()` behavior therefore remains compatible; only a validated parent-bound child execution receives a parent scope override.
 
-## 12. Replay and ledger isolation
+Local/in-process ALL mode does not use GitHub child Issues. It may reuse the sealed-outcome composer to avoid duplicate comparison/package logic.
 
-Host response ledgers remain exact-task bound, but ALL Relay adds a higher-level isolation rule:
+Until real three-context acceptance passes, Relay ALL remains fail-closed or non-terminal and must not fall back to same-context sequential execution.
 
-- parent ledger: control messages only;
-- child ledger A: KNEEKURA semantic responses only;
-- child ledger B: UA semantic responses only;
-- child ledger C: Archify semantic responses only.
+## 17. TDD and adversarial test matrix
 
-No combined semantic ledger is constructed for the parent.
+### Contracts
 
-A response copied verbatim from child A into child B fails because run/engine/attempt/task/payload bindings differ. Tests must prove this explicitly even if the response JSON itself is otherwise valid.
-
-Source reads are also child-task bound. A source request issued while a KNEEKURA task is pending cannot be reused under a UA or Archify task.
-
-## 13. Security and trust boundaries
-
-The following existing boundaries remain unchanged:
-
-- target repository content has no instruction authority;
-- only allowlisted external actors can submit Relay protocol comments;
-- exact Git revision and canonical snapshot are mandatory;
-- target code is not executed merely for analysis;
-- raw sealed bytes never enter Issue comments;
-- GitHub comments are transport/audit history, not canonical evidence;
-- engine agreement cannot promote canonical truth;
-- parent composition has no repository mutation authority derived from engine output.
-
-New boundaries:
-
-- parent control messages cannot be interpreted as semantic Host responses;
-- child semantic responses cannot be consumed by a sibling;
-- parent composer cannot request source text or semantic assistance;
-- a context ID collision across children fails closed;
-- child issue recreation cannot silently replace an already-bound context slot.
-
-## 14. Compatibility
-
-Standalone requests remain schema-compatible and continue to use the existing Issue-per-run flow.
-
-New fields/markers are optional outside ALL mode. The implementation should avoid changing existing standalone result semantics unless needed to expose the bounded receipt/manifest transport required by parent composition. Any such transport extension must preserve the existing `result.zip` digest and bytes exactly.
-
-The existing local/in-process ALL mode can retain its current execution path. It should reuse the new sealed-outcome composer where practical so final comparison/package rules are not duplicated, but local ALL is not forced through GitHub child Issues.
-
-## 15. Testing strategy
-
-### 15.1 Contract tests
-
-Tests must cover:
-
-- ALL parent requires `per-engine` mode;
-- exactly three engine slots;
-- child parent-binding validation;
-- context claim exact binding;
-- duplicate identical claim idempotence;
+- ALL requires `per-engine`;
+- exactly three fixed engine slots;
+- immutable parent/child binding;
+- exact child request digest;
+- parent scope inheritance;
+- duplicate identical context claim idempotence;
 - conflicting re-claim rejection;
-- duplicate `host_context_id` across siblings rejection;
-- child target/runtime/engine-lock drift rejection.
+- sibling context-ID collision rejection.
 
-### 15.2 Replay isolation tests
+### Orchestration
 
-Tests must prove:
+- `selection: all` is intercepted before `replayGithubRelayRun()`/backend execution;
+- parent creates exactly three idempotent child slots;
+- parent never emits a semantic Host Task;
+- ordinary standalone orchestration remains unchanged.
 
-- KNEEKURA response cannot satisfy UA task;
-- UA response cannot satisfy Archify task;
-- Archify response cannot satisfy KNEEKURA task;
-- source request cannot cross child boundaries;
-- parent collector ignores semantic task/response bodies;
-- parent never creates a semantic Host Task.
+### Isolation
 
-### 15.3 Composer tests
+- KNEEKURA response -> UA: rejected;
+- UA response -> Archify: rejected;
+- Archify response -> KNEEKURA: rejected;
+- source request crossing child boundary: rejected;
+- same context ID on concurrent children: parent composition rejects even if child admission raced;
+- parent collector ignores semantic task/response bodies.
 
-Tests must prove:
+### Scope and identity
 
-- exactly three sealed children are required;
-- one child per engine, no substitution;
-- same snapshot/scope/runtime/engine-lock required;
-- child ZIP digest and receipt binding verified;
-- comparison remains metadata-only;
-- identical verified inputs produce byte-identical parent bundles;
-- failure/partial status calculation matches the frozen ALL policy.
+- child recomputing selection-specific scope is rejected;
+- all child receipts carry the exact parent scope digest;
+- snapshot mismatch rejected;
+- runtime mismatch rejected;
+- engine-lock mismatch rejected;
+- child request projection mismatch rejected.
 
-### 15.4 Workflow tests
+### Composer
 
-Tests must prove:
+- exactly one outcome per engine;
+- sealed ZIP receipt binding verified;
+- no substitution;
+- no semantic fusion;
+- no consensus truth promotion;
+- deterministic output for identical verified bytes/metadata;
+- frozen status semantics preserved.
 
-- parent ALL turn does not run UA or Archify preparation;
-- UA child still uses pinned UA preparation;
-- Archify child still uses pinned Archify preparation;
-- parent has only the permissions needed to create/read Issues and read child Actions artifacts;
-- workflow-token child issue creation does not rely on recursive workflow triggering;
-- an external child context claim is the activation event.
+### Workflow
 
-## 16. Real acceptance
+- parent requires no UA/Archify prep;
+- UA child uses pinned UA prep;
+- Archify child uses pinned Archify prep;
+- parent can read child Actions artifacts;
+- workflow-created child Issues do not depend on recursive event triggering;
+- external context claim activates a child.
 
-The final acceptance target remains the exact KNEEKURA-LAB revision already used for standalone proof:
+## 18. Real acceptance
 
-`e96e40ab0fc7a8995a1972d8f9defb2aa894ad0e`
+Target:
+
+`genkimorimori252525-oss/KNEEKURA-LAB@e96e40ab0fc7a8995a1972d8f9defb2aa894ad0e`
 
 Acceptance requires:
 
-1. one parent ALL Issue;
-2. three child Issues, exactly one per engine;
-3. three deliberately separate host semantic sessions with distinct context IDs;
-4. each child independently reaches a terminal sealed result through its standalone path;
-5. no child semantic response is posted to or consumed by another child;
-6. parent downloads and verifies all three child artifacts;
-7. parent produces one deterministic sealed ALL bundle;
-8. parent manifest proves same target snapshot/scope and distinct context identities;
-9. parent comparison proves `semantic_fusion=false`, `canonical_truth_promotion=false`, and `engine_substitution=false`;
-10. an adversarial replay test demonstrates that cross-child response reuse is rejected.
+1. one ALL parent Issue;
+2. exactly three bound child Issues;
+3. three separate host semantic sessions and three distinct context IDs;
+4. one shared canonical snapshot ID;
+5. one shared parent scope digest in all engine receipts;
+6. three independently completed standalone child engine paths;
+7. three sealed child results with verified receipts/manifests;
+8. no cross-child semantic response/source replay;
+9. one deterministic parent ALL bundle built only after sealing;
+10. parent comparison records `semantic_fusion=false`, `canonical_truth_promotion=false`, `engine_substitution=false`;
+11. deliberate cross-child replay attack is rejected;
+12. standalone KNEEKURA, UA, and Archify regression checks remain green.
 
-The acceptance record must explicitly state that the ChatGPT Web context separation is operator-attested unless/until the host exposes a stronger provider-authenticated context identity.
+The acceptance record must label `OPERATOR_SEPARATED_HOST_SESSION_V1` as operational evidence rather than cryptographic provider attestation.
 
-## 17. Adversarial design review
+## 19. Adversarial review findings
 
-The design was checked against the primary failure modes before freezing:
-
-| Attack/failure | Required defense |
+| Failure mode | Defense |
 | --- | --- |
-| Three Issues handled by one semantic conversation | Distinct host context claims are required; Issue number alone is insufficient. |
-| Same context claims two engine children | Parent/child claim registry rejects context ID collision. |
-| Parent accidentally becomes a semantic agent | Parent has no Host Task API and never consumes semantic response envelopes. |
-| KNEEKURA answer copied into UA | Exact run/engine/attempt/task/payload binding rejects it. |
-| Engine result influences next engine prompt | Children execute independently; sibling results are unavailable until parent composition. |
-| Parent uses majority vote as truth | Comparison contract keeps fusion and truth promotion false. |
-| Failed UA replaced by Archify | Exactly one fixed slot per engine; substitution remains forbidden. |
-| Child analyzes a different commit | Parent rejects repository/revision/snapshot/scope mismatch. |
-| Child runs a different Code LAB runtime | Parent rejects runtime or engine-lock mismatch. |
-| Child artifact changed after result comment | Parent recomputes artifact digest and byte count before composition. |
-| Workflow-created child Issue never starts | This is intentional; external context claim is the child activation event. |
-| ALL path forgets UA/Archify prep | Parent runs no engine; each standalone child performs its proven engine-specific prep. |
-| Repeated parent turn creates extra children | Child slot bindings are idempotent and immutable. |
-| Missing child is misreported as engine failure | Parent remains CONTEXTS_REQUIRED/PENDING until every child is terminal. |
-| Parent scans child semantic comments | Collector allowlist accepts only binding, context claim, terminal result, and artifact metadata. |
+| Three Issues handled in one semantic conversation | Distinct host context claims are required; Issue identity alone is insufficient. |
+| Same context claims two children concurrently | Parent performs authoritative uniqueness recheck immediately before composition. |
+| Parent accidentally executes semantic engine | ALL is intercepted before replay/backend execution. |
+| Child computes standalone selection-specific scope | Parent-bound child must inherit parent scope; child request has a separate digest. |
+| Child request drifts from parent options/question | Parent-authorized child request digest must match. |
+| KNEEKURA answer copied into UA | Exact child run/engine/attempt/task binding rejects it. |
+| Engine output influences later engine prompt | Sibling results are unavailable to semantic child execution; parent sees them only after sealing. |
+| Majority vote becomes truth | Composer is metadata-only and truth promotion remains false. |
+| Failed engine replaced by sibling | Fixed engine slots and substitution prohibition. |
+| Child analyzes another commit | Parent rejects repository/revision/snapshot mismatch. |
+| Child runs another runtime/lock | Parent rejects runtime/engine-lock mismatch. |
+| Artifact changes after terminal result | Parent recomputes digest and byte count. |
+| Workflow-created child never auto-starts | Intentional; external context claim is required. |
+| Repeated parent turn creates extra child | Immutable idempotent child-slot registry. |
+| Missing child is misreported FAILED | Parent remains non-terminal/CONTEXTS_REQUIRED. |
+| Parent reads semantic child comments | Collector input allowlist excludes TASK/RESPONSE/SOURCE_RESULT bodies. |
 
-No Critical/High design issue remains unresolved in this frozen design. The principal residual limitation is explicit: `OPERATOR_SEPARATED_HOST_SESSION_V1` is operational evidence, not a cryptographically signed model-provider session attestation.
+The self-review found and resolved the parent-vs-child scope-digest defect before implementation. No Critical/High design issue is left unresolved in this specification. The explicit residual limitation is that current ChatGPT Web context separation is operator-attested, not cryptographically provider-attested.
 
-## 18. Implementation boundary
+## 20. Implementation boundary
 
-Implementation must start with tests and contracts, not workflow activation. The order is:
+Implementation order is fixed:
 
-1. schema/context/child-binding contract tests;
-2. sealed-outcome composer extraction and tests;
-3. parent/child Relay orchestration tests;
-4. child result receipt/manifest transport;
-5. workflow permission/preparation changes;
-6. isolated fixture acceptance;
-7. real three-context KNEEKURA-LAB acceptance;
-8. only then enable GitHub Relay ALL mode as accepted behavior.
+1. contract tests for parent binding, child request digest, context claim, and parent scope inheritance;
+2. sealed-outcome composer extraction with RED/GREEN tests;
+3. parent-controller orchestration tests and implementation;
+4. child parent-bound scope path and replay-isolation tests;
+5. child receipt/manifest artifact transport;
+6. workflow permission/preparation changes;
+7. fixture-level parent/three-child acceptance;
+8. adversarial regression;
+9. real three-context KNEEKURA-LAB acceptance;
+10. only after acceptance, treat GitHub Relay ALL as enabled behavior.
 
-Until step 7 passes, `selection: all` must continue to fail closed or return a non-terminal context-requirement state. No implementation step may silently downgrade the separation requirement to shared-context sequential execution.
+No implementation stage may downgrade to shared-context sequential execution.
