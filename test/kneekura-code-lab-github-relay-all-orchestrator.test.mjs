@@ -124,6 +124,7 @@ test('ALL parent is control-plane only, creates three child slots once, then wai
       schema: ALL_CHILD_RESULT_MANIFEST_SCHEMA,
       parent_run_id: plan.run_id,
       parent_issue_number: ISSUE,
+      child_run_id: `ghr-${binding.child_issue_number}-${TARGET_REVISION.slice(0, 12)}-${plan.target.scope_digest.slice(7, 19)}`,
       child_issue_number: binding.child_issue_number,
       engine_id: binding.engine_id,
       child_request_digest: binding.child_request_digest,

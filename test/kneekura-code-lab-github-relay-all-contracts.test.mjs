@@ -139,6 +139,7 @@ test('child result manifest must preserve parent target runtime lock and child s
     schema: 'kneekura.code-lab.github-relay-all-child-result-manifest/v1',
     parent_run_id: PARENT_RUN,
     parent_issue_number: PARENT_ISSUE,
+    child_run_id: `ghr-301-${REVISION.slice(0, 12)}-${SCOPE.slice(7, 19)}`,
     child_issue_number: 301,
     engine_id: 'kneekura',
     child_request_digest: binding.child_request_digest,
@@ -154,6 +155,7 @@ test('child result manifest must preserve parent target runtime lock and child s
 
   const accepted = validateAllChildResultManifest(manifest, binding, parentPlan);
   assert.equal(accepted.engine_id, 'kneekura');
+  assert.equal(accepted.child_run_id, manifest.child_run_id);
 
   assert.throws(
     () => validateAllChildResultManifest({ ...manifest, code_lab_revision: '9'.repeat(40) }, binding, parentPlan),

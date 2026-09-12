@@ -19,6 +19,7 @@ const ALL_ENGINES = Object.freeze([
 ]);
 const SHA256_DIGEST = /^sha256:[0-9a-f]{64}$/;
 const EXACT_REVISION = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+const SAFE_RUN_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/u;
 
 export function createAllChildBindings({
@@ -162,6 +163,7 @@ export function validateAllChildResultManifest(value, binding, parentPlan) {
     schema: ALL_CHILD_RESULT_MANIFEST_SCHEMA,
     parent_run_id: requireText(manifest.parent_run_id, 'parent_run_id', 128),
     parent_issue_number: positiveInteger(manifest.parent_issue_number, 'parent_issue_number'),
+    child_run_id: normalizeRunId(manifest.child_run_id),
     child_issue_number: positiveInteger(manifest.child_issue_number, 'child_issue_number'),
     engine_id: normalizeEngineId(manifest.engine_id),
     child_request_digest: normalizeDigest(manifest.child_request_digest, 'child_request_digest'),
@@ -262,6 +264,12 @@ function normalizeEngineId(value) {
   const engineId = String(value ?? '');
   if (!ALL_ENGINES.includes(engineId)) throw new TypeError(`unsupported ALL engine: ${engineId}`);
   return engineId;
+}
+
+function normalizeRunId(value) {
+  const runId = String(value ?? '').trim();
+  if (!SAFE_RUN_ID.test(runId)) throw new TypeError('child_run_id is invalid');
+  return runId;
 }
 
 function normalizeDigest(value, label) {

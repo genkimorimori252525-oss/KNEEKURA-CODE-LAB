@@ -24,8 +24,9 @@ export {
 } from './all-mode-contracts.mjs';
 
 export {
-  runGithubRelayAllParentTurn
-} from './all-mode-orchestrator.mjs';
+  createChildResultManifest,
+  verifyChildCompositionInput
+} from './child-result-manifest.mjs';
 
 export {
   replayGithubRelayRun
