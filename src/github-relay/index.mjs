@@ -25,8 +25,13 @@ export {
 
 export {
   createChildResultManifest,
+  stageChildResultArtifact,
   verifyChildCompositionInput
 } from './child-result-manifest.mjs';
+
+export {
+  composeVerifiedAllChildResults
+} from './all-mode-composition.mjs';
 
 export {
   replayGithubRelayRun

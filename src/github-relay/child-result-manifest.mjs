@@ -1,6 +1,9 @@
 import crypto from 'node:crypto';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 
 import { validateEngineRunReceipt } from '../skill/contracts.mjs';
+import { createSanitizedReceipt } from '../skill/runtime.mjs';
 import {
   ALL_CHILD_RESULT_MANIFEST_SCHEMA,
   validateAllChildResultManifest,
@@ -46,6 +49,56 @@ export function createChildResultManifest({
     result_zip: { digest: zipDigest, bytes: bytes.length },
     receipt_digest: receiptDigest
   }, binding, parentPlanFromBinding(binding));
+}
+
+export async function stageChildResultArtifact({
+  outputRoot,
+  binding,
+  contextClaim,
+  relayResult,
+  receipt,
+  sealedBytes
+} = {}) {
+  const root = path.resolve(String(outputRoot ?? ''));
+  if (!String(outputRoot ?? '').trim()) throw new TypeError('outputRoot is required');
+  const bytes = requireBuffer(sealedBytes, 'sealedBytes');
+  const sanitizedReceipt = validateBoundReceipt(receipt, binding, bytes);
+  const manifest = createChildResultManifest({
+    binding,
+    contextClaim,
+    relayResult,
+    receipt: sanitizedReceipt,
+    sealedBytes: bytes
+  });
+  const artifactRoot = path.join(
+    root,
+    `all-child-${binding.engine_id}-${Number(binding.child_issue_number)}`
+  );
+  await fs.rm(artifactRoot, { recursive: true, force: true });
+  await fs.mkdir(artifactRoot, { recursive: true });
+  await Promise.all([
+    fs.writeFile(path.join(artifactRoot, 'result.zip'), bytes),
+    fs.writeFile(
+      path.join(artifactRoot, 'engine-receipt.json'),
+      `${stableRelayJson(sanitizedReceipt)}\n`,
+      'utf8'
+    ),
+    fs.writeFile(
+      path.join(artifactRoot, 'child-result-manifest.json'),
+      `${stableRelayJson(manifest)}\n`,
+      'utf8'
+    )
+  ]);
+  return deepFreeze({
+    artifact_root: artifactRoot,
+    manifest: structuredClone(manifest),
+    receipt: structuredClone(sanitizedReceipt),
+    result_zip: {
+      digest: manifest.result_zip.digest,
+      bytes: manifest.result_zip.bytes,
+      path: path.join(artifactRoot, 'result.zip')
+    }
+  });
 }
 
 export function verifyChildCompositionInput({
@@ -158,7 +211,13 @@ function validateBoundReceipt(receipt, binding, sealedBytes) {
   ) {
     throw integrityError('child receipt does not bind the exact sealed result ZIP');
   }
-  return receipt;
+  const sanitized = createSanitizedReceipt(receipt);
+  try {
+    validateEngineRunReceipt(sanitized);
+  } catch (error) {
+    throw integrityError(`sanitized child engine receipt is invalid: ${error.message}`);
+  }
+  return sanitized;
 }
 
 function parentPlanFromBinding(binding) {
