@@ -473,7 +473,13 @@ async function projectEngineHostPayload(session, kind, payload) {
     source_catalog: {
       entry_count: session.sourceCatalog.length,
       browse_via_host_bridge: true,
-      direct_repository_text_embedded: false
+      direct_repository_text_embedded: false,
+      entries: session.sourceCatalog.map(row => ({
+        path: row.path,
+        content_digest: row.content_digest,
+        line_count: row.line_count,
+        bytes: row.bytes
+      }))
     },
     semantic_input: projectHostSemanticInput({
       kind,
