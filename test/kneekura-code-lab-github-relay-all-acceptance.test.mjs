@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import childProcess from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
-const SCRIPT = new URL('../scripts/validate-kneekura-code-lab-relay-all-isolation.mjs', import.meta.url);
+const SCRIPT = fileURLToPath(new URL('../scripts/validate-kneekura-code-lab-relay-all-isolation.mjs', import.meta.url));
 
 test('ALL Relay fixture acceptance proves semantic isolation and deterministic sealed composition', () => {
-  const result = childProcess.spawnSync(process.execPath, [SCRIPT.pathname], {
+  const result = childProcess.spawnSync(process.execPath, [SCRIPT], {
     encoding: 'utf8',
     windowsHide: true
   });
