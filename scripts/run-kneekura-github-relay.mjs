@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createHostBridgeProductionBackend } from '../mcp/src/production-backend.mjs';
+import { stageChildResultArtifact } from '../src/github-relay/child-result-manifest.mjs';
 import {
   GITHUB_RELAY_MARKERS,
   parseRelayIssueRequest,
@@ -58,7 +59,7 @@ async function main() {
     if (request.selection === 'all') {
       throw codedError(
         'BLOCKED_SEMANTIC_CONTEXT_ISOLATION',
-        'P3 GitHub Issue transport does not yet prove independent semantic host contexts for all-mode'
+        'GitHub Relay ALL production activation remains blocked until workflow control transport is enabled'
       );
     }
 
@@ -66,6 +67,16 @@ async function main() {
     const comments = await fetchIssueComments(repository, issueNumber, token);
     const thread = parseRelayThreadComments(comments, { allowedActors });
     const existingPlan = selectCanonicalRelayPlan(thread.plans);
+    const allChildBinding = selectParentBoundChildBinding(
+      thread.allChildBindings,
+      issueNumber,
+      request.selection
+    );
+    const allContextClaim = selectParentBoundContextClaim(
+      thread.contextClaims,
+      allChildBinding,
+      issueNumber
+    );
 
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), `kneekura-gh-relay-${issueNumber}-`));
     let artifactPath = null;
@@ -87,6 +98,8 @@ async function main() {
         env: process.env,
         tempParent: tempRoot
       });
+      let completedExecution = null;
+      let completedSealedBytes = null;
 
       const turn = await runGithubRelayTurn({
         request,
@@ -101,13 +114,37 @@ async function main() {
         existingTaskIds: relayTaskIds(thread.tasks),
         existingSourceResultDigests: relaySourceResultDigests(thread.sourceResults),
         existingResultRunIds: relayResultRunIds(thread.results),
+        allChildBinding,
+        allContextClaim,
         onComplete(execution) {
-          const bytes = sealedArtifactBytes(execution);
-          if (!bytes) return;
-          artifactPath = path.join(outputRoot, `${sanitizeFilename(turnlessRunHint(issueNumber, request))}.zip`);
-          return fs.writeFile(artifactPath, bytes);
+          completedExecution = execution;
+          completedSealedBytes = sealedArtifactBytes(execution);
         }
       });
+
+      const resultAction = turn.actions.find(action => action.kind === 'RESULT') ?? null;
+      if (completedSealedBytes) {
+        if (allChildBinding) {
+          if (!resultAction || !completedExecution?.result?.receipt) {
+            throw codedError(
+              'ALL_CHILD_ARTIFACT_INTEGRITY_MISMATCH',
+              'parent-bound child completed without a Relay result/engine receipt pair'
+            );
+          }
+          const staged = await stageChildResultArtifact({
+            outputRoot,
+            binding: allChildBinding,
+            contextClaim: allContextClaim,
+            relayResult: resultAction.envelope,
+            receipt: completedExecution.result.receipt,
+            sealedBytes: completedSealedBytes
+          });
+          artifactPath = staged.artifact_root;
+        } else {
+          artifactPath = path.join(outputRoot, `${sanitizeFilename(turn.run_id)}.zip`);
+          await fs.writeFile(artifactPath, completedSealedBytes);
+        }
+      }
 
       const artifactName = artifactPath == null
         ? null
@@ -201,6 +238,46 @@ async function main() {
   }
 }
 
+function selectParentBoundChildBinding(entries, issueNumber, selection) {
+  const rows = (entries ?? []).filter(entry =>
+    Number(entry?.envelope?.child_issue_number) === issueNumber
+  );
+  if (rows.length === 0) return null;
+  const first = rows[0].envelope;
+  const canonical = JSON.stringify(first);
+  for (const row of rows.slice(1)) {
+    if (JSON.stringify(row.envelope) !== canonical) {
+      throw codedError('ALL_CHILD_BINDING_MISMATCH', 'child Issue contains conflicting ALL child bindings');
+    }
+  }
+  if (String(first.engine_id ?? '') !== selection) {
+    throw codedError('ALL_CHILD_BINDING_MISMATCH', 'child Issue binding engine does not match the request selection');
+  }
+  return first;
+}
+
+function selectParentBoundContextClaim(entries, binding, issueNumber) {
+  const rows = (entries ?? []).filter(entry =>
+    Number(entry?.envelope?.child_issue_number) === issueNumber
+  );
+  if (rows.length === 0) return null;
+  const first = rows[0].envelope;
+  const canonical = JSON.stringify(first);
+  for (const row of rows.slice(1)) {
+    if (JSON.stringify(row.envelope) !== canonical) {
+      throw codedError('BLOCKED_SEMANTIC_CONTEXT_ISOLATION', 'child Issue contains conflicting host context claims');
+    }
+  }
+  if (
+    !binding ||
+    first.parent_run_id !== binding.parent_run_id ||
+    first.engine_id !== binding.engine_id
+  ) {
+    throw codedError('BLOCKED_SEMANTIC_CONTEXT_ISOLATION', 'host context claim is not bound to this exact ALL child slot');
+  }
+  return first;
+}
+
 async function fetchIssueComments(repository, issueNumber, token) {
   const comments = [];
   let page = 1;
@@ -237,9 +314,6 @@ async function materializeTarget({
     GIT_TERMINAL_PROMPT: '0',
     GCM_INTERACTIVE: 'Never'
   };
-  // Keep the repository-scoped Actions token out of the target Git child.
-  // Otherwise Git Credential Manager may prefer it over the explicitly
-  // selected target token and make another private repository look absent.
   delete env.GITHUB_TOKEN;
   let askpassPath = null;
   if (token) {
@@ -357,10 +431,6 @@ function git(cwd, args, env = process.env) {
 
 function nullHooksPath() {
   return process.platform === 'win32' ? 'NUL' : '/dev/null';
-}
-
-function turnlessRunHint(issueNumber, request) {
-  return `ghr-${issueNumber}-${request.target.revision.slice(0, 12)}`;
 }
 
 function sanitizeFilename(value) {
