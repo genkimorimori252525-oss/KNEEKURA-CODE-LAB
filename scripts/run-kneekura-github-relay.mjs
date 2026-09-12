@@ -6,6 +6,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createHostBridgeProductionBackend } from '../mcp/src/production-backend.mjs';
+import { composeVerifiedAllChildResults } from '../src/github-relay/all-mode-composition.mjs';
+import {
+  collectAllChildState,
+  downloadActionsArtifact
+} from '../src/github-relay/all-production-state.mjs';
 import { stageChildResultArtifact } from '../src/github-relay/child-result-manifest.mjs';
 import {
   GITHUB_RELAY_MARKERS,
@@ -56,27 +61,16 @@ async function main() {
     }
 
     const request = parseRelayIssueRequest(event.issue, { allowedActors });
-    if (request.selection === 'all') {
-      throw codedError(
-        'BLOCKED_SEMANTIC_CONTEXT_ISOLATION',
-        'GitHub Relay ALL production activation remains blocked until workflow control transport is enabled'
-      );
-    }
-
     const token = requireEnv('GITHUB_TOKEN');
     const comments = await fetchIssueComments(repository, issueNumber, token);
     const thread = parseRelayThreadComments(comments, { allowedActors });
     const existingPlan = selectCanonicalRelayPlan(thread.plans);
-    const allChildBinding = selectParentBoundChildBinding(
-      thread.allChildBindings,
-      issueNumber,
-      request.selection
-    );
-    const allContextClaim = selectParentBoundContextClaim(
-      thread.contextClaims,
-      allChildBinding,
-      issueNumber
-    );
+    const allChildBinding = request.selection === 'all'
+      ? null
+      : selectParentBoundChildBinding(thread.allChildBindings, issueNumber, request.selection);
+    const allContextClaim = request.selection === 'all'
+      ? null
+      : selectParentBoundContextClaim(thread.contextClaims, allChildBinding, issueNumber);
 
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), `kneekura-gh-relay-${issueNumber}-`));
     let artifactPath = null;
@@ -94,10 +88,28 @@ async function main() {
       const codeLabRevision = git(ROOT, ['rev-parse', 'HEAD']).trim().toLowerCase();
       const engineLockBytes = await fs.readFile(path.join(ROOT, 'engine-lock.json'));
       const engineLockDigest = `sha256:${crypto.createHash('sha256').update(engineLockBytes).digest('hex')}`;
-      const backend = createHostBridgeProductionBackend({
-        env: process.env,
-        tempParent: tempRoot
-      });
+      const backend = request.selection === 'all'
+        ? null
+        : createHostBridgeProductionBackend({
+            env: process.env,
+            tempParent: tempRoot
+          });
+      const allState = request.selection === 'all'
+        ? await collectAllChildState({
+            repository,
+            parentIssueNumber: issueNumber,
+            thread,
+            allowedActors,
+            token,
+            tempRoot,
+            downloadArtifact: downloadActionsArtifact
+          })
+        : {
+            bindings: [],
+            contextClaims: [],
+            childResults: [],
+            childInputs: []
+          };
       let completedExecution = null;
       let completedSealedBytes = null;
 
@@ -114,6 +126,9 @@ async function main() {
         existingTaskIds: relayTaskIds(thread.tasks),
         existingSourceResultDigests: relaySourceResultDigests(thread.sourceResults),
         existingResultRunIds: relayResultRunIds(thread.results),
+        allChildBindings: allState.bindings,
+        allContextClaims: allState.contextClaims,
+        allChildResults: allState.childResults,
         allChildBinding,
         allContextClaim,
         onComplete(execution) {
@@ -122,7 +137,47 @@ async function main() {
         }
       });
 
-      const resultAction = turn.actions.find(action => action.kind === 'RESULT') ?? null;
+      let publishActions = turn.actions.filter(action => !String(action.kind).startsWith('ALL_'));
+      const controlActions = turn.actions.filter(action => String(action.kind).startsWith('ALL_'));
+      const resultRunIds = relayResultRunIds(thread.results);
+      const composeAction = controlActions.find(action => action.kind === 'ALL_COMPOSE_REQUIRED') ?? null;
+
+      if (composeAction && !resultRunIds.has(turn.run_id)) {
+        const composed = composeVerifiedAllChildResults({
+          parentPlan: turn.relay_plan,
+          childInputs: allState.childInputs
+        });
+        artifactPath = path.join(outputRoot, `${sanitizeFilename(turn.run_id)}.zip`);
+        await fs.writeFile(artifactPath, composed.bundleZip);
+        publishActions = [
+          ...publishActions,
+          {
+            kind: 'RESULT',
+            envelope: {
+              schema: 'kneekura.code-lab.github-relay-result/v1',
+              run_id: turn.run_id,
+              status: composed.status,
+              target: turn.relay_plan.target,
+              code_lab_revision: turn.relay_plan.code_lab_revision,
+              engine_lock_digest: turn.relay_plan.engine_lock_digest,
+              terminal: {
+                kind: 'ALL_MODE_BUNDLE',
+                requested_engine: null,
+                status: composed.status,
+                bundle_digest: composed.bundleZipDigest
+              },
+              artifacts: [{
+                id: 'all:result.zip',
+                digest: composed.bundleZipDigest,
+                bytes: composed.bundleZip.length
+              }],
+              artifact_bytes_exposed: false
+            }
+          }
+        ];
+      }
+
+      const resultAction = publishActions.find(action => action.kind === 'RESULT') ?? null;
       if (completedSealedBytes) {
         if (allChildBinding) {
           if (!resultAction || !completedExecution?.result?.receipt) {
@@ -140,7 +195,7 @@ async function main() {
             sealedBytes: completedSealedBytes
           });
           artifactPath = staged.artifact_root;
-        } else {
+        } else if (request.selection !== 'all') {
           artifactPath = path.join(outputRoot, `${sanitizeFilename(turn.run_id)}.zip`);
           await fs.writeFile(artifactPath, completedSealedBytes);
         }
@@ -154,7 +209,7 @@ async function main() {
       let taskPayloadArtifactName = null;
       const rendered = [];
 
-      for (const action of turn.actions) {
+      for (const action of publishActions) {
         let envelope = action.kind === 'RESULT' && artifactName
           ? {
               ...action.envelope,
@@ -198,8 +253,9 @@ async function main() {
         repository,
         issue_number: issueNumber,
         run_id: turn.run_id,
-        replay_state: turn.replay.state,
+        replay_state: turn.replay?.state ?? (request.selection === 'all' ? 'CONTROL' : 'UNKNOWN'),
         comments: rendered,
+        control_actions: controlActions,
         artifact_path: artifactPath,
         artifact_name: artifactName,
         task_payload_artifact_path: taskPayloadArtifactPath,
@@ -226,6 +282,7 @@ async function main() {
         run_id: null,
         replay_state: 'FAILED',
         comments: [{ kind: 'ERROR', body }],
+        control_actions: [],
         artifact_path: null,
         artifact_name: null,
         task_payload_artifact_path: null,
@@ -314,6 +371,9 @@ async function materializeTarget({
     GIT_TERMINAL_PROMPT: '0',
     GCM_INTERACTIVE: 'Never'
   };
+  // Keep the repository-scoped Actions token out of the target Git child.
+  // Otherwise Git Credential Manager may prefer it over the explicitly
+  // selected target token and make another private repository look absent.
   delete env.GITHUB_TOKEN;
   let askpassPath = null;
   if (token) {
