@@ -63,6 +63,12 @@ async function findOrCreateChildIssue({
   if (!action?.binding || !action?.child_request) {
     throw new Error('ALL_CHILD_CREATE action is missing its binding/request');
   }
+  if (String(action.binding.parent_run_id ?? '') !== String(parentRunId ?? '')) {
+    throw new Error('ALL child binding parent_run_id does not match the publishing parent run');
+  }
+  if (Number(action.binding.parent_issue_number) !== Number(parentIssueNumber)) {
+    throw new Error('ALL child binding parent_issue_number does not match the publishing parent Issue');
+  }
   const slot = Number(action.binding.child_slot);
   if (!Number.isSafeInteger(slot) || slot < 1 || slot > 3) {
     throw new Error('ALL child slot is invalid');
