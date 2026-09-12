@@ -42,7 +42,8 @@
     "validate:love-github-human-guide-production-r4": "node scripts/run-love-github-human-guide-production-r4.mjs",
     "validate:love-github-human-guide-production-r5": "node scripts/validate-love-github-human-guide-production-r5.mjs",
     "validate:archify-native": "node scripts/validate-kneekura-code-lab-archify-native.mjs",
-    "validate:ua-native": "node scripts/validate-kneekura-code-lab-ua-native.mjs"
+    "validate:ua-native": "node scripts/validate-kneekura-code-lab-ua-native.mjs",
+    "validate:github-relay-all-isolation": "node scripts/validate-kneekura-code-lab-relay-all-isolation.mjs"
   },
   "engines": { "node": ">=20" },
   "dependencies": {
