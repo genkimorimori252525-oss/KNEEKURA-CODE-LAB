@@ -10,9 +10,13 @@ import {
 } from './router.mjs';
 import {
   createSanitizedReceipt,
-  createSkillDeliveryZip,
   sanitizeDiagnosticText
 } from './runtime.mjs';
+import {
+  composeSealedAllModeBundle
+} from './sealed-outcome-composer.mjs';
+
+export { composeSealedAllModeBundle } from './sealed-outcome-composer.mjs';
 
 export const KNEEKURA_CODE_LAB_EXECUTION_SCHEMA =
   'kneekura.code-lab.execution/v1';
@@ -145,11 +149,6 @@ export async function runAllModeBundle({
       });
       sealedOutcomes.push(createAcceptedOutcome({ engineId, attempt, accepted }));
     } catch (error) {
-      // HOST_TASK_REQUIRED is not an engine result. It is a transport control
-      // signal used by the resumable Host Bridge. Swallowing it here would
-      // falsely convert "host input needed" into an engine failure and make
-      // multi-round replay impossible. Every other error keeps the frozen v1
-      // all-mode failure semantics below.
       if (String(error?.code ?? '') === 'HOST_TASK_REQUIRED') throw error;
       const blocked = String(error?.code ?? '') === 'BLOCKED_UNSAFE_HOST';
       sealedOutcomes.push(createHostFailureOutcome({
@@ -162,84 +161,11 @@ export async function runAllModeBundle({
     }
   }
 
-  const operationalOutcomes = sealedOutcomes.map(stripPrivateOutcome);
-  const status = computeAllModeStatus(operationalOutcomes);
-  const comparison = deepFreeze({
-    schema: KNEEKURA_CODE_LAB_COMPARISON_SCHEMA,
-    mode: 'operational-side-by-side',
-    semantic_fusion: false,
-    canonical_truth_promotion: false,
-    engine_substitution: false,
-    snapshot_id: snapshot,
-    scope_digest: scope,
-    engines: operationalOutcomes.map(outcome => ({
-      engine_id: outcome.engine_id,
-      status: outcome.status,
-      claim_level: outcome.claim_level,
-      claim_satisfied: outcome.claim_satisfied,
-      sealed_artifact: outcome.sealed_artifact,
-      coverage_digest: outcome.coverage_digest,
-      error_code: outcome.error?.code ?? null
-    }))
-  });
-  const runManifest = deepFreeze({
-    schema: KNEEKURA_CODE_LAB_ALL_MODE_SCHEMA,
-    run_id: normalizedRunId,
-    snapshot_id: snapshot,
-    scope_digest: scope,
-    requested_engines: [...ENGINE_IDS],
-    status,
-    semantic_context_policy: 'fresh-per-engine',
-    comparison_policy: 'sealed-operational-metadata-only',
-    engines: operationalOutcomes
-  });
-
-  const entries = [
-    {
-      classification: 'RUN_METADATA',
-      path: 'run-manifest.json',
-      data: stableJson(runManifest)
-    },
-    {
-      classification: 'COMPARISON',
-      path: 'comparison/operational.json',
-      data: stableJson(comparison)
-    }
-  ];
-  for (const outcome of sealedOutcomes) {
-    entries.push({
-      classification: 'SANITIZED_RECEIPT',
-      path: `engines/${outcome.engine_id}/outcome.json`,
-      data: stableJson(stripPrivateOutcome(outcome))
-    });
-    if (outcome.receipt != null) {
-      entries.push({
-        classification: 'SANITIZED_RECEIPT',
-        path: `engines/${outcome.engine_id}/receipt.json`,
-        data: stableJson(outcome.receipt)
-      });
-    }
-    if (outcome.sealed_bytes != null) {
-      entries.push({
-        classification: 'ENGINE_ARTIFACT',
-        path: `engines/${outcome.engine_id}/result.zip`,
-        data: outcome.sealed_bytes
-      });
-    }
-  }
-  const bundleZip = createSkillDeliveryZip(entries);
-  return Object.freeze({
-    schema: KNEEKURA_CODE_LAB_EXECUTION_SCHEMA,
-    kind: 'ALL_MODE_BUNDLE',
-    status,
+  return composeSealedAllModeBundle({
+    runId: normalizedRunId,
     snapshotId: snapshot,
     scopeDigest: scope,
-    runId: normalizedRunId,
-    runManifest,
-    comparison,
-    outcomes: deepFreeze(operationalOutcomes.map(outcome => structuredClone(outcome))),
-    bundleZip,
-    bundleZipDigest: `sha256:${sha256(bundleZip)}`
+    outcomes: sealedOutcomes
   });
 }
 
@@ -332,20 +258,6 @@ function createHostFailureOutcome({ engineId, attempt, status, code, message }) 
   };
 }
 
-function stripPrivateOutcome(outcome) {
-  return deepFreeze({
-    engine_id: outcome.engine_id,
-    status: outcome.status,
-    claim_level: outcome.claim_level,
-    claim_satisfied: outcome.claim_satisfied,
-    attempt_id: outcome.attempt_id,
-    semantic_context_id: outcome.semantic_context_id,
-    sealed_artifact: outcome.sealed_artifact == null ? null : { ...outcome.sealed_artifact },
-    coverage_digest: outcome.coverage_digest,
-    error: outcome.error == null ? null : { ...outcome.error }
-  });
-}
-
 export function createEngineAttemptContext(runId, engineId, ordinal) {
   const normalizedRunId = requireText(runId, 'runId');
   if (!ENGINE_IDS.includes(engineId)) throw new TypeError(`unsupported engineId: ${engineId}`);
@@ -372,12 +284,6 @@ function createRunnerEnvelope({ engineId, request, snapshotId, scopeDigest, atte
     freshSemanticContextRequired: true,
     request: structuredClone(request)
   });
-}
-
-function computeAllModeStatus(outcomes) {
-  if (outcomes.every(outcome => outcome.status === 'SUCCESS' && outcome.claim_satisfied === true)) return 'SUCCESS';
-  if (outcomes.some(outcome => ['SUCCESS', 'PARTIAL'].includes(outcome.status))) return 'PARTIAL';
-  return 'FAILED';
 }
 
 function normalizeSha256Digest(value) {

@@ -11,6 +11,29 @@ export {
 } from './contracts.mjs';
 
 export {
+  ALL_CHILD_BINDING_SCHEMA,
+  ALL_CHILD_RESULT_MANIFEST_SCHEMA,
+  ALL_CONTEXT_ASSURANCE_CLASS,
+  ALL_CONTEXT_CLAIM_SCHEMA,
+  ALL_PARENT_SCHEMA,
+  allChildRequestDigest,
+  assertDistinctAllContextClaims,
+  createAllChildBindings,
+  validateAllChildResultManifest,
+  validateAllContextClaim
+} from './all-mode-contracts.mjs';
+
+export {
+  createChildResultManifest,
+  stageChildResultArtifact,
+  verifyChildCompositionInput
+} from './child-result-manifest.mjs';
+
+export {
+  composeVerifiedAllChildResults
+} from './all-mode-composition.mjs';
+
+export {
   replayGithubRelayRun
 } from './replay.mjs';
 

@@ -5,6 +5,11 @@ import { resolveRepositoryIdentity } from '../core/identity/repository.mjs';
 import { createCommitSnapshot } from '../core/identity/snapshot.mjs';
 import { planKneekuraCodeLabMcpRequest } from '../../mcp/src/adapter.mjs';
 import {
+  ALL_CHILD_BINDING_SCHEMA,
+  allChildRequestDigest,
+  validateAllContextClaim
+} from './all-mode-contracts.mjs';
+import {
   GITHUB_RELAY_SCHEMAS,
   stableRelayJson,
   validateRelayPlan,
@@ -13,6 +18,7 @@ import {
 import {
   relayEnvelopeDigest
 } from './issue-transport.mjs';
+import { runGithubRelayAllParentTurn } from './all-mode-orchestrator.mjs';
 import { replayGithubRelayRun } from './replay.mjs';
 
 export async function createGithubRelayExecutionContext({
@@ -20,13 +26,16 @@ export async function createGithubRelayExecutionContext({
   issueNumber,
   targetRoot,
   codeLabRevision,
-  engineLockDigest
+  engineLockDigest,
+  allChildBinding = null,
+  allContextClaim = null
 } = {}) {
   const normalizedRequest = validateRelayRequest(request);
   const issue = normalizeIssueNumber(issueNumber);
   const root = path.resolve(String(targetRoot ?? ''));
   const revision = normalizeRevision(codeLabRevision, 'codeLabRevision');
   const lockDigest = normalizeDigest(engineLockDigest, 'engineLockDigest');
+  assertParentBoundChildPair(allChildBinding, allContextClaim);
 
   const repository = await resolveRepositoryIdentity(root);
   const expectedIdentity = `git:github.com/${normalizedRequest.target.repository.toLowerCase()}`;
@@ -38,7 +47,18 @@ export async function createGithubRelayExecutionContext({
   }
 
   const snapshot = createCommitSnapshot(repository, normalizedRequest.target.revision);
-  const scopeDigest = relayScopeDigest(normalizedRequest);
+  const parentBoundChild = allChildBinding == null
+    ? null
+    : validateParentBoundChildExecution({
+        request: normalizedRequest,
+        issueNumber: issue,
+        snapshotId: snapshot.snapshot_id,
+        codeLabRevision: revision,
+        engineLockDigest: lockDigest,
+        binding: allChildBinding,
+        contextClaim: allContextClaim
+      });
+  const scopeDigest = parentBoundChild?.scopeDigest ?? relayScopeDigest(normalizedRequest);
   const runId = createRelayRunId(issue, normalizedRequest.target.revision, scopeDigest);
   const mcpPlan = planKneekuraCodeLabMcpRequest({
     selection: normalizedRequest.selection,
@@ -79,7 +99,8 @@ export async function createGithubRelayExecutionContext({
     scopeDigest,
     runId,
     mcpPlan,
-    relayPlan
+    relayPlan,
+    parentBoundChild
   });
 }
 
@@ -96,6 +117,11 @@ export async function runGithubRelayTurn({
   existingTaskIds = new Set(),
   existingSourceResultDigests = new Set(),
   existingResultRunIds = new Set(),
+  allChildBindings = [],
+  allContextClaims = [],
+  allChildResults = [],
+  allChildBinding = null,
+  allContextClaim = null,
   compatiblePlanCodeLabRevisions = new Set(
     String(process.env.KNEEKURA_RELAY_COMPATIBLE_PLAN_CODE_LAB_REVISIONS ?? '')
       .split(',')
@@ -109,13 +135,26 @@ export async function runGithubRelayTurn({
     issueNumber,
     targetRoot,
     codeLabRevision,
-    engineLockDigest
+    engineLockDigest,
+    allChildBinding,
+    allContextClaim
   });
   const compatibleRevisions = normalizeRevisionSet(
     compatiblePlanCodeLabRevisions,
     'compatiblePlanCodeLabRevisions'
   );
   const continuity = assertPlanContinuity(existingPlan, context.relayPlan, compatibleRevisions);
+
+  if (context.request.selection === 'all') {
+    return runGithubRelayAllParentTurn({
+      context,
+      parentIssueNumber: issueNumber,
+      existingPlan,
+      allChildBindings,
+      allContextClaims,
+      allChildResults
+    });
+  }
 
   const responseEnvelopes = normalizeEntryEnvelopes(responses);
   const respondedTaskBindings = new Set(responseEnvelopes.map(response =>
@@ -258,6 +297,85 @@ export function sealedArtifactBytes(execution) {
   return null;
 }
 
+function validateParentBoundChildExecution({
+  request,
+  issueNumber,
+  snapshotId,
+  codeLabRevision,
+  engineLockDigest,
+  binding,
+  contextClaim
+}) {
+  if (request.selection === 'all') {
+    throw bindingError('an ALL parent request cannot also be a parent-bound child execution');
+  }
+  if (request.semanticContextMode !== 'single-context') {
+    throw bindingError('parent-bound child request must use its one claimed semantic context');
+  }
+  if (!binding || typeof binding !== 'object' || Array.isArray(binding) || binding.schema !== ALL_CHILD_BINDING_SCHEMA) {
+    throw bindingError('parent-bound child binding is invalid');
+  }
+  const claim = validateAllContextClaim(contextClaim, binding);
+  if (Number(binding.child_issue_number) !== issueNumber) {
+    throw bindingError('parent-bound child Issue does not match its immutable binding');
+  }
+  if (String(binding.engine_id ?? '') !== request.selection) {
+    throw bindingError('parent-bound child engine does not match the requested standalone engine');
+  }
+  if (
+    String(binding.target?.repository ?? '') !== request.target.repository ||
+    normalizeRevision(binding.target?.revision, 'allChildBinding.target.revision') !== request.target.revision
+  ) {
+    throw bindingError('parent-bound child target does not match the authorized request projection');
+  }
+  if (normalizeSnapshotId(binding.target?.snapshot_id) !== snapshotId) {
+    throw bindingError('parent-bound child snapshot does not match the exact materialized target');
+  }
+  const scopeDigest = normalizeDigest(binding.scope_digest, 'allChildBinding.scope_digest');
+  if (scopeDigest !== normalizeDigest(binding.target?.scope_digest, 'allChildBinding.target.scope_digest')) {
+    throw bindingError('parent-bound child scope does not match the parent target scope');
+  }
+  if (normalizeRevision(binding.code_lab_revision, 'allChildBinding.code_lab_revision') !== codeLabRevision) {
+    throw bindingError('parent-bound child Code LAB runtime does not match the executing runtime');
+  }
+  if (normalizeDigest(binding.engine_lock_digest, 'allChildBinding.engine_lock_digest') !== engineLockDigest) {
+    throw bindingError('parent-bound child engine lock does not match the executing runtime');
+  }
+
+  const engineOptions = exactEngineProjection(request.engineOptions, request.selection, {}, 'engineOptions');
+  const minimumClaimLevel = exactEngineProjection(request.minimumClaimLevel, request.selection, null, 'minimumClaimLevel');
+  const expectedChildRequestDigest = allChildRequestDigest({
+    ...binding,
+    common_scope: request.commonScope,
+    engine_options: engineOptions,
+    minimum_claim_level: minimumClaimLevel
+  });
+  if (normalizeDigest(binding.child_request_digest, 'allChildBinding.child_request_digest') !== expectedChildRequestDigest) {
+    throw bindingError('parent-bound child request projection does not match its authorized digest');
+  }
+
+  return deepFreeze({
+    binding: structuredClone(binding),
+    contextClaim: structuredClone(claim),
+    scopeDigest
+  });
+}
+
+function exactEngineProjection(value, engineId, fallback, label) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return fallback;
+  const keys = Object.keys(value);
+  if (keys.some(key => key !== engineId)) {
+    throw bindingError(`parent-bound child ${label} contains a sibling engine projection`);
+  }
+  return value[engineId] == null ? fallback : structuredClone(value[engineId]);
+}
+
+function assertParentBoundChildPair(binding, claim) {
+  if (binding == null && claim == null) return;
+  if (binding == null) throw bindingError('ALL context claim cannot be used without a child binding');
+  if (claim == null) throw isolationError('parent-bound ALL child requires an accepted host context claim');
+}
+
 function findPendingSourceRequest({ runId, taskId, sourceEntries, servedDigests }) {
   for (let index = sourceEntries.length - 1; index >= 0; index -= 1) {
     const entry = sourceEntries[index];
@@ -359,10 +477,26 @@ function normalizeRevision(value, label) {
   return revision;
 }
 
+function normalizeSnapshotId(value) {
+  const snapshot = String(value ?? '').trim().toLowerCase();
+  if (!/^snapshot:sha256:[0-9a-f]{64}$/.test(snapshot)) {
+    throw new TypeError('snapshot_id must be snapshot:sha256:<64 hex>');
+  }
+  return snapshot;
+}
+
 function normalizeDigest(value, label) {
   const digest = String(value ?? '').trim().toLowerCase();
   if (!/^sha256:[0-9a-f]{64}$/.test(digest)) throw new TypeError(`${label} must be sha256:<64 hex>`);
   return digest;
+}
+
+function bindingError(message) {
+  return codedError('ALL_CHILD_BINDING_MISMATCH', message);
+}
+
+function isolationError(message) {
+  return codedError('BLOCKED_SEMANTIC_CONTEXT_ISOLATION', message);
 }
 
 function deepFreeze(value) {

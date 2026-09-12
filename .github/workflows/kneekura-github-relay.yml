@@ -7,6 +7,7 @@ on:
     types: [created]
 
 permissions:
+  actions: read
   contents: read
   issues: write
 
@@ -39,13 +40,18 @@ jobs:
           const allowed = new Set(configured.length ? configured : [owner]);
           const sender = String(event?.sender?.login || '').trim().toLowerCase();
           const firstLine = value => String(value || '').replace(/\r\n?/g, '\n').trimStart().split('\n', 1)[0].trim();
+          const issueTitle = String(event?.issue?.title || '');
+          const isAllChild = issueTitle.startsWith('[KNEEKURA ALL child ');
           let run = false;
           if (!event?.issue?.pull_request && allowed.has(sender)) {
             if (process.env.GITHUB_EVENT_NAME === 'issues' && event.action === 'opened') {
-              run = firstLine(event.issue?.body) === 'KNEEKURA_RELAY_REQUEST_V1';
+              run = !isAllChild && firstLine(event.issue?.body) === 'KNEEKURA_RELAY_REQUEST_V1';
             } else if (process.env.GITHUB_EVENT_NAME === 'issue_comment' && event.action === 'created') {
               const marker = firstLine(event.comment?.body);
-              run = marker === 'KNEEKURA_RELAY_RESPONSE_V1' || marker === 'KNEEKURA_RELAY_SOURCE_REQUEST_V1';
+              run = marker === 'KNEEKURA_RELAY_RESPONSE_V1' ||
+                marker === 'KNEEKURA_RELAY_SOURCE_REQUEST_V1' ||
+                marker === 'KNEEKURA_RELAY_CONTEXT_CLAIM_V1' ||
+                marker === 'KNEEKURA_RELAY_ALL_RESUME_V1';
             }
           }
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `run=${run ? 'true' : 'false'}\n`);
@@ -60,7 +66,7 @@ jobs:
       - name: Checkout pinned Relay runtime
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: f370f70e99e7cab30f89297c042091ad52a03220
+          ref: bc5d00f9548b557cb227173ca8866a3171342434
           fetch-depth: 1
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
@@ -209,7 +215,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           KNEEKURA_RELAY_ALLOWED_ACTORS: ${{ vars.KNEEKURA_RELAY_ALLOWED_ACTORS }}
-          KNEEKURA_RELAY_COMPATIBLE_PLAN_CODE_LAB_REVISIONS: 919731e1df07e8263c1fb7246ca80ae31ed3bae4
+          KNEEKURA_RELAY_COMPATIBLE_PLAN_CODE_LAB_REVISIONS: 919731e1df07e8263c1fb7246ca80ae31ed3bae4,f370f70e99e7cab30f89297c042091ad52a03220,9e99c034c6f26fc3a1d570bdb54f60c7ffe7b505
         run: node scripts/run-kneekura-github-relay.mjs
       - id: task_payload
         name: Upload Relay task payload artifact
