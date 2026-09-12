@@ -7,6 +7,7 @@ import test from 'node:test';
 
 import * as relay from '../src/github-relay/index.mjs';
 import { createEngineRunReceipt } from '../src/skill/contracts.mjs';
+import { createSanitizedReceipt } from '../src/skill/runtime.mjs';
 
 const REVISION = 'a'.repeat(40);
 const SNAPSHOT = `snapshot:sha256:${'b'.repeat(64)}`;
@@ -94,7 +95,7 @@ function childFixtures() {
         digest: `sha256:${crypto.createHash('sha256').update(sealedBytes).digest('hex')}`,
         bytes: sealedBytes.length
       }],
-      warnings: [],
+      warnings: ['api_key=supersecretvalue'],
       errors: []
     });
     const relayResult = {
@@ -138,6 +139,10 @@ test('child artifact staging writes exactly the sealed ZIP, sanitized receipt, a
     ]);
     assert.deepEqual(await fs.readFile(path.join(staged.artifact_root, 'result.zip')), child.sealedBytes);
     assert.deepEqual(
+      JSON.parse(await fs.readFile(path.join(staged.artifact_root, 'engine-receipt.json'), 'utf8')),
+      createSanitizedReceipt(child.receipt)
+    );
+    assert.deepEqual(
       JSON.parse(await fs.readFile(path.join(staged.artifact_root, 'child-result-manifest.json'), 'utf8')),
       child.manifest
     );
@@ -146,13 +151,13 @@ test('child artifact staging writes exactly the sealed ZIP, sanitized receipt, a
   }
 });
 
-test('parent composition verifies all three child inputs before delegating to sealed-only composer', () => {
+test('parent composition verifies all three stored sanitized receipts before delegating to sealed-only composer', () => {
   const children = childFixtures();
   const composed = composeVerifiedAllChildResults({
     parentPlan,
     childInputs: children.map(child => ({
       manifest: child.manifest,
-      receipt: child.receipt,
+      receipt: createSanitizedReceipt(child.receipt),
       sealedBytes: child.sealedBytes,
       expectedBinding: child.binding,
       expectedContextClaim: child.contextClaim
