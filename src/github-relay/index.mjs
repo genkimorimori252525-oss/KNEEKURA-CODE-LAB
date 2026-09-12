@@ -24,6 +24,10 @@ export {
 } from './all-mode-contracts.mjs';
 
 export {
+  runGithubRelayAllParentTurn
+} from './all-mode-orchestrator.mjs';
+
+export {
   replayGithubRelayRun
 } from './replay.mjs';
 

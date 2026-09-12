@@ -13,6 +13,7 @@ import {
 import {
   relayEnvelopeDigest
 } from './issue-transport.mjs';
+import { runGithubRelayAllParentTurn } from './all-mode-orchestrator.mjs';
 import { replayGithubRelayRun } from './replay.mjs';
 
 export async function createGithubRelayExecutionContext({
@@ -96,6 +97,9 @@ export async function runGithubRelayTurn({
   existingTaskIds = new Set(),
   existingSourceResultDigests = new Set(),
   existingResultRunIds = new Set(),
+  allChildBindings = [],
+  allContextClaims = [],
+  allChildResults = [],
   compatiblePlanCodeLabRevisions = new Set(
     String(process.env.KNEEKURA_RELAY_COMPATIBLE_PLAN_CODE_LAB_REVISIONS ?? '')
       .split(',')
@@ -116,6 +120,17 @@ export async function runGithubRelayTurn({
     'compatiblePlanCodeLabRevisions'
   );
   const continuity = assertPlanContinuity(existingPlan, context.relayPlan, compatibleRevisions);
+
+  if (context.request.selection === 'all') {
+    return runGithubRelayAllParentTurn({
+      context,
+      parentIssueNumber: issueNumber,
+      existingPlan,
+      allChildBindings,
+      allContextClaims,
+      allChildResults
+    });
+  }
 
   const responseEnvelopes = normalizeEntryEnvelopes(responses);
   const respondedTaskBindings = new Set(responseEnvelopes.map(response =>
