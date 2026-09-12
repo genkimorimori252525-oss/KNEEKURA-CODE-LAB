@@ -23,16 +23,19 @@ export const GITHUB_RELAY_MARKERS = Object.freeze({
   sourceResult: 'KNEEKURA_RELAY_SOURCE_RESULT_V1',
   result: 'KNEEKURA_RELAY_RESULT_V1',
   allContextClaim: 'KNEEKURA_RELAY_CONTEXT_CLAIM_V1',
+  allResume: 'KNEEKURA_RELAY_ALL_RESUME_V1',
   allChildBinding: 'KNEEKURA_RELAY_ALL_CHILD_BINDING_V1',
   error: 'KNEEKURA_RELAY_ERROR_V1'
 });
 
 export const GITHUB_RELAY_COMMENT_MAX_BYTES = 60 * 1024;
 
+const ALL_RESUME_SCHEMA = 'kneekura.code-lab.github-relay-all-resume/v1';
 const CLIENT_MARKERS = new Map([
   [GITHUB_RELAY_MARKERS.response, 'response'],
   [GITHUB_RELAY_MARKERS.sourceRequest, 'sourceRequest'],
-  [GITHUB_RELAY_MARKERS.allContextClaim, 'contextClaim']
+  [GITHUB_RELAY_MARKERS.allContextClaim, 'contextClaim'],
+  [GITHUB_RELAY_MARKERS.allResume, 'allResume']
 ]);
 const BOT_MARKERS = new Map([
   [GITHUB_RELAY_MARKERS.plan, 'plan'],
@@ -84,6 +87,7 @@ export function parseRelayThreadComments(comments, {
     responses: [],
     sourceRequests: [],
     contextClaims: [],
+    allResumes: [],
     plans: [],
     tasks: [],
     sourceResults: [],
@@ -112,9 +116,12 @@ export function parseRelayThreadComments(comments, {
       } else if (clientKind === 'sourceRequest') {
         envelope = validateRelaySourceRequest(parsed);
         bucket = 'sourceRequests';
-      } else {
+      } else if (clientKind === 'contextClaim') {
         envelope = validateAllContextClaimTransport(parsed);
         bucket = 'contextClaims';
+      } else {
+        envelope = validateAllResumeTransport(parsed);
+        bucket = 'allResumes';
       }
       out[bucket].push({ comment_id: commentId, actor, envelope });
       continue;
@@ -274,6 +281,21 @@ function validateAllContextClaimTransport(value) {
     engine_id: normalizeAllEngine(value.engine_id),
     host_context_id: boundedText(value.host_context_id, 'host_context_id', 512),
     assurance_class: assurance
+  });
+}
+
+function validateAllResumeTransport(value) {
+  assertRecord(value, 'ALL resume');
+  assertOnlyKeys(value, ['schema', 'parent_run_id', 'parent_issue_number'], 'ALL resume');
+  if (value.schema !== ALL_RESUME_SCHEMA) {
+    throw new TypeError(`ALL resume schema must be ${ALL_RESUME_SCHEMA}`);
+  }
+  const runId = boundedText(value.parent_run_id, 'parent_run_id', 128);
+  if (!SAFE_RUN_ID.test(runId)) throw new TypeError('parent_run_id is invalid');
+  return deepFreeze({
+    schema: ALL_RESUME_SCHEMA,
+    parent_run_id: runId,
+    parent_issue_number: positiveInteger(value.parent_issue_number, 'parent_issue_number')
   });
 }
 
