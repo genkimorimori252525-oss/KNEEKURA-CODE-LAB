@@ -55,3 +55,11 @@ test('Relay transport exposes dedicated ALL resume marker separate from semantic
   assert.match(text, /allResumes:\s*\[\]/);
   assert.match(text, /allContextClaim:\s*'KNEEKURA_RELAY_CONTEXT_CLAIM_V1'/);
 });
+
+test('ALL child Issue opened events stay inert until an external context claim arrives', async () => {
+  const text = await fs.readFile(WORKFLOW, 'utf8');
+  assert.match(text, /\[KNEEKURA ALL child /);
+  assert.match(text, /isAllChild/);
+  assert.match(text, /!isAllChild/);
+  assert.match(text, /KNEEKURA_RELAY_CONTEXT_CLAIM_V1/);
+});
