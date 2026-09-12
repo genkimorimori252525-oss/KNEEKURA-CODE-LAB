@@ -38,6 +38,11 @@ const ZIP_KIND = Object.freeze({
   'understand-anything': 'UA_SKILL_ZIP',
   archify: 'ARCHIFY_SKILL_ZIP'
 });
+const TASK_KIND = Object.freeze({
+  kneekura: 'kneekura:ARCHITECTURE',
+  'understand-anything': 'ua:project-scanner',
+  archify: 'archify:typed-ir'
+});
 
 const parentRequest = Object.freeze({
   schema: GITHUB_RELAY_SCHEMAS.request,
@@ -264,7 +269,7 @@ function createPendingTaskBackend(engineId) {
           snapshotId: plan.target.snapshotId,
           scopeDigest: plan.target.scopeDigest,
           ordinal: 1,
-          kind: `${engineId}:FIXTURE`,
+          kind: TASK_KIND[engineId],
           payload: { prompt: `Independent ${engineId} fixture task.` }
         });
       }
