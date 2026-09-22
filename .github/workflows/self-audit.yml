@@ -23,7 +23,11 @@ permissions:
 
 jobs:
   self-audit:
-    runs-on: ubuntu-latest
+    # self-hosted の Windows ランナー（JollyRunnerHub / kneekura-code-lab）で回す
+    runs-on: [self-hosted, Windows, X64, kneekura-code-lab]
+    defaults:
+      run:
+        shell: powershell
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,17 +37,17 @@ jobs:
           node-version: 20
       - name: Resolve dogfood target
         id: target
-        shell: bash
+        shell: powershell
         run: |
-          requested="${{ github.event.inputs.commit }}"
-          if [ -n "$requested" ]; then
-            target="$(git rev-parse --verify "$requested^{commit}")"
-          elif [ "$GITHUB_REF_NAME" = "main" ]; then
-            target="$(git rev-parse HEAD)"
-          else
-            target="$(git merge-base HEAD origin/main)"
-          fi
-          echo "commit=$target" >> "$GITHUB_OUTPUT"
-          echo "Self-audit target: $target"
+          $requested = "${{ github.event.inputs.commit }}"
+          if (-not [string]::IsNullOrWhiteSpace($requested)) {
+            $target = (git rev-parse --verify "$requested^{commit}").Trim()
+          } elseif ($env:GITHUB_REF_NAME -eq 'main') {
+            $target = (git rev-parse HEAD).Trim()
+          } else {
+            $target = (git merge-base HEAD origin/main).Trim()
+          }
+          "commit=$target" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "Self-audit target: $target"
       - name: Run KNEEKURA self audit
         run: node scripts/self-audit.mjs --repo . --commit "${{ steps.target.outputs.commit }}"
