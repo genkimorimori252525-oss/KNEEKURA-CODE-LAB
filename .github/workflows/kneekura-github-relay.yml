@@ -1,8 +1,6 @@
 name: KNEEKURA Code LAB GitHub Relay
 
 on:
-  # 手動確認用（issue イベントが無いので gate は run=false を返すだけ）
-  workflow_dispatch:
   issues:
     types: [opened]
   issue_comment:
@@ -19,20 +17,19 @@ concurrency:
 
 jobs:
   gate:
-    # gate も self-hosted で回す（以前は ubuntu-latest + bash heredoc）
-    runs-on: [self-hosted, Windows, X64, kneekura-code-lab]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
       run: ${{ steps.gate.outputs.run }}
     steps:
       - id: gate
         name: Gate authorized Relay event
-        shell: powershell
+        shell: bash
         env:
           KNEEKURA_RELAY_ALLOWED_ACTORS: ${{ vars.KNEEKURA_RELAY_ALLOWED_ACTORS }}
           KNEEKURA_RELAY_REPOSITORY_OWNER: ${{ github.repository_owner }}
         run: |
-          $js = @'
+          node <<'NODE'
           const fs = require('node:fs');
           const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, 'utf8'));
           const owner = String(process.env.KNEEKURA_RELAY_REPOSITORY_OWNER || '').trim().toLowerCase();
@@ -58,10 +55,7 @@ jobs:
             }
           }
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `run=${run ? 'true' : 'false'}\n`);
-          '@
-          $tmp = Join-Path $env:RUNNER_TEMP 'kneekura-relay-gate.cjs'
-          Set-Content -LiteralPath $tmp -Value $js -Encoding utf8
-          node $tmp
+          NODE
 
   execute:
     needs: gate
