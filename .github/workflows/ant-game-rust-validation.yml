@@ -1,0 +1,124 @@
+name: Ant-game Rust validation relay
+
+on:
+  push:
+    branches:
+      - jolly/ant-rust-validation-20260923
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: [self-hosted, Windows, X64, kneekura-code-lab]
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - name: Resolve same-owner repository credential
+        env:
+          KNEEKURA_RELAY_EXPLICIT_TOKEN: ${{ secrets.KNEEKURA_RELAY_GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $token = [string]$env:KNEEKURA_RELAY_EXPLICIT_TOKEN
+
+          if ([string]::IsNullOrWhiteSpace($token)) {
+            $gh = Get-Command gh -ErrorAction SilentlyContinue
+            if (-not $gh) {
+              throw 'No explicit relay token and GitHub CLI is unavailable.'
+            }
+            $token = (& gh auth token --hostname github.com 2>$null)
+            if ($LASTEXITCODE -ne 0) {
+              throw 'No explicit relay token and gh auth token failed.'
+            }
+            $token = [string]$token
+          }
+
+          $token = $token.Trim()
+          if ([string]::IsNullOrWhiteSpace($token)) {
+            throw 'Resolved GitHub token is empty.'
+          }
+          Write-Host "::add-mask::$token"
+          "GH_TOKEN=$token" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $token = $null
+
+      - name: Install Rust 1.85.1
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.85.1
+          components: rustfmt
+
+      - name: Clone exact Ant-game head
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $expected = '974e07759dbbdb6a1b48695350c0dd2d3b00c802'
+          $branch = 'jolly/biology-core-implementation-phase1-2026-09-22'
+          $target = Join-Path $env:RUNNER_TEMP "ant-game-validation-$env:GITHUB_RUN_ID"
+
+          if (Test-Path -LiteralPath $target) {
+            Remove-Item -LiteralPath $target -Recurse -Force
+          }
+
+          gh repo clone genkimorimori252525-oss/Ant-game-Kneekura $target -- --no-checkout
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          git -C $target fetch --no-tags origin $branch
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git -C $target checkout --detach $expected
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $actual = (git -C $target rev-parse HEAD).Trim()
+          if ($actual -ne $expected) {
+            throw "Ant-game checkout mismatch: expected $expected but got $actual"
+          }
+
+          "ANT_REPO=$target" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Host "ANT_HEAD=$actual"
+
+      - name: Cargo test
+        run: |
+          Set-Location $env:ANT_REPO
+          cargo test --workspace --all-targets
+
+      - name: Rustfmt check
+        run: |
+          Set-Location $env:ANT_REPO
+          cargo fmt --all -- --check
+
+      - name: Run six smoke examples
+        run: |
+          Set-Location $env:ANT_REPO
+          foreach ($example in @(
+            'camponotus_smoke',
+            'formica_smoke',
+            'lasius_smoke',
+            'harpegnathos_smoke',
+            'eciton_cycle_smoke',
+            'army_ant_encounter_smoke'
+          )) {
+            Write-Host "=== $example ==="
+            cargo run -p kneekura-biology-core --example $example
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Run scale workloads
+        run: |
+          Set-Location $env:ANT_REPO
+          $out = Join-Path $env:RUNNER_TEMP "ant-scale-$env:GITHUB_RUN_ID.txt"
+          foreach ($workload in @('materialized-1k','materialized-10k','eciton-compressed-100k')) {
+            "=== $workload ===" | Tee-Object -FilePath $out -Append
+            cargo run -p kneekura-biology-core --example scale_benchmark -- $workload 2>&1 |
+              Tee-Object -FilePath $out -Append
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          "ANT_SCALE_OUTPUT=$out" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Upload scale observations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ant-scale-observations-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 7
+          path: ${{ env.ANT_SCALE_OUTPUT }}
