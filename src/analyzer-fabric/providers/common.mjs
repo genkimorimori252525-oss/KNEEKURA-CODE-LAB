@@ -63,55 +63,97 @@ function failureRecord(provider, input, context, error, overrideType = null) {
   };
 }
 
+function assertObservationBinding(observation, manifest, context) {
+  for (const [field, expected] of [
+    ['provider_id', manifest.id],
+    ['provider_version', manifest.version],
+    ['origin', String(manifest.origin).trim().toUpperCase()]
+  ]) {
+    if (observation[field] !== expected) throw new TypeError(`observation ${field} conflicts with executing provider`);
+  }
+  for (const [field, expected] of [
+    ['repository_id', context.repositoryId ?? context.repository_id],
+    ['snapshot_id', context.snapshotId ?? context.snapshot_id]
+  ]) {
+    if (expected != null && observation.snapshot[field] !== String(expected)) {
+      throw new TypeError(`observation ${field} conflicts with execution context`);
+    }
+  }
+  const contract = manifest.capability_contracts.find(entry => entry.capability === observation.capability);
+  if (!manifest.capabilities.includes(observation.capability) || !contract || contract.support_status === 'NONE') {
+    throw new TypeError(`executing provider does not support observation capability ${observation.capability}`);
+  }
+  const fingerprint = observation.provenance.toolchain_fingerprint;
+  if (fingerprint != null && String(fingerprint) !== String(manifest.toolchain_fingerprint)) {
+    throw new TypeError('observation toolchain fingerprint conflicts with executing provider');
+  }
+}
+
 export async function runFabricProvider(provider, input, context = {}) {
   if (!provider?.manifest || typeof provider?.analyze !== 'function') {
     throw new TypeError('runFabricProvider requires a fabric provider');
   }
 
+  // Bind acceptance before calling provider code. A callback cannot change the
+  // manifest or execution identity against which its own output is checked.
+  const manifest = provider.manifest;
+  const executingProvider = { manifest: {
+    id: manifest.id,
+    version: manifest.version,
+    origin: manifest.origin,
+    toolchain_fingerprint: manifest.toolchain_fingerprint,
+    capabilities: [...manifest.capabilities],
+    capability_contracts: manifest.capability_contracts.map(({ capability, support_status }) => ({ capability, support_status }))
+  } };
+  const executionContext = { ...context };
   let rawObservations;
   try {
-    rawObservations = await provider.analyze(input, context);
+    rawObservations = await provider.analyze(input, { ...context });
   } catch (error) {
     return {
-      provider_id: provider.manifest.id,
-      provider_version: provider.manifest.version,
+      provider_id: executingProvider.manifest.id,
+      provider_version: executingProvider.manifest.version,
       execution_status: 'FAILED',
       observations: [],
-      failures: [failureRecord(provider, input, context, error)]
+      failures: [failureRecord(executingProvider, input, executionContext, error)]
     };
   }
 
   if (!Array.isArray(rawObservations)) {
     const error = new FabricProviderError('TRUST_BOUNDARY_VIOLATION', 'provider analyze result must be an array of raw observations');
     return {
-      provider_id: provider.manifest.id,
-      provider_version: provider.manifest.version,
+      provider_id: executingProvider.manifest.id,
+      provider_version: executingProvider.manifest.version,
       execution_status: 'FAILED',
       observations: [],
-      failures: [failureRecord(provider, input, context, error)]
+      failures: [failureRecord(executingProvider, input, executionContext, error)]
     };
   }
 
   try {
-    const observations = rawObservations.map(raw => normalizeAnalyzerObservation(raw, {
-      repositoryId: context.repositoryId ?? context.repository_id ?? null,
-      snapshotId: context.snapshotId ?? context.snapshot_id ?? null,
-      sourceTextByPath: context.sourceTextByPath ?? {}
-    }));
+    const observations = rawObservations.map(raw => {
+      const observation = normalizeAnalyzerObservation(raw, {
+        repositoryId: executionContext.repositoryId ?? executionContext.repository_id ?? null,
+        snapshotId: executionContext.snapshotId ?? executionContext.snapshot_id ?? null,
+        sourceTextByPath: executionContext.sourceTextByPath ?? {}
+      });
+      assertObservationBinding(observation, executingProvider.manifest, executionContext);
+      return observation;
+    });
     return {
-      provider_id: provider.manifest.id,
-      provider_version: provider.manifest.version,
+      provider_id: executingProvider.manifest.id,
+      provider_version: executingProvider.manifest.version,
       execution_status: 'ANALYZED',
       observations,
       failures: []
     };
   } catch (error) {
     return {
-      provider_id: provider.manifest.id,
-      provider_version: provider.manifest.version,
+      provider_id: executingProvider.manifest.id,
+      provider_version: executingProvider.manifest.version,
       execution_status: 'FAILED',
       observations: [],
-      failures: [failureRecord(provider, input, context, error, 'TRUST_BOUNDARY_VIOLATION')]
+      failures: [failureRecord(executingProvider, input, executionContext, error, 'TRUST_BOUNDARY_VIOLATION')]
     };
   }
 }

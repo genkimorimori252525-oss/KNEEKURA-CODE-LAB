@@ -108,14 +108,15 @@ function externalSymbolSet(index) {
     .filter(Boolean));
 }
 
-function definitionsBySymbol(index) {
+function globalDefinitionsBySymbol(index) {
   const map = new Map();
   for (const document of index.documents ?? []) {
     const path = documentPath(document);
     for (const occurrence of document.occurrences ?? []) {
       const symbol = String(occurrence?.symbol ?? '');
       const roles = Number(pick(occurrence, 'symbol_roles', 'symbolRoles') ?? 0);
-      if (!symbol || (roles & DEFINITION_ROLE) === 0) continue;
+      // SCIP local IDs are scoped to one document and cannot identify cross-file targets.
+      if (!symbol || symbol.startsWith('local ') || (roles & DEFINITION_ROLE) === 0) continue;
       if (!map.has(symbol)) map.set(symbol, []);
       map.get(symbol).push(path);
     }
@@ -223,7 +224,7 @@ export function createScipSemanticProvider({
         throw new FabricProviderError('ANALYZER_TOOLCHAIN_MISMATCH', `SCIP indexer version ${toolVersion || '<missing>'} does not match expected ${expectedToolVersion}`);
       }
       const externalSymbols = externalSymbolSet(index);
-      const definitions = definitionsBySymbol(index);
+      const definitions = globalDefinitionsBySymbol(index);
       const observations = [];
 
       for (const document of index.documents) {

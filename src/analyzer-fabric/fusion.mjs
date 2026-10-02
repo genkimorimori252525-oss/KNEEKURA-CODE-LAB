@@ -48,7 +48,7 @@ export function resolveIdentityCandidate(candidate, observation, role = 'subject
   }
 
   const range = observation.source_range;
-  if (fields.language && fields.signature && observation.source_file && range?.content_digest && Number.isInteger(range.start_byte) && Number.isInteger(range.end_byte)) {
+  if (role === 'subject' && fields.language && fields.signature && observation.source_file && range?.content_digest && Number.isInteger(range.start_byte) && Number.isInteger(range.end_byte)) {
     return {
       exact: true,
       basis: 'LANGUAGE_SNAPSHOT_SIGNATURE_RANGE_EXACT',
