@@ -204,8 +204,10 @@ export function normalizeSourceRange(rawRange, { sourceText = null, expectedCont
   const start_byte = positionToByteOffset(sourceText, start, meta);
   const end_byte = positionToByteOffset(sourceText, end, meta);
   if (end_byte < start_byte) throw new RangeError('source range end precedes start');
-  const content_digest = sourceDigest;
-  if (expectedContentDigest && content_digest !== expectedContentDigest) throw new TypeError('source text digest does not match expected digest');
+  const content_digest = String(rawRange.content_digest ?? expectedContentDigest ?? sourceDigest ?? '').trim();
+  if (!content_digest) return { native_coordinates };
+  if (sourceDigest && content_digest !== sourceDigest) throw new TypeError('source range content digest does not match supplied source text');
+  if (expectedContentDigest && content_digest !== expectedContentDigest) throw new TypeError('source range content digest does not match expected digest');
   return {
     content_digest,
     start_byte,
