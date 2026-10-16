@@ -57,3 +57,7 @@ node src/cli.mjs workbench --request fixtures/workbench/requests/compare-runs.js
 - Browser screenshot attempt: BLOCKED by this execution environment (`socket() failed: Operation not permitted`). No browser parity or screenshot verification is claimed. React panel JSX rendering/navigation wiring and escaped output were tested; a production build was generated.
 
 No external analyzer, JVM target, paid service, deployment or target-repository write was executed. Live upstream-tool compatibility and interactive browser behavior beyond the tested contracts remain separate validation work.
+
+## Hosted CI follow-up
+
+Ordinary CI now uses GitHub-hosted Windows; see `CI_RUNNERS.md` for the explicitly retained local live-profile exceptions. The first hosted run passed all 657 tests and Relay Foundation, then exposed a stale nine-tool assertion in the generated Plugin smoke. The corrected smoke keeps the exact tool list, requires the tenth workbench tool, and calls it through the isolated generated stdio bundle. It verifies imported Code Maat metrics, evidence claim level, untrusted-instruction metadata and the full 4096-byte output bound. Local `npm run plugin:package` and `node scripts/smoke-kneekura-code-lab-plugin.mjs` pass with this correction. Final remote results must be read from the latest PR head's checks, not the earlier failed run.
