@@ -11,7 +11,8 @@
     "./human-analysis": "./src/human-analysis/index.mjs",
     "./human-experience": "./src/human-experience/index.mjs",
     "./skill": "./src/skill/index.mjs",
-    "./github-relay": "./src/github-relay/index.mjs"
+    "./github-relay": "./src/github-relay/index.mjs",
+    "./workbench": "./src/analysis-workbench/index.mjs"
   },
   "scripts": {
     "scan": "node src/cli.mjs scan",
@@ -43,9 +44,12 @@
     "validate:love-github-human-guide-production-r5": "node scripts/validate-love-github-human-guide-production-r5.mjs",
     "validate:archify-native": "node scripts/validate-kneekura-code-lab-archify-native.mjs",
     "validate:ua-native": "node scripts/validate-kneekura-code-lab-ua-native.mjs",
-    "validate:github-relay-all-isolation": "node scripts/validate-kneekura-code-lab-relay-all-isolation.mjs"
+    "validate:github-relay-all-isolation": "node scripts/validate-kneekura-code-lab-relay-all-isolation.mjs",
+    "test:workbench": "node --test test/workbench-*.test.mjs"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@xyflow/react": "12.11.5",
     "elkjs": "0.12.0",

@@ -52,6 +52,8 @@ import {
   createOfflineHumanExperienceView
 } from './offline-human-experience.mjs';
 
+import { WorkbenchPanel } from './WorkbenchPanel.jsx';
+
 const elk = new ELK();
 
 export function ExplorerApp({
@@ -141,8 +143,10 @@ function ExplorerCanvas({ projection, offlinePayload }) {
   const [impactDepth, setImpactDepth] = useState(3);
   const impactReturnStateRef = useRef(null);
   const { fitView } = useReactFlow();
+  const [pendingWorkbenchNodeId, setPendingWorkbenchNodeId] = useState(null);
 
   useEffect(() => {
+    setPendingWorkbenchNodeId(null);
     setContainerId(EXPLORER_ROOT_CONTAINER_ID);
     setEnabledLayerIds(
       hierarchy.layers.map(layer => layer.id)
@@ -538,6 +542,26 @@ function ExplorerCanvas({ projection, offlinePayload }) {
     });
   }
 
+  function focusWorkbenchNode(nodeId) {
+    if (!model.nodes.some(node => node.id === nodeId)) return;
+    // Leave temporary tours/impact overlays before selecting imported evidence.
+    setTourPlayback(createGuidedTourPlayback(guidedTour));
+    tourReturnStateRef.current = null;
+    setImpactSeedNodeId(null);
+    impactReturnStateRef.current = null;
+    setContainerId(EXPLORER_ROOT_CONTAINER_ID);
+    setEnabledLayerIds(hierarchy.layers.map(layer => layer.id));
+    setPendingWorkbenchNodeId(nodeId);
+  }
+
+  useEffect(() => {
+    if (!pendingWorkbenchNodeId || !layout ||
+        !visibleNodeSet.has(pendingWorkbenchNodeId) ||
+        !layout.nodes.some(node => node.id === pendingWorkbenchNodeId)) return;
+    focusNode(pendingWorkbenchNodeId);
+    setPendingWorkbenchNodeId(null);
+  }, [pendingWorkbenchNodeId, layout, visibleNodeSet, fitView]);
+
   function submitSearch(event) {
     event.preventDefault();
     focusNode(matches[0] ?? null);
@@ -761,6 +785,11 @@ function ExplorerCanvas({ projection, offlinePayload }) {
         </section>
 
         <aside className="explorer-detail">
+          <WorkbenchPanel
+            key={projection.presentation?.workbench?.report_id ?? 'no-workbench'}
+            workbench={projection.presentation?.workbench}
+            onSelectNode={focusWorkbenchNode}
+          />
           <HumanAnalysisPanel
             view={humanExperience}
             selectedItem={selectedHumanItem}

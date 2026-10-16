@@ -16,6 +16,12 @@ KNEEKURA Code LAB is one umbrella repository-analysis Skill with three evidence-
 
 If the user explicitly names an engine, use only that engine. If they explicitly request all three, run all three. If they only say to analyze something with KNEEKURA Code LAB and do not select a mode, present the three choices. There is no hidden default and no engine substitution.
 
+## Saved evidence workbench
+
+Use `kneekura_code_lab_describe` to discover `workbench`, then `kneekura_code_lab_workbench` for bounded imports of existing RefactoringMiner/Joern/CPD/Code Maat/ArchUnit/Chrome Trace artifacts, paired-run and baseline comparisons, observation reasons, and analyzer disagreement. This is import-only investigation, not a new engine or a claim that an external analyzer ran. Preserve one explicit engine identity and declared snapshot/config/scope provenance.
+
+Read `references/MCP.md` for nested import composition and `pointer`/`offset`/`limit`/`maxBytes` detail access. Keep `report_id` when paging; do not reconstruct full import envelopes from compact summaries. Human HTML/ZIP and machine/mailbox projections remain separate. Inspect source-linked evidence and unresolved coverage before proposing code changes; the workbench does not edit analyzed repositories.
+
 ## Connected execution
 
 When the KNEEKURA Code LAB MCP tools are available, first call `kneekura_code_lab_describe`, then `kneekura_code_lab_plan`, then `kneekura_code_lab_execute` with the same explicit engine and immutable target identity.

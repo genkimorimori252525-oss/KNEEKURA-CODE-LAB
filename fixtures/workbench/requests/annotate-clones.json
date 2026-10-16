@@ -1,0 +1,26 @@
+{
+  "schema": "kneekura.evidence-workbench-request/v1",
+  "operation": "annotate-clones",
+  "imported": {
+    "schema": "kneekura.evidence-workbench-request/v1",
+    "operation": "import",
+    "adapter": "pmd-cpd",
+    "context": {
+      "repository_id": "example:synthetic-workbench",
+      "snapshot_id": "snapshot:sha256:e70da02261fcf4fbc3da9b8354b58f93ff70208cb644c7aa807745a5615479bd",
+      "analyzer_version": "synthetic-schema-example-v1",
+      "config_digest": "sha256:579d0a506f2f26c21f77bf28a68ba1882382097f156d9f38ed4b49880838b702",
+      "scope_digest": "sha256:6bc582d181b805b10affc8011a7814b7a59366ebe205f69bd36a3ebd1cae1bad",
+      "engine_id": "kneekura"
+    },
+    "artifact": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<pmd-cpd xmlns=\"https://pmd-code.org/schema/cpd-report\" pmdVersion=\"7.0.0\" timestamp=\"2026-10-16T00:00:00Z\" version=\"1.0.0\">\n<file path=\"src/A.java\" totalNumberOfTokens=\"120\"/>\n<file path=\"src/B.java\" totalNumberOfTokens=\"140\"/>\n<duplication lines=\"3\" tokens=\"40\"><file path=\"src/A.java\" line=\"4\" endline=\"6\"/><file path=\"src/B.java\" line=\"8\" endline=\"10\"/><codefragment><![CDATA[if (a < b) return a;]]></codefragment></duplication>\n</pmd-cpd>\n",
+    "options": {}
+  },
+  "annotations": [
+    {
+      "finding_id": "finding:9d70c029ac7ec51c1006bc155514b2804030e1ba1682114a9615db111862a10f",
+      "label": "Review",
+      "note": "Example human annotation; no deletion decision."
+    }
+  ]
+}

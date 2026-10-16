@@ -1,3 +1,4 @@
+import {runWorkbenchCli} from './analysis-workbench/cli.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import http from 'node:http';
@@ -16,7 +17,9 @@ const flags = name => {
   return values;
 };
 
-if (cmd === 'scan') {
+if (cmd === 'workbench') {
+  await runWorkbenchCli(args);
+} else if (cmd === 'scan') {
   const root = args.find(x=>!x.startsWith('--')) ?? '.';
   const out = flag('--out','dist/graph.json');
   const graph = await scanRepository(root,{ codegraph:flag('--codegraph'), understand:flag('--understand'), trace:flag('--trace'), pose:flag('--pose'), palette:flag('--palette'), network:flags('--net'), allowV1Pose:args.includes('--allow-v1-pose'), allowV1Palette:args.includes('--allow-v1-palette'), allowUnboundNet:args.includes('--allow-unbound-net') });
@@ -193,7 +196,7 @@ if (cmd === 'scan') {
   });
   server.listen(port,'127.0.0.1',()=>console.log(`KNEEKURA-CODE-LAB viewer: http://127.0.0.1:${port}`));
 } else {
-  console.log('usage:\n  node src/cli.mjs scan <repo> --out dist/graph.json [--codegraph file.json] [--understand project-or-graph] [--trace trace.jsonl] [--pose stamp.pose.json] [--palette stamp.pal.json] [--net process.net.jsonl ...] [--allow-v1-pose] [--allow-v1-palette] [--allow-unbound-net]\n  node src/cli.mjs workspace --repo tlm=C:\\path\\to\\tlm --repo ysm=C:\\path\\to\\ysm --out dist/workspace.json\n  node src/cli.mjs viewer-bundle --result dist/analysis-result.json --graph dist/graph.json --out dist/viewer-bundle\n  node src/cli.mjs explorer-projection --result dist/analysis-result.json --graph dist/graph.json --out dist/explorer-projection.json\n  node src/cli.mjs serve-explorer --projection dist/explorer-projection.json [--app packages/human-explorer/dist] [--port 8790]\n  node src/cli.mjs serve --graph dist/graph.json [--port 8789]\n  node src/cli.mjs serve --bundle dist/viewer-bundle [--port 8789]');
+  console.log('usage:\n  node src/cli.mjs workbench --request request.json --out NEW-directory [--help]\n  node src/cli.mjs scan <repo> --out dist/graph.json [--codegraph file.json] [--understand project-or-graph] [--trace trace.jsonl] [--pose stamp.pose.json] [--palette stamp.pal.json] [--net process.net.jsonl ...] [--allow-v1-pose] [--allow-v1-palette] [--allow-unbound-net]\n  node src/cli.mjs workspace --repo tlm=C:\\path\\to\\tlm --repo ysm=C:\\path\\to\\ysm --out dist/workspace.json\n  node src/cli.mjs viewer-bundle --result dist/analysis-result.json --graph dist/graph.json --out dist/viewer-bundle\n  node src/cli.mjs explorer-projection --result dist/analysis-result.json --graph dist/graph.json --out dist/explorer-projection.json\n  node src/cli.mjs serve-explorer --projection dist/explorer-projection.json [--app packages/human-explorer/dist] [--port 8790]\n  node src/cli.mjs serve --graph dist/graph.json [--port 8789]\n  node src/cli.mjs serve --bundle dist/viewer-bundle [--port 8789]');
 }
 
 async function readJson(file) {

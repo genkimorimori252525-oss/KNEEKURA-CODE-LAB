@@ -1,0 +1,8 @@
+{
+  "schema": "kneekura.evidence-workbench-request/v1",
+  "operation": "observation-reason",
+  "metadata": {
+    "instrumented": false,
+    "sampled_out": true
+  }
+}

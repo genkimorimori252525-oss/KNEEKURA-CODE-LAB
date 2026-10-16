@@ -1,3 +1,5 @@
+import {runEvidenceWorkbench,describeEvidenceWorkbench} from '../../src/analysis-workbench/index.mjs';
+import {projectWorkbenchForAgent} from '../../src/analysis-workbench/render.mjs';
 import { ENGINE_IDS } from '../../src/skill/contracts.mjs';
 import { routeKneekuraCodeLabRequest } from '../../src/skill/router.mjs';
 import {
@@ -15,6 +17,7 @@ export const MCP_ARTIFACT_INFO_SCHEMA =
 
 export const MCP_TOOL_NAMES = Object.freeze([
   'kneekura_code_lab_describe',
+  'kneekura_code_lab_workbench',
   'kneekura_code_lab_plan',
   'kneekura_code_lab_execute',
   'kneekura_code_lab_status',
@@ -45,8 +48,13 @@ export function createKneekuraCodeLabMcpAdapter({ backend = null } = {}) {
         canonical_truth_promotion_from_consensus: false,
         exact_target_required_for_execution: true,
         backend_attached: typeof backend?.execute === 'function',
-        tools: [...MCP_TOOL_NAMES]
+        tools: [...MCP_TOOL_NAMES],
+        workbench: describeEvidenceWorkbench()
       });
+    },
+
+    workbench(input = {}, page = {}) {
+      return projectWorkbenchForAgent(runEvidenceWorkbench(input), page);
     },
 
     plan(input = {}) {

@@ -15,3 +15,11 @@
 ## KNEEKURA-LAB runtime trace
 
 `--trace xxx.jsonl` は現在 `meta.mods` と `spawn.type` を取り込む最小実装です。将来 static class/method node と runtime event を evidence 付きで結びます。
+
+## Saved-evidence workbench adapters
+
+For RefactoringMiner/AST, Joern, PMD CPD, Code Maat, declared cochange history,
+ArchUnit exporter envelopes and Chrome Trace, see the
+[Evidence workbench guide](EVIDENCE_WORKBENCH.md). It includes complete CLI request
+fixtures, API composition, human/agent output and MCP entrypoints. These adapters
+import saved evidence only and do not execute analyzers or fuse isolated engines.
