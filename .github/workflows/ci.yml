@@ -6,7 +6,19 @@ on:
 
 jobs:
   test:
-    runs-on: [self-hosted, Windows, X64, kneekura-code-lab]
+    # Ordinary PR/push checks use GitHub-hosted Windows. Explicit live-profile
+    # branches still need the pre-existing local target clones; never move those
+    # repository-specific checks to a fresh hosted machine silently.
+    runs-on: >-
+      ${{ github.event_name == 'push' &&
+          (startsWith(github.ref_name, 'feat/typescript-semantic-vertical') ||
+           startsWith(github.ref_name, 'feat/love-github-human-guide-acceptance') ||
+           startsWith(github.ref_name, 'feat/human-analysis-production-r1') ||
+           startsWith(github.ref_name, 'feat/human-experience-system-map-r2') ||
+           startsWith(github.ref_name, 'feat/human-analysis-r3-technical-views') ||
+           startsWith(github.ref_name, 'feat/human-analysis-r4-repository-scale') ||
+           startsWith(github.ref_name, 'feat/human-analysis-r5-production-golden')) &&
+          fromJSON('["self-hosted","Windows","X64","kneekura-code-lab"]') || 'windows-latest' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
