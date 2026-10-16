@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pmd-cpd xmlns="https://pmd-code.org/schema/cpd-report" pmdVersion="7.0.0" timestamp="2026-10-16T00:00:00Z" version="1.0.0">
+<file path="src/A.java" totalNumberOfTokens="120"/>
+<file path="src/B.java" totalNumberOfTokens="140"/>
+<duplication lines="3" tokens="40"><file path="src/A.java" line="4" endline="6"/><file path="src/B.java" line="8" endline="10"/><codefragment><![CDATA[if (a < b) return a;]]></codefragment></duplication>
+</pmd-cpd>

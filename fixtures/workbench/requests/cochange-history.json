@@ -1,0 +1,47 @@
+{
+  "schema": "kneekura.evidence-workbench-request/v1",
+  "operation": "import",
+  "adapter": "cochange-history",
+  "context": {
+    "repository_id": "example:synthetic-workbench",
+    "snapshot_id": "snapshot:sha256:e70da02261fcf4fbc3da9b8354b58f93ff70208cb644c7aa807745a5615479bd",
+    "analyzer_version": "synthetic-schema-example-v1",
+    "config_digest": "sha256:579d0a506f2f26c21f77bf28a68ba1882382097f156d9f38ed4b49880838b702",
+    "scope_digest": "sha256:6bc582d181b805b10affc8011a7814b7a59366ebe205f69bd36a3ebd1cae1bad",
+    "engine_id": "kneekura"
+  },
+  "artifact": {
+    "schema": "kneekura.history.v1",
+    "commits": [
+      {
+        "id": "change-1",
+        "files": [
+          "src/A.java",
+          "src/B.java"
+        ]
+      },
+      {
+        "id": "change-2",
+        "files": [
+          "src/A.java",
+          "src/B.java"
+        ],
+        "merge": false,
+        "format_only": false
+      },
+      {
+        "id": "format-3",
+        "files": [
+          "src/A.java",
+          "src/B.java"
+        ],
+        "format_only": true
+      }
+    ]
+  },
+  "options": {
+    "exclude_merges": true,
+    "exclude_format_only": true,
+    "min_samples": 2
+  }
+}

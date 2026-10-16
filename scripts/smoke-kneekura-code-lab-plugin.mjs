@@ -16,6 +16,7 @@ const SOURCE_PLUGIN_ROOT = path.resolve(
 );
 const EXPECTED_TOOLS = [
   'kneekura_code_lab_describe',
+  'kneekura_code_lab_workbench',
   'kneekura_code_lab_plan',
   'kneekura_code_lab_execute',
   'kneekura_code_lab_next_task',
@@ -115,6 +116,21 @@ try {
   assert.equal(described.value.host_bridge_attached, true);
   assert.equal(described.value.hidden_default_engine, false);
   assert.equal(described.value.semantic_fusion, false);
+
+  // Exercise the isolated generated bundle, not the source adapter or its registry alone.
+  const workbenchRequest = JSON.parse(await fs.readFile(
+    path.join(ROOT, 'fixtures', 'workbench', 'requests', 'code-maat.json'), 'utf8'
+  ));
+  const imported = await callTool('kneekura_code_lab_workbench', {
+    request: workbenchRequest, maxBytes: 4096
+  });
+  assert.equal(imported.isError, undefined);
+  assert.equal(imported.value.claim_level, 'IMPORTED_OR_DERIVED_EVIDENCE');
+  assert.equal(imported.value.instruction_authority, false);
+  assert.equal(imported.value.total_items, 1);
+  assert.equal(imported.value.items[0].evidence.degree_percent, 75);
+  assert.equal(imported.value.items[0].evidence.average_revisions, 4.5);
+  assert.ok(Buffer.byteLength(JSON.stringify(imported.value)) <= 4096);
 
   const invalid = await callTool('kneekura_code_lab_execute', {
     selection: 'kneekura',

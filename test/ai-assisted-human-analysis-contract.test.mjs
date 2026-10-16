@@ -177,7 +177,7 @@ test('security and provenance invariants remain explicit', async () => {
   assert.match(agents, /does not weaken them/);
 });
 
-test('focused contract test is registered in package and self-hosted CI', async () => {
+test('focused contract test is registered in package and hosted Windows CI', async () => {
   const [pkgText, ci] = await Promise.all([
     read('package.json'),
     read('.github/workflows/ci.yml')
@@ -189,5 +189,6 @@ test('focused contract test is registered in package and self-hosted CI', async 
     'node --test test/ai-assisted-human-analysis-contract.test.mjs'
   );
   assert.match(ci, /npm run test:ai-human-analysis-contract/);
-  assert.match(ci, /runs-on: \[self-hosted, Windows, X64, kneekura-code-lab\]/);
+  assert.match(ci, /windows-latest/);
+  assert.match(ci, /npm run presentation:guard/);
 });

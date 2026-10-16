@@ -4,6 +4,18 @@ Minecraft / Forge Mod のコードを「普通の Java」ではなく、**Mod �
 
 初版は依存ゼロの Node.js 20+ で動きます。**第一級解析対象は Minecraft 1.20.1 + Forge 47.x + Java 17**。解析器/Coreでは CodeGraph や Understand Anything を fork して固定化せず、出力 adapter を優先します。Human Presentation v2 の UI/表示層だけは、固定commit・ライセンス・変更履歴を管理する限定的な vendoring 例外を利用できます。
 
+## Saved-evidence workbench
+
+保存済みの RefactoringMiner / Joern / PMD CPD / Code Maat / ArchUnit / Chrome Trace を取り込み、変更・slice・clone・共変更・baseline・実行差分・未観測理由・解析器の不一致を調べられます。解析器や対象コードの実行は行いません。
+
+```sh
+node src/cli.mjs workbench --request fixtures/workbench/requests/refactoring-miner.json --out /tmp/kneekura-workbench-new
+```
+
+出力は offline HTML / ZIP と機械向け JSON / Markdown。出力先は新規ディレクトリを指定します。HTML は保存済み evidence の viewer であり、AI が source を読んで作る人間向け semantic guide とは別です。例は実測結果ではなく synthetic fixture です。
+
+対応形式・全 adapter のコピー可能な request・比較 API・MCP・上限と注意点は [Evidence workbench guide](docs/EVIDENCE_WORKBENCH.md) を参照してください。
+
 ## AI-assisted human analysis
 
 このリポジトリの**人間用コード分析は AI 介入を前提**にしています。目標は「AIなしでも意味理解を完結させること」ではありません。

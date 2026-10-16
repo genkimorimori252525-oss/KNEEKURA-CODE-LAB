@@ -1,0 +1,1 @@
+{"schema":"kneekura.history.v1","commits":[{"id":"change-1","files":["src/A.java","src/B.java"]},{"id":"change-2","files":["src/A.java","src/B.java"],"merge":false,"format_only":false},{"id":"format-3","files":["src/A.java","src/B.java"],"format_only":true}]}

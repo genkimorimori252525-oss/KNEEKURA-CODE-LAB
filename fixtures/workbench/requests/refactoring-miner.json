@@ -1,0 +1,56 @@
+{
+  "schema": "kneekura.evidence-workbench-request/v1",
+  "operation": "import",
+  "adapter": "refactoring-miner",
+  "context": {
+    "repository_id": "example:synthetic-workbench",
+    "snapshot_id": "snapshot:sha256:e70da02261fcf4fbc3da9b8354b58f93ff70208cb644c7aa807745a5615479bd",
+    "analyzer_version": "synthetic-schema-example-v1",
+    "config_digest": "sha256:579d0a506f2f26c21f77bf28a68ba1882382097f156d9f38ed4b49880838b702",
+    "scope_digest": "sha256:6bc582d181b805b10affc8011a7814b7a59366ebe205f69bd36a3ebd1cae1bad",
+    "engine_id": "kneekura"
+  },
+  "artifact": {
+    "commits": [
+      {
+        "repository": "https://github.com/example/project.git",
+        "sha1": "head",
+        "url": "https://github.com/example/project/commit/head",
+        "refactorings": [
+          {
+            "type": "Rename Method",
+            "description": "Rename Method old() renamed to next()",
+            "leftSideLocations": [
+              {
+                "filePath": "src/Before.java",
+                "startLine": 3,
+                "endLine": 5,
+                "startColumn": 1,
+                "endColumn": 2,
+                "codeElementType": "METHOD_DECLARATION",
+                "description": "original method declaration",
+                "codeElement": "old()"
+              }
+            ],
+            "rightSideLocations": [
+              {
+                "filePath": "src/After.java",
+                "startLine": 3,
+                "endLine": 5,
+                "startColumn": 1,
+                "endColumn": 2,
+                "codeElementType": "METHOD_DECLARATION",
+                "description": "renamed method declaration",
+                "codeElement": "next()"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "options": {
+    "base_snapshot_id": "snapshot:sha256:aef2d579f0f8a0dd51635f9e9ebb3e1e1dfa7513b4433bf8c964a1ca3d3d35c8",
+    "head_commit": "head"
+  }
+}

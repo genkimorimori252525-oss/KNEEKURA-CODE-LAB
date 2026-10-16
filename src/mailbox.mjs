@@ -22,3 +22,7 @@ export {
 export {
   runJollyResearchMailboxRequest
 } from './adapters/jolly-research-mailbox-runner.mjs';
+
+// Import-only machine renderer; human artifacts remain a separate surface.
+export {projectWorkbenchForAgent, renderWorkbenchAgentMarkdown} from './analysis-workbench/render.mjs';
+export {runEvidenceWorkbench} from './analysis-workbench/index.mjs';

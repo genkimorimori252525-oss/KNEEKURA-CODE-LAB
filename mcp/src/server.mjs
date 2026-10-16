@@ -67,6 +67,11 @@ export function createKneekuraCodeLabMcpServer({ adapter, backend = null } = {})
     async () => toolResult(() => bridge.describe())
   );
 
+  server.registerTool('kneekura_code_lab_workbench', {
+    description: 'Import bounded existing analyzer artifacts and compare evidence without running analyzers or altering target repositories. See describe.workbench for adapters/operations. Returns compact paged agent evidence; no cross-engine truth fusion.',
+    inputSchema: z.object({request: jsonObjectSchema, offset:z.number().int().min(0).optional(), limit:z.number().int().min(1).max(200).optional(), pointer:z.string().max(1000).optional(), maxBytes:z.number().int().min(2048).max(262144).optional()}).strict()
+  }, async input => toolResult(() => activeAdapter.workbench(input.request,{offset:input.offset??0,limit:input.limit??100,pointer:input.pointer??null,maxBytes:input.maxBytes??131072})));
+
   server.registerTool(
     'kneekura_code_lab_plan',
     {

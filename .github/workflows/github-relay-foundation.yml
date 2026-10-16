@@ -18,8 +18,8 @@ permissions:
 
 jobs:
   relay-foundation:
-    # self-hosted の Windows ランナー（JollyRunnerHub / kneekura-code-lab）で回す
-    runs-on: [self-hosted, Windows, X64, kneekura-code-lab]
+    # Test-only workflow: no private target clone or self-hosted service required.
+    runs-on: windows-latest
     defaults:
       run:
         shell: powershell

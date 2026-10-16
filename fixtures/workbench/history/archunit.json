@@ -1,0 +1,1 @@
+{"schema":"kneekura.archunit.v1","baseline_id":"architecture-main","complete":true,"rules":[{"id":"layer-rule-v1","description":"Services do not access controllers","violations":[{"id":"service-controller-reference","description":"Service references Controller","sources":[{"path":"src/main/java/example/Service.java","start_line":12}]}]}]}
